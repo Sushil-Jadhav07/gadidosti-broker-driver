@@ -1,6 +1,7 @@
-﻿import { Phone, MapPin, Calendar, Shield, CreditCard, FileText, Truck } from "lucide-react";
+import { Phone, MapPin, Calendar, Shield, CreditCard, FileText, Truck } from "lucide-react";
 import Badge from "../../components/driver/Badge";
-import { driverData, vehicleData, kycDocuments } from "../../data/driverMockData";
+import { vehicleData, kycDocuments } from "../../data/driverMockData";
+import { useAuth } from "../../hooks/useAuth";
 
 const iconMap = {
   "credit-card": CreditCard,
@@ -11,27 +12,36 @@ const iconMap = {
 };
 
 export default function DriverProfile() {
+  const { user } = useAuth();
+
+  const name    = user?.name  || "Driver";
+  const phone   = user?.phone ? `+91 ${user.phone}` : "-";
+  const initials = name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
+  const joined  = user?.created_at
+    ? new Date(user.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+    : "N/A";
+
   return (
     <div className="space-y-5">
       {/* Driver card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-card p-6">
         <div className="flex items-center gap-4 mb-5">
           <div className="w-16 h-16 bg-secondary rounded-xl flex items-center justify-center text-white font-bold text-2xl flex-shrink-0">
-            {driverData.initials}
+            {initials}
           </div>
           <div>
-            <h2 className="text-[18px] font-bold text-slate-900">{driverData.name}</h2>
+            <h2 className="text-[18px] font-bold text-slate-900">{name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge status={driverData.kycStatus} />
-              <span className="text-xs text-slate-400">Since {driverData.joinDate}</span>
+              <Badge status="Verified" />
+              <span className="text-xs text-slate-400">Since {joined}</span>
             </div>
           </div>
         </div>
         <div className="space-y-0">
           {[
-            { icon: Phone,    label: "Phone",    value: driverData.phone },
-            { icon: MapPin,   label: "Location", value: driverData.location },
-            { icon: Calendar, label: "Member Since", value: driverData.joinDate },
+            { icon: Phone,    label: "Phone",    value: phone },
+            { icon: MapPin,   label: "Location", value: vehicleData.broker || "India" },
+            { icon: Calendar, label: "Member Since", value: joined },
           ].map(({ icon: Icon, label, value }) => (
             <div key={label} className="flex items-center gap-3 py-2.5 border-b border-slate-50 last:border-0">
               <Icon className="w-4 h-4 text-slate-400 flex-shrink-0" />
@@ -52,13 +62,13 @@ export default function DriverProfile() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Registration",   value: vehicleData.registration },
-            { label: "Type",           value: vehicleData.type },
-            { label: "Capacity",       value: vehicleData.capacity },
-            { label: "Broker",         value: vehicleData.broker },
-            { label: "Insurance Valid",value: vehicleData.insuranceValidTill },
-            { label: "Fitness Valid",  value: vehicleData.fitnessValidTill },
-            { label: "Permit Type",    value: vehicleData.permitType },
+            { label: "Registration",    value: vehicleData.registration },
+            { label: "Type",            value: vehicleData.type },
+            { label: "Capacity",        value: vehicleData.capacity },
+            { label: "Broker",          value: vehicleData.broker },
+            { label: "Insurance Valid", value: vehicleData.insuranceValidTill },
+            { label: "Fitness Valid",   value: vehicleData.fitnessValidTill },
+            { label: "Permit Type",     value: vehicleData.permitType },
           ].map(({ label, value }) => (
             <div key={label} className="bg-slate-50 rounded-lg p-3">
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p>

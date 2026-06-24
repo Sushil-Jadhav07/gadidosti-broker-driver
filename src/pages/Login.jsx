@@ -16,8 +16,8 @@ const FEATURES = [
 const STATS = ["500+ Brokers", "2,000+ Drivers", "Rs 50Cr+ Transactions"];
 
 const CREDS = {
-  broker: { phone: "9000000003", password: "Broker@123" },
-  driver: { phone: "9000000004", password: "Driver@123" },
+  broker: { phone: "9000000003", password: "Admin@123456" },
+  driver: { phone: "9000000004", password: "Admin@123456" },
 };
 
 export default function Login() {
@@ -44,16 +44,23 @@ export default function Login() {
     setPassword("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
-    const result = role === "broker" ? loginBroker(phone, password) : loginDriver(phone, password);
-    setTimeout(() => {
+    try {
+      if (role === "broker") {
+        await loginBroker(phone, password);
+        navigate("/broker");
+      } else {
+        await loginDriver(phone, password);
+        navigate("/driver");
+      }
+    } catch (err) {
+      setError(err.message || "Login failed. Please try again.");
+    } finally {
       setLoading(false);
-      if (result.success) navigate(role === "broker" ? "/broker" : "/driver");
-      else setError(result.error);
-    }, 800);
+    }
   };
 
   return (

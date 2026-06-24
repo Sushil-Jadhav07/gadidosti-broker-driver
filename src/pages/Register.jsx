@@ -1,43 +1,97 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import {
-  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, ArrowLeft, Building2, Phone, Lock, FileText,
+  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, Building2, Lock, FileText, AlertCircle, RefreshCw,
 } from "lucide-react";
 
 export default function Register() {
   const [role, setRole] = useState("broker");
+  const [step, setStep] = useState("form"); // "form" | "otp" | "done"
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
+  const [error, setError] = useState("");
+  const [devOtp, setDevOtp] = useState(""); // shown in dev for testing
+  const [otp, setOtp] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [registeredPhone, setRegisteredPhone] = useState("");
   const [form, setForm] = useState({
-    name: "", phone: "", email: "", password: "", confirm: "",
-    businessName: "", gst: "", vehicleReg: "",
+    name: "", phone: "", password: "", confirm: "",
+    businessName: "", vehicleReg: "",
   });
+
+  const { registerUser, sendOtp, verifyOtp } = useAuth();
   const navigate = useNavigate();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const passwordsMatch = form.password === form.confirm || form.confirm === "";
   const canSubmit = form.name && form.phone && form.password && form.confirm &&
-    form.password === form.confirm && (role === "broker" ? form.businessName : form.vehicleReg);
+    form.password === form.confirm &&
+    (role === "broker" ? form.businessName : form.vehicleReg);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!canSubmit) return;
+    setError("");
     setLoading(true);
-    setTimeout(() => { setLoading(false); setDone(true); setTimeout(() => navigate("/login"), 2500); }, 1200);
+    try {
+      await registerUser({
+        name: form.name,
+        phone: form.phone,
+        password: form.password,
+        role,
+        business_name: role === "broker" ? form.businessName : undefined,
+        vehicle_registration: role === "driver" ? form.vehicleReg : undefined,
+      });
+      // Send OTP to the registered phone
+      const otpResult = await sendOtp(form.phone);
+      setRegisteredPhone(form.phone);
+      if (otpResult?.dev_otp) setDevOtp(otpResult.dev_otp);
+      setStep("otp");
+    } catch (err) {
+      setError(err.message || "Registration failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (done) {
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp || otp.length !== 6) { setError("Please enter the 6-digit OTP."); return; }
+    setError("");
+    setOtpLoading(true);
+    try {
+      await verifyOtp(registeredPhone, otp);
+      setStep("done");
+      setTimeout(() => navigate("/login"), 2500);
+    } catch (err) {
+      setError(err.message || "Invalid OTP. Please try again.");
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setError("");
+    try {
+      const result = await sendOtp(registeredPhone);
+      if (result?.dev_otp) setDevOtp(result.dev_otp);
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP.");
+    }
+  };
+
+  if (step === "done") {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-modal p-10 text-center max-w-sm w-full animate-fade-up">
           <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle size={32} className="text-emerald-500" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 font-poppins">Account Created!</h2>
+          <h2 className="text-xl font-bold text-slate-900 font-poppins">Account Verified!</h2>
           <p className="text-slate-500 text-sm font-inter mt-2">
-            Your {role} account has been created.<br />Redirecting to login...
+            Your {role} account is ready.<br />Redirecting to login...
           </p>
           <div className="mt-5 flex justify-center">
             <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
@@ -47,10 +101,73 @@ export default function Register() {
     );
   }
 
+  if (step === "otp") {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-6">
+            <img src="/gadidost-logo.png" alt="GadiDost" className="h-10 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-slate-900 font-poppins">Verify Phone</h1>
+            <p className="text-slate-500 text-sm font-inter mt-1">
+              Enter the 6-digit code sent to<br />
+              <span className="font-semibold text-slate-700">+91 {registeredPhone}</span>
+            </p>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-modal p-6">
+            {devOtp && (
+              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-xs font-semibold text-amber-700 mb-1">Dev Mode — OTP</p>
+                <p className="text-lg font-mono font-bold text-amber-800 tracking-widest">{devOtp}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleVerifyOtp} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">OTP Code</label>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="Enter 6-digit OTP"
+                  className="input-field px-4 py-3 text-center text-xl font-mono tracking-[0.4em] w-full"
+                  inputMode="numeric"
+                  maxLength={6}
+                  required
+                  autoFocus
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-sm">
+                  <AlertCircle size={15} className="flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <button type="submit" disabled={otpLoading || otp.length !== 6}
+                className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2 rounded-xl disabled:opacity-50">
+                {otpLoading ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Verifying...</>
+                ) : (
+                  <>Verify &amp; Activate <ArrowRight size={15} /></>
+                )}
+              </button>
+            </form>
+
+            <button type="button" onClick={handleResendOtp}
+              className="mt-4 w-full text-sm text-slate-500 hover:text-primary flex items-center justify-center gap-1.5 transition-colors">
+              <RefreshCw size={13} /> Resend OTP
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-8">
       <div className="w-full max-w-lg">
-        {/* Header */}
         <div className="text-center mb-6">
           <img src="/gadidost-logo.png" alt="GadiDost" className="h-10 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-slate-900 font-poppins">Create your account</h1>
@@ -58,7 +175,6 @@ export default function Register() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-modal p-6 sm:p-8">
-          {/* Role cards */}
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">I am a...</p>
           <div className="grid grid-cols-2 gap-3 mb-6">
             {[
@@ -79,7 +195,6 @@ export default function Register() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Name + Phone */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">
@@ -96,29 +211,18 @@ export default function Register() {
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">+91</span>
                   <input type="tel" value={form.phone} onChange={set("phone")} inputMode="numeric"
-                    className="input-field pl-11 pr-3 py-2.5" placeholder="Mobile number" required />
+                    className="input-field pl-11 pr-3 py-2.5" placeholder="10-digit number" required />
                 </div>
               </div>
             </div>
 
-            {/* Role-specific fields */}
             {role === "broker" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Business Name</label>
-                  <div className="relative">
-                    <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" value={form.businessName} onChange={set("businessName")}
-                      className="input-field pl-9 pr-3 py-2.5" placeholder="Your business name" required />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">GST Number <span className="text-slate-300 font-normal">(optional)</span></label>
-                  <div className="relative">
-                    <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" value={form.gst} onChange={set("gst")}
-                      className="input-field pl-9 pr-3 py-2.5" placeholder="22ABCDE1234F1Z5" />
-                  </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Business Name</label>
+                <div className="relative">
+                  <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input type="text" value={form.businessName} onChange={set("businessName")}
+                    className="input-field pl-9 pr-3 py-2.5" placeholder="Your business name" required />
                 </div>
               </div>
             )}
@@ -133,7 +237,6 @@ export default function Register() {
               </div>
             )}
 
-            {/* Password + Confirm */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
@@ -163,12 +266,11 @@ export default function Register() {
               </div>
             </div>
 
-            {/* Password strength hint */}
             {form.password && (
               <div className="flex items-center gap-2">
                 {[...Array(4)].map((_, i) => (
                   <div key={i} className={`flex-1 h-1 rounded-full ${
-                    form.password.length >= [1,4,6,8][i]
+                    form.password.length >= [1, 4, 6, 8][i]
                       ? i < 2 ? "bg-red-400" : i === 2 ? "bg-amber-400" : "bg-emerald-500"
                       : "bg-slate-200"
                   }`} />
@@ -176,6 +278,13 @@ export default function Register() {
                 <span className="text-[10px] text-slate-400 whitespace-nowrap">
                   {form.password.length < 4 ? "Weak" : form.password.length < 6 ? "Fair" : form.password.length < 8 ? "Good" : "Strong"}
                 </span>
+              </div>
+            )}
+
+            {error && (
+              <div className="flex items-center gap-2 bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-sm">
+                <AlertCircle size={15} className="flex-shrink-0" />
+                {error}
               </div>
             )}
 
