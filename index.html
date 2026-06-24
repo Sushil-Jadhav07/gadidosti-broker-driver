@@ -1,0 +1,43 @@
+﻿<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GadiDost — Logistics Management</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      #splash {
+        position: fixed; inset: 0;
+        background: #041E42;
+        display: flex; align-items: center; justify-content: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease, visibility 0.5s ease;
+        flex-direction: column; gap: 24px;
+      }
+      #splash.fade-out { opacity: 0; visibility: hidden; }
+      #splash img { height: 48px; filter: brightness(0) invert(1); animation: pulse-logo 1.5s ease-in-out infinite; }
+      #splash-spinner {
+        width: 36px; height: 36px;
+        border: 3px solid rgba(255,255,255,0.12);
+        border-top-color: #1976FF;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+      }
+      #splash p { color: rgba(255,255,255,0.35); font-family: Inter, sans-serif; font-size: 13px; margin: 0; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      @keyframes pulse-logo { 0%,100%{opacity:1} 50%{opacity:0.6} }
+      body { margin: 0; background: #F1F5F9; }
+    </style>
+  </head>
+  <body>
+    <div id="splash">
+      <img src="/gadidost-logo.png" alt="GadiDost" />
+      <div id="splash-spinner"></div>
+      <p>Loading your dashboard...</p>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
