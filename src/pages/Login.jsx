@@ -1,10 +1,12 @@
-﻿import { useState } from "react";
+﻿import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Truck, User, Eye, EyeOff, AlertCircle,
+  Truck, User, Eye, EyeOff, AlertCircle, Mail,
   Zap, ShieldCheck, IndianRupee, BarChart3, ArrowRight, CheckCircle,
 } from "lucide-react";
+
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const FEATURES = [
   { icon: Truck, label: "Real-time Fleet Management", sub: "Track all your trucks live on one dashboard" },
@@ -16,23 +18,25 @@ const FEATURES = [
 const STATS = ["500+ Brokers", "2,000+ Drivers", "Rs 50Cr+ Transactions"];
 
 const CREDS = {
-  broker: { phone: "9000000003", password: "Admin@123456" },
-  driver: { phone: "9000000004", password: "Admin@123456" },
+  broker: { email: "broker@ssklogistics.in", password: "Admin@123456" },
+  driver: { email: "driver@ssklogistics.in", password: "Admin@123456" },
 };
 
 export default function Login() {
   const [role, setRole] = useState("broker");
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const googleBtnRef = useRef(null);
 
-  const { loginBroker, loginDriver } = useAuth();
+  const { loginBroker, loginDriver, googleLogin } = useAuth();
   const navigate = useNavigate();
 
   const autofill = () => {
-    setPhone(CREDS[role].phone);
+    setEmail(CREDS[role].email);
     setPassword(CREDS[role].password);
     setError("");
   };
@@ -40,9 +44,65 @@ export default function Login() {
   const handleRoleSwitch = (r) => {
     setRole(r);
     setError("");
-    setPhone("");
+    setEmail("");
     setPassword("");
   };
+
+  // Stable ref so GSI callback always has the latest role/state
+  const credentialHandlerRef = useRef(null);
+  credentialHandlerRef.current = async ({ credential }) => {
+    setError("");
+    setGoogleLoading(true);
+    try {
+      const { user, needs_phone } = await googleLogin(credential, role);
+      navigate(user.role === "broker" ? "/broker" : "/driver");
+      if (needs_phone) {
+        // Phone is optional for Google users — they can add it in profile settings
+        console.info("User signed in via Google without a phone number.");
+      }
+    } catch (err) {
+      setError(err.message || "Google Sign-In failed. Please try again.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const clientId = GOOGLE_CLIENT_ID;
+    if (!clientId || clientId.startsWith("your-") || !googleBtnRef.current) return;
+
+    const renderButton = () => {
+      if (!window.google?.accounts?.id || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: clientId,
+        callback: (res) => credentialHandlerRef.current?.(res),
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        width: googleBtnRef.current.clientWidth || 360,
+      });
+    };
+
+    if (window.google?.accounts?.id) { renderButton(); return; }
+
+    const existing = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
+    if (existing) {
+      existing.addEventListener("load", renderButton);
+      return () => existing.removeEventListener("load", renderButton);
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = renderButton;
+    document.head.appendChild(script);
+  }, []);
+
+  const showGoogleBtn = GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith("your-");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -50,10 +110,10 @@ export default function Login() {
     setLoading(true);
     try {
       if (role === "broker") {
-        await loginBroker(phone, password);
+        await loginBroker(email, password);
         navigate("/broker");
       } else {
-        await loginDriver(phone, password);
+        await loginDriver(email, password);
         navigate("/driver");
       }
     } catch (err) {
@@ -160,7 +220,7 @@ export default function Login() {
                     <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Demo Account — Click to Auto Fill</span>
                   </div>
                   <p className="text-xs text-blue-600 font-mono leading-relaxed">
-                    Phone: {CREDS[role].phone}<br />
+                    Email: {CREDS[role].email}<br />
                     Password: {CREDS[role].password}
                   </p>
                 </div>
@@ -174,17 +234,16 @@ export default function Login() {
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-inter select-none">+91</span>
+                  <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Enter mobile number"
-                    className="input-field pl-11 pr-3 py-2.5"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    className="input-field pl-9 pr-3 py-2.5"
                     required
-                    inputMode="numeric"
                   />
                 </div>
               </div>
@@ -226,6 +285,28 @@ export default function Login() {
                 )}
               </button>
             </form>
+
+            {showGoogleBtn && (
+              <>
+                <div className="relative mt-5">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-100" />
+                  </div>
+                  <div className="relative flex justify-center">
+                    <span className="bg-white px-3 text-xs text-slate-400 font-inter">or continue with</span>
+                  </div>
+                </div>
+
+                <div ref={googleBtnRef} className="mt-4 w-full flex justify-center" style={{ minHeight: 44 }} />
+
+                {googleLoading && (
+                  <p className="text-xs text-slate-400 text-center mt-2 font-inter flex items-center justify-center gap-1.5">
+                    <span className="w-3 h-3 border border-slate-300 border-t-primary rounded-full animate-spin" />
+                    Signing in with Google...
+                  </p>
+                )}
+              </>
+            )}
 
             <div className="mt-5 pt-5 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500 font-inter">

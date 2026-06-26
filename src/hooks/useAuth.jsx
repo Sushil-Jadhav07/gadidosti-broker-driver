@@ -37,20 +37,31 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
-  const loginBroker = useCallback(async (phone, password) => {
-    const data = await api.post("/api/auth/login", { phone, password });
+  const loginBroker = useCallback(async (email, password) => {
+    const data = await api.post("/api/auth/login", { email, password });
     if (!data.success) throw new Error(data.message || "Login failed");
     if (data.data.user.role !== "broker") throw new Error("Not a broker account");
     persistSession(data.data.user, data.data.tokens);
     return data.data.user;
   }, [persistSession]);
 
-  const loginDriver = useCallback(async (phone, password) => {
-    const data = await api.post("/api/auth/login", { phone, password });
+  const loginDriver = useCallback(async (email, password) => {
+    const data = await api.post("/api/auth/login", { email, password });
     if (!data.success) throw new Error(data.message || "Login failed");
     if (data.data.user.role !== "driver") throw new Error("Not a driver account");
     persistSession(data.data.user, data.data.tokens);
     return data.data.user;
+  }, [persistSession]);
+
+  const googleLogin = useCallback(async (idToken, role = "broker") => {
+    if (!["broker", "driver"].includes(role)) throw new Error("Invalid role for this portal");
+    const data = await api.post("/api/auth/google", { id_token: idToken, role });
+    if (!data.success) throw new Error(data.message || "Google Sign-In failed");
+    if (!["broker", "driver"].includes(data.data.user.role)) {
+      throw new Error("This Google account is registered under a different portal. Please use the correct portal.");
+    }
+    persistSession(data.data.user, data.data.tokens);
+    return { user: data.data.user, needs_phone: !!data.data.needs_phone };
   }, [persistSession]);
 
   // backward-compat alias
@@ -100,7 +111,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, registerUser, sendOtp, verifyOtp, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, sendOtp, verifyOtp, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );
