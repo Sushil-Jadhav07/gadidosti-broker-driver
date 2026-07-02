@@ -18,8 +18,8 @@ const FEATURES = [
 const STATS = ["500+ Brokers", "2,000+ Drivers", "Rs 50Cr+ Transactions"];
 
 const CREDS = {
-  broker: { email: "broker@ssklogistics.in", password: "Admin@123456" },
-  driver: { email: "driver@ssklogistics.in", password: "Admin@123456" },
+  broker: { email: "broker@gmail.com", password: "broker@123" },
+  driver: { email: "driver@gmail.com", password: "driver@123" },
 };
 
 export default function Login() {

@@ -30,7 +30,10 @@ export default function DriverKYC() {
     setLoading(true);
     try {
       const data = await api.get("/api/kyc/status", token);
-      if (data.success) setSubmission(data.data.submission);
+      if (data.success) {
+        setSubmission(data.data.submission);
+        if (data.data.kyc_status) updateUser({ kyc_status: data.data.kyc_status });
+      }
     } catch {}
     setLoading(false);
   }, [token]);

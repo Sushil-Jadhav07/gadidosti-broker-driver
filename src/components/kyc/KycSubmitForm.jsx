@@ -1,11 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { AlertCircle, FileText } from "lucide-react";
 
 export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, submitting, buttonLabel = "Submit for Review", onCancel, children }) {
   const [values, setValues] = useState({});
   const [error, setError] = useState("");
+  const hasSeededRef = useRef(false);
 
   useEffect(() => {
+    const hasData = fields.some(({ key }) => initialValues[key]);
+    // Skip if already seeded and initialValues has no real data (avoids resetting on parent re-renders)
+    if (hasSeededRef.current && !hasData) return;
+    hasSeededRef.current = true;
     const seeded = {};
     fields.forEach(({ key }) => { seeded[key] = initialValues[key] || ""; });
     setValues(seeded);
