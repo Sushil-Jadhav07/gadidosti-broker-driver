@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { FileText, Fingerprint, Building2, CreditCard, FileCheck, UploadCloud, Info, Edit2 } from "lucide-react";
+import { CreditCard, Fingerprint, Truck, ShieldCheck, UploadCloud, Info, Edit2 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../services/api";
 import KycStatusCard from "../../components/kyc/KycStatusCard";
@@ -7,21 +7,20 @@ import KycSubmitForm from "../../components/kyc/KycSubmitForm";
 import KycDocumentUpload from "../../components/kyc/KycDocumentUpload";
 
 const FIELDS = [
-  { key: "pan_number", label: "PAN Number", placeholder: "ABCDE1234F", icon: FileText },
+  { key: "license_number", label: "Driving License Number", placeholder: "MH-2020123456789", icon: CreditCard },
   { key: "aadhaar_number", label: "Aadhaar Number", placeholder: "XXXX-XXXX-1234", icon: Fingerprint },
-  { key: "gst_number", label: "GST Number", placeholder: "27ABCDE1234F1Z5", icon: Building2 },
-  { key: "bank_account_number", label: "Bank Account Number", placeholder: "1234567890123", icon: CreditCard },
-  { key: "business_registration_number", label: "Business Registration Number", placeholder: "U12345MH2020PTC123456", icon: FileCheck },
+  { key: "vehicle_registration_number", label: "Vehicle Registration Number", placeholder: "MH-12-CD-5678", icon: Truck },
+  { key: "vehicle_insurance_number", label: "Vehicle Insurance Number", placeholder: "INS-2024-567890", icon: ShieldCheck },
 ];
 
-export default function KYCStatus() {
+export default function DriverKYC() {
   const { user, updateUser } = useAuth();
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [docFiles, setDocFiles] = useState({ pan_number: null, aadhaar_number: null });
+  const [docFiles, setDocFiles] = useState({ license_number: null, aadhaar_number: null });
 
   const token = user?.tokens?.access_token;
   const kycStatus = user?.kyc_status || "pending";
@@ -42,7 +41,7 @@ export default function KYCStatus() {
     setSubmitting(true);
     try {
       // Attached files are not sent — document file storage isn't configured yet.
-      const result = await api.post("/api/kyc/broker", { documents }, token);
+      const result = await api.post("/api/kyc/driver", { documents }, token);
       if (!result.success) throw new Error(result.message || "Submission failed");
       setSubmission(result.data.submission);
       updateUser({ kyc_status: "submitted" });
@@ -87,11 +86,11 @@ export default function KYCStatus() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <KycDocumentUpload
-                label="PAN Card"
-                icon={FileText}
-                file={docFiles.pan_number}
-                onChange={(file) => setDocFiles((f) => ({ ...f, pan_number: file }))}
-                onRemove={() => setDocFiles((f) => ({ ...f, pan_number: null }))}
+                label="Driving License"
+                icon={CreditCard}
+                file={docFiles.license_number}
+                onChange={(file) => setDocFiles((f) => ({ ...f, license_number: file }))}
+                onRemove={() => setDocFiles((f) => ({ ...f, license_number: null }))}
               />
               <KycDocumentUpload
                 label="Aadhaar Card"

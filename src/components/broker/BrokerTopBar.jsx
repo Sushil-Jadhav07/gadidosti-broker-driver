@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Menu, User, LogOut, ChevronDown } from "lucide-react";
+import { Menu, User, LogOut, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import NotificationBell from "../NotificationBell";
 
 const PAGE = {
   "/broker":       { title: null,               sub: null },
@@ -72,10 +73,7 @@ export default function BrokerTopBar({ currentPath, onMenuClick }) {
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        <button className="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all">
-          <Bell size={18} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white" />
-        </button>
+        <NotificationBell />
 
         <div className="w-px h-6 bg-slate-100 mx-1 hidden sm:block" />
 

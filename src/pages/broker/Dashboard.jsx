@@ -1,21 +1,45 @@
-﻿import { Truck, Users, Inbox, ClipboardList } from "lucide-react";
+﻿import { useNavigate } from "react-router-dom";
+import { Truck, Users, Inbox, ClipboardList, ShieldAlert, ArrowRight } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from "recharts";
 import StatCard from "../../components/broker/StatCard";
 import Badge from "../../components/broker/Badge";
+import { useAuth } from "../../hooks/useAuth";
 import {
   trucks, drivers, jobRequests, activeJobs, dailyEarnings, fleetStatus,
 } from "../../data/brokerMockData";
 
+const KYC_BANNER = {
+  pending: { text: "Complete your KYC to start accepting job requests.", cta: "Complete KYC" },
+  submitted: { text: "Your KYC documents are under review. We'll notify you once verified.", cta: "View Status" },
+  rejected: { text: "Your KYC submission was rejected. Please review and resubmit.", cta: "Resubmit KYC" },
+};
+
 export default function Dashboard() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const kycBanner = KYC_BANNER[user?.kyc_status || "pending"];
   const availableTrucks = trucks.filter((t) => t.status === "Available").length;
   const onTripTrucks = trucks.filter((t) => t.status === "On Trip").length;
   const activeDrivers = drivers.filter((d) => d.status === "Active").length;
 
   return (
     <div className="space-y-6">
+      {kycBanner && (
+        <button
+          onClick={() => navigate("/kyc")}
+          className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left hover:bg-amber-100 transition-colors"
+        >
+          <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <p className="flex-1 text-sm font-medium text-amber-800">{kycBanner.text}</p>
+          <span className="flex items-center gap-1 text-xs font-bold text-amber-700 whitespace-nowrap">
+            {kycBanner.cta} <ArrowRight size={13} />
+          </span>
+        </button>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard icon={Truck} iconBg="#EBF3FF" iconColor="#1976FF" label="Total Fleet" value={trucks.length} subtext={`${availableTrucks} available`} trend={8} />
         <StatCard icon={Users} iconBg="#F0FDF4" iconColor="#17D86B" label="Active Drivers" value={activeDrivers} subtext={`Out of ${drivers.length} total`} trend={0} />

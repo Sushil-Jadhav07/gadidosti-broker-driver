@@ -67,8 +67,8 @@ export function AuthProvider({ children }) {
   // backward-compat alias
   const login = loginBroker;
 
-  const registerUser = useCallback(async ({ name, phone, password, role, business_name, vehicle_registration }) => {
-    const payload = { name, phone, password, role };
+  const registerUser = useCallback(async ({ name, email, phone, password, role, business_name, vehicle_registration }) => {
+    const payload = { name, email, phone, password, role };
     if (business_name) payload.business_name = business_name;
     if (vehicle_registration) payload.vehicle_registration = vehicle_registration;
     const data = await api.post("/api/auth/register", payload);
@@ -97,6 +97,13 @@ export function AuthProvider({ children }) {
     clearSession(user?.role);
   }, [user, clearSession]);
 
+  // Merge partial fields (e.g. kyc_status, profile edits) into the cached session without a fresh login
+  const updateUser = useCallback((partial) => {
+    if (!user) return;
+    const { tokens, ...prevData } = user;
+    persistSession({ ...prevData, ...partial }, tokens);
+  }, [user, persistSession]);
+
   const refreshTokens = useCallback(async () => {
     if (!user?.tokens?.refresh_token) return false;
     try {
@@ -111,7 +118,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, sendOtp, verifyOtp, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, updateUser, sendOtp, verifyOtp, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );

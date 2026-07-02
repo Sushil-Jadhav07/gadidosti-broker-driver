@@ -1,10 +1,35 @@
-﻿import { MapPin, Navigation, Package, Truck, Clock, IndianRupee, TrendingUp } from "lucide-react";
+﻿import { useNavigate } from "react-router-dom";
+import { MapPin, Navigation, Package, Truck, Clock, IndianRupee, TrendingUp, ShieldAlert, ArrowRight } from "lucide-react";
 import Badge from "../../components/driver/Badge";
+import { useAuth } from "../../hooks/useAuth";
 import { driverData, vehicleData, activeTrip, upcomingAssignment, todaySummary } from "../../data/driverMockData";
 
+const KYC_BANNER = {
+  pending: { text: "Complete your KYC to start accepting trips.", cta: "Complete KYC" },
+  submitted: { text: "Your KYC documents are under review. We'll notify you once verified.", cta: "View Status" },
+  rejected: { text: "Your KYC submission was rejected. Please review and resubmit.", cta: "Resubmit KYC" },
+};
+
 export default function Home() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const kycBanner = KYC_BANNER[user?.kyc_status || "pending"];
+
   return (
     <div className="space-y-6">
+      {kycBanner && (
+        <button
+          onClick={() => navigate("/driver/kyc")}
+          className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left hover:bg-amber-100 transition-colors"
+        >
+          <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
+          <p className="flex-1 text-sm font-medium text-amber-800">{kycBanner.text}</p>
+          <span className="flex items-center gap-1 text-xs font-bold text-amber-700 whitespace-nowrap">
+            {kycBanner.cta} <ArrowRight size={13} />
+          </span>
+        </button>
+      )}
+
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Trips Today",      value: todaySummary.tripsToday,                              icon: Navigation,   color: "text-primary",    bg: "bg-primary/10" },

@@ -25,6 +25,8 @@ import BottomNav        from "./components/driver/BottomNav";
 import DriverHome       from "./pages/driver/Home";
 import MyTrip           from "./pages/driver/MyTrip";
 import TripHistory      from "./pages/driver/TripHistory";
+import DriverKYC        from "./pages/driver/KYC";
+import DriverEarnings   from "./pages/driver/Earnings";
 import DriverProfile    from "./pages/driver/Profile";
 
 // Shared
@@ -142,6 +144,8 @@ export default function App() {
               <Route path="/driver"          element={<DriverHome />} />
               <Route path="/driver/my-trip"  element={<MyTrip />} />
               <Route path="/driver/history"  element={<TripHistory />} />
+              <Route path="/driver/kyc"      element={<DriverKYC />} />
+              <Route path="/driver/earnings" element={<DriverEarnings />} />
               <Route path="/driver/profile"  element={<DriverProfile />} />
             </Route>
 

@@ -1,7 +1,9 @@
-import { Phone, MapPin, Calendar, Shield, CreditCard, FileText, Truck } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Phone, MapPin, Calendar, Shield, CreditCard, FileText, Truck, Edit2, Save, X, Lock, Eye, EyeOff, Mail } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import { vehicleData, kycDocuments } from "../../data/driverMockData";
 import { useAuth } from "../../hooks/useAuth";
+import { api } from "../../services/api";
 
 const iconMap = {
   "credit-card": CreditCard,
@@ -20,6 +22,87 @@ export default function DriverProfile() {
   const joined  = user?.created_at
     ? new Date(user.created_at).toLocaleDateString("en-IN", { month: "short", year: "numeric" })
     : "N/A";
+
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState(null); // { text, type }
+  const [form, setForm] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    address: user?.address || "",
+  });
+
+  const [showPwSection, setShowPwSection] = useState(false);
+  const [passwords, setPasswords] = useState({ current: "", next: "", confirm: "" });
+  const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false });
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwMsg, setPwMsg] = useState(null);
+
+  const getToken = useCallback(() => user?.tokens?.access_token, [user]);
+
+  const handleSave = async () => {
+    setSaveMsg(null);
+    setSaving(true);
+    const token = getToken();
+    try {
+      if (token) {
+        const result = await api.patch("/api/users/profile", {
+          name: form.name,
+          email: form.email,
+          address: form.address,
+        }, token);
+        if (!result.success) {
+          setSaveMsg({ text: result.message || "Failed to save profile", type: "error" });
+          setSaving(false);
+          return;
+        }
+      }
+    } catch {
+      setSaveMsg({ text: "Network error. Please try again.", type: "error" });
+      setSaving(false);
+      return;
+    }
+    setSaving(false);
+    setEditing(false);
+    setSaveMsg({ text: "Profile updated successfully.", type: "success" });
+  };
+
+  const handleCancel = () => {
+    setForm({ name: user?.name || "", email: user?.email || "", address: user?.address || "" });
+    setEditing(false);
+    setSaveMsg(null);
+  };
+
+  const handlePasswordChange = async () => {
+    if (!passwords.current || !passwords.next || !passwords.confirm) {
+      return setPwMsg({ text: "Please fill all password fields", type: "error" });
+    }
+    if (passwords.next !== passwords.confirm) {
+      return setPwMsg({ text: "New passwords do not match", type: "error" });
+    }
+    if (passwords.next.length < 6) {
+      return setPwMsg({ text: "Password must be at least 6 characters", type: "error" });
+    }
+    const token = getToken();
+    if (!token) return;
+    setPwSaving(true);
+    try {
+      const result = await api.patch("/api/users/change-password", {
+        current_password: passwords.current,
+        new_password: passwords.next,
+      }, token);
+      if (result.success) {
+        setPasswords({ current: "", next: "", confirm: "" });
+        setPwMsg({ text: "Password updated successfully", type: "success" });
+      } else {
+        setPwMsg({ text: result.message || "Failed to change password", type: "error" });
+      }
+    } catch {
+      setPwMsg({ text: "Network error. Please try again.", type: "error" });
+    } finally {
+      setPwSaving(false);
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -52,6 +135,110 @@ export default function DriverProfile() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Account Details */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[13px] font-bold text-slate-700">Account Details</h3>
+          {!editing ? (
+            <button onClick={() => setEditing(true)} className="btn-ghost px-3 py-1.5 text-xs flex items-center gap-1.5 border border-slate-200">
+              <Edit2 size={12} /> Edit
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={handleCancel} className="btn-ghost px-3 py-1.5 text-xs border border-slate-200 flex items-center gap-1"><X size={12} /> Cancel</button>
+              <button onClick={handleSave} disabled={saving} className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1">
+                {saving ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><Save size={12} /> Save</>}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {saveMsg && (
+          <p className={`text-sm mb-3 ${saveMsg.type === "success" ? "text-emerald-600" : "text-red-500"}`}>{saveMsg.text}</p>
+        )}
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Full Name</label>
+            {editing ? (
+              <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} className="input-field px-3 py-2 text-sm" />
+            ) : (
+              <p className="text-sm font-medium text-slate-800 py-2">{form.name || "-"}</p>
+            )}
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Email</label>
+            {editing ? (
+              <div className="relative">
+                <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="input-field pl-9 pr-3 py-2 text-sm" />
+              </div>
+            ) : (
+              <p className="text-sm font-medium text-slate-800 py-2">{form.email || "-"}</p>
+            )}
+          </div>
+          <div className="sm:col-span-2">
+            <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Address</label>
+            {editing ? (
+              <input type="text" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Street, city, state, pincode" className="input-field px-3 py-2 text-sm" />
+            ) : (
+              <p className="text-sm font-medium text-slate-800 py-2">{form.address || "-"}</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[13px] font-bold text-slate-700">Change Password</h3>
+          <button
+            onClick={() => { setShowPwSection((v) => !v); setPwMsg(null); }}
+            className="text-xs text-primary hover:underline"
+          >
+            {showPwSection ? "Cancel" : "Change"}
+          </button>
+        </div>
+
+        {showPwSection && (
+          <div className="space-y-3">
+            {[
+              { key: "current", label: "Current Password", placeholder: "Enter current password" },
+              { key: "next", label: "New Password", placeholder: "Min 6 characters" },
+              { key: "confirm", label: "Confirm New Password", placeholder: "Repeat new password" },
+            ].map(({ key, label, placeholder }) => (
+              <div key={key} className="max-w-sm">
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-1.5">{label}</label>
+                <div className="relative">
+                  <Lock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type={showPw[key] ? "text" : "password"}
+                    value={passwords[key]}
+                    onChange={(e) => setPasswords((p) => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="input-field pl-9 pr-10 py-2.5 text-sm"
+                  />
+                  <button type="button" onClick={() => setShowPw((p) => ({ ...p, [key]: !p[key] }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {showPw[key] ? <EyeOff size={14} /> : <Eye size={14} />}
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            {pwMsg && (
+              <p className={`text-sm ${pwMsg.type === "success" ? "text-emerald-600" : "text-red-500"}`}>
+                {pwMsg.text}
+              </p>
+            )}
+
+            <button onClick={handlePasswordChange} disabled={pwSaving} className="btn-primary px-4 py-2 text-sm flex items-center gap-1.5 mt-1">
+              {pwSaving ? <><div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />Saving...</> : <><Shield size={14} /> Update Password</>}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Vehicle */}

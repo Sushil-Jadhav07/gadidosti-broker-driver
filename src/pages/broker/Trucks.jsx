@@ -99,7 +99,13 @@ export default function Trucks() {
           ].map(({ label, key, placeholder, type }) => (
             <div key={key}>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
-              <input type={type || "text"} value={form[key]} onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))} placeholder={placeholder} className="input-field px-3 py-2" />
+              <input
+                type={type || "text"}
+                value={form[key]}
+                onChange={(e) => setForm((f) => ({ ...f, [key]: key === "registration" ? e.target.value.toUpperCase() : e.target.value }))}
+                placeholder={placeholder}
+                className="input-field px-3 py-2"
+              />
             </div>
           ))}
           <div>

@@ -2,15 +2,26 @@
 import { MapPin, Clock, Phone, CheckCircle, XCircle } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import KycGate from "../../components/kyc/KycGate";
+import { useAuth } from "../../hooks/useAuth";
 import { jobRequests as initialRequests } from "../../data/brokerMockData";
 
 export default function JobRequests() {
+  const { user } = useAuth();
   const [requests, setRequests] = useState(initialRequests);
   const [accepted, setAccepted] = useState(0);
   const [confirmAction, setConfirmAction] = useState(null);
 
   const handleAccept = (id) => { setAccepted((n) => n + 1); setRequests((prev) => prev.filter((r) => r.id !== id)); setConfirmAction(null); };
   const handleReject = (id) => { setRequests((prev) => prev.filter((r) => r.id !== id)); setConfirmAction(null); };
+
+  if (user?.kyc_status !== "verified") {
+    return (
+      <div className="pt-6">
+        <KycGate status={user?.kyc_status || "pending"} kycPath="/kyc" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

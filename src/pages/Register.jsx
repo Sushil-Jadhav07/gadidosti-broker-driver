@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, Building2, Lock, FileText, AlertCircle, RefreshCw,
+  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, Building2, Lock, FileText, AlertCircle, RefreshCw, Mail,
 } from "lucide-react";
 
 export default function Register() {
@@ -17,7 +17,7 @@ export default function Register() {
   const [otpLoading, setOtpLoading] = useState(false);
   const [registeredPhone, setRegisteredPhone] = useState("");
   const [form, setForm] = useState({
-    name: "", phone: "", password: "", confirm: "",
+    name: "", email: "", phone: "", password: "", confirm: "",
     businessName: "", vehicleReg: "",
   });
 
@@ -26,7 +26,7 @@ export default function Register() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   const passwordsMatch = form.password === form.confirm || form.confirm === "";
-  const canSubmit = form.name && form.phone && form.password && form.confirm &&
+  const canSubmit = form.name && form.email && form.phone && form.password && form.confirm &&
     form.password === form.confirm &&
     (role === "broker" ? form.businessName : form.vehicleReg);
 
@@ -38,6 +38,7 @@ export default function Register() {
     try {
       await registerUser({
         name: form.name,
+        email: form.email,
         phone: form.phone,
         password: form.password,
         role,
@@ -216,6 +217,15 @@ export default function Register() {
               </div>
             </div>
 
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
+              <div className="relative">
+                <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input type="email" value={form.email} onChange={set("email")}
+                  className="input-field pl-9 pr-3 py-2.5" placeholder="you@example.com" required />
+              </div>
+            </div>
+
             {role === "broker" && (
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Business Name</label>
@@ -231,7 +241,8 @@ export default function Register() {
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Vehicle Registration Number</label>
                 <div className="relative">
                   <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={form.vehicleReg} onChange={set("vehicleReg")}
+                  <input type="text" value={form.vehicleReg}
+                    onChange={(e) => setForm((f) => ({ ...f, vehicleReg: e.target.value.toUpperCase() }))}
                     className="input-field pl-9 pr-3 py-2.5 font-mono" placeholder="MH-12-AB-1234" required />
                 </div>
               </div>

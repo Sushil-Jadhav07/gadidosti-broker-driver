@@ -49,7 +49,12 @@ export default function Profile() {
     const token = getToken();
     try {
       if (token) {
-        const result = await api.put("/api/user/profile", { name: form.name, email: form.email }, token);
+        const result = await api.patch("/api/users/profile", {
+          name: form.name,
+          email: form.email,
+          address: form.address,
+          company_name: form.businessName,
+        }, token);
         if (!result.success) {
           setSaveError(result.message || "Failed to save profile");
           setSaving(false);
@@ -93,7 +98,7 @@ export default function Profile() {
     if (!token) return;
     setPwSaving(true);
     try {
-      const result = await api.put("/api/user/change-password", {
+      const result = await api.patch("/api/users/change-password", {
         current_password: passwords.current,
         new_password: passwords.next,
       }, token);

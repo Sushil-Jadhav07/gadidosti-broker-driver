@@ -3,10 +3,21 @@ import { MapPin, Package, Phone, Clock, IndianRupee, Navigation } from "lucide-r
 import Badge from "../../components/driver/Badge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
+import KycGate from "../../components/kyc/KycGate";
+import { useAuth } from "../../hooks/useAuth";
 import { activeTrip, statusSteps } from "../../data/driverMockData";
 
 export default function MyTrip() {
+  const { user } = useAuth();
   const [status, setStatus] = useState(activeTrip.status);
+
+  if (user?.kyc_status !== "verified") {
+    return (
+      <div className="pt-6">
+        <KycGate status={user?.kyc_status || "pending"} kycPath="/driver/kyc" />
+      </div>
+    );
+  }
 
   const completedTimes = {
     Requested:         "Dec 12, 8:00 AM",
