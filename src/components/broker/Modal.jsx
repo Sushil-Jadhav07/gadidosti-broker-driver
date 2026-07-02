@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 const SIZE = {
@@ -24,15 +25,15 @@ export default function Modal({ isOpen, onClose, title, children, size = "md" })
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
       ref={backdropRef}
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(2,6,23,0.45)", backdropFilter: "blur(6px)" }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: "rgba(2,6,23,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
     >
       <div
-        className={`bg-white rounded-2xl shadow-modal w-full ${SIZE[size]} max-h-[90vh] flex flex-col animate-fade-up`}
+        className={`bg-white rounded-2xl shadow-modal w-full ${SIZE[size]} max-h-[90vh] flex flex-col`}
         style={{ border: "1px solid rgba(0,0,0,0.06)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -54,6 +55,7 @@ export default function Modal({ isOpen, onClose, title, children, size = "md" })
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

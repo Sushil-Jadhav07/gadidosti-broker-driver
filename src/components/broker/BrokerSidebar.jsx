@@ -9,7 +9,7 @@ import {
 
 const NAV = [
   { label: "MAIN", items: [{ label: "Dashboard", icon: LayoutDashboard, path: "/broker" }] },
-  { label: "FLEET", items: [{ label: "My Fleet", icon: Truck, path: "/trucks" }, { label: "Drivers", icon: Users, path: "/drivers" }] },
+  { label: "FLEET", items: [{ label: "My Trucks", icon: Truck, path: "/trucks" }, { label: "Drivers", icon: Users, path: "/drivers" }] },
   {
     label: "JOBS", items: [
       { label: "Job Requests", icon: Inbox, path: "/job-requests", badge: 3 },

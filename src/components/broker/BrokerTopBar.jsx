@@ -6,7 +6,7 @@ import NotificationBell from "../NotificationBell";
 
 const PAGE = {
   "/broker":       { title: null,               sub: null },
-  "/trucks":       { title: "My Fleet",          sub: "Manage and monitor your trucks" },
+  "/trucks":       { title: "My Trucks",          sub: "Manage and monitor your trucks" },
   "/drivers":      { title: "My Drivers",        sub: "Driver roster and KYC management" },
   "/job-requests": { title: "Incoming Requests", sub: "New booking requests from clients" },
   "/active-jobs":  { title: "Active Jobs",       sub: "Jobs currently in progress" },

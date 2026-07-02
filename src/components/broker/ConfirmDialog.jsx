@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { AlertTriangle } from "lucide-react";
 
 export default function ConfirmDialog({
@@ -8,10 +9,10 @@ export default function ConfirmDialog({
 }) {
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center p-4 animate-fade-in"
-      style={{ background: "rgba(2,6,23,0.45)", backdropFilter: "blur(6px)" }}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
+      style={{ background: "rgba(2,6,23,0.55)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)" }}
       onClick={onClose}
     >
       <div
@@ -49,6 +50,7 @@ export default function ConfirmDialog({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

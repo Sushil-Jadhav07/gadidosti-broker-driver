@@ -1,12 +1,49 @@
 ﻿import { useState } from "react";
-import { Plus, Edit2, Trash2, Truck } from "lucide-react";
+import { Plus, Edit2, Trash2, Truck, Check } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { trucks as initialTrucks, getDriverById } from "../../data/brokerMockData";
 
 const STATUS_VARIANT = { Available: "success", "On Trip": "primary", Maintenance: "warning" };
-const EMPTY_FORM = { registration: "", type: "Medium", capacity: "", make: "", year: "", insuranceExpiry: "" };
+const EMPTY_FORM = { registration: "", type: "Mini Truck", capacity: "", make: "", year: "", insuranceExpiry: "" };
+
+const TRUCK_TYPES = [
+  { value: "Mini Truck",   capacity: "Up to 1 Ton",  examples: "Tata Ace · Mahindra Jeeto",  color: "bg-violet-100 text-violet-600",  size: 18 },
+  { value: "Small Truck",  capacity: "1 – 3 Ton",    examples: "Tata 407 · Eicher 10.90",    color: "bg-blue-100 text-blue-600",      size: 22 },
+  { value: "Medium Truck", capacity: "3 – 7 Ton",    examples: "Tata 709 · Eicher Pro 1095", color: "bg-cyan-100 text-cyan-600",      size: 26 },
+  { value: "Large Truck",  capacity: "7 – 15 Ton",   examples: "Tata 1109 · Ashok Leyland",  color: "bg-emerald-100 text-emerald-600",size: 30 },
+  { value: "Heavy Truck",  capacity: "15 – 25 Ton",  examples: "Tata Prima · Volvo FH",      color: "bg-orange-100 text-orange-600",  size: 34 },
+  { value: "Trailer",      capacity: "25 Ton+",       examples: "Multi-axle · Container",     color: "bg-red-100 text-red-600",        size: 38 },
+];
+
+function TruckTypeCard({ t, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative flex flex-col items-center gap-1.5 py-4 px-2 rounded-2xl border-2 text-center transition-all duration-150 ${
+        selected
+          ? "border-primary bg-primary shadow-md shadow-primary/20 scale-[1.02]"
+          : "border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50"
+      }`}
+    >
+      {selected && (
+        <span className="absolute top-2 right-2 w-4 h-4 bg-white rounded-full flex items-center justify-center">
+          <Check size={10} className="text-primary" strokeWidth={3} />
+        </span>
+      )}
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${selected ? "bg-white/20" : t.color}`}>
+        <Truck size={t.size} className={selected ? "text-white" : ""} />
+      </div>
+      <p className={`text-[11px] font-bold leading-tight ${selected ? "text-white" : "text-slate-800"}`}>{t.value}</p>
+      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${selected ? "bg-white/20 text-white" : "bg-slate-100 text-slate-500"}`}>
+        {t.capacity}
+      </span>
+      <p className={`text-[9px] leading-tight ${selected ? "text-white/70" : "text-slate-400"}`}>{t.examples}</p>
+    </button>
+  );
+}
 
 export default function Trucks() {
   const [truckList, setTruckList] = useState(initialTrucks);
@@ -88,33 +125,52 @@ export default function Trucks() {
         </div>
       </div>
 
-      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editTruck ? "Edit Truck" : "Add New Truck"}>
-        <div className="space-y-4">
-          {[
-            { label: "Registration Number", key: "registration", placeholder: "MH-12-AB-1234" },
-            { label: "Make / Model", key: "make", placeholder: "Tata 407" },
-            { label: "Capacity", key: "capacity", placeholder: "5 Tons" },
-            { label: "Year", key: "year", placeholder: "2022" },
-            { label: "Insurance Expiry", key: "insuranceExpiry", type: "date" },
-          ].map(({ label, key, placeholder, type }) => (
-            <div key={key}>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
-              <input
-                type={type || "text"}
-                value={form[key]}
-                onChange={(e) => setForm((f) => ({ ...f, [key]: key === "registration" ? e.target.value.toUpperCase() : e.target.value }))}
-                placeholder={placeholder}
-                className="input-field px-3 py-2"
-              />
-            </div>
-          ))}
+      <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editTruck ? "Edit Truck" : "Add New Truck"} size="lg">
+        <div className="space-y-5">
+
+          {/* Truck Type — pick first like Uber/Ola */}
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Type</label>
-            <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))} className="input-field px-3 py-2">
-              {["Small", "Medium", "Large"].map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Select Truck Type</label>
+            <div className="grid grid-cols-3 gap-2.5">
+              {TRUCK_TYPES.map((t) => (
+                <TruckTypeCard
+                  key={t.value}
+                  t={t}
+                  selected={form.type === t.value}
+                  onClick={() => setForm((f) => ({ ...f, type: t.value }))}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex gap-3 pt-2">
+
+          <div className="border-t border-slate-100" />
+
+          {/* Details */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Truck Details</label>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Registration Number", key: "registration", placeholder: "MH-12-AB-1234", col: 2 },
+                { label: "Make / Model",         key: "make",         placeholder: "Tata 407" },
+                { label: "Capacity",             key: "capacity",     placeholder: "5 Tons" },
+                { label: "Year",                 key: "year",         placeholder: "2022" },
+                { label: "Insurance Expiry",     key: "insuranceExpiry", type: "date" },
+              ].map(({ label, key, placeholder, type, col }) => (
+                <div key={key} className={col === 2 ? "col-span-2" : ""}>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
+                  <input
+                    type={type || "text"}
+                    value={form[key]}
+                    onChange={(e) => setForm((f) => ({ ...f, [key]: key === "registration" ? e.target.value.toUpperCase() : e.target.value }))}
+                    placeholder={placeholder}
+                    className="input-field px-3 py-2 w-full"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex gap-3 pt-1">
             <button onClick={() => setShowModal(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
             <button onClick={handleSave} className="flex-1 btn-primary px-4 py-2.5 text-sm">{editTruck ? "Save Changes" : "Add Truck"}</button>
           </div>
