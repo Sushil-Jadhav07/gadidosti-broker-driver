@@ -1,6 +1,7 @@
 ﻿import { useState } from "react";
 import { ChevronDown, ChevronUp, MapPin, Package, Phone } from "lucide-react";
 import Badge from "./Badge";
+import { bookingRef } from "../../utils";
 
 export default function TripCard({ trip }) {
   const [expanded, setExpanded] = useState(false);
@@ -18,7 +19,7 @@ export default function TripCard({ trip }) {
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-semibold text-slate-400">{trip.id || "Unknown"}</span>
+              <span className="text-xs font-semibold text-slate-400">{bookingRef(trip)}</span>
               <Badge status={trip.status || "Unknown"} />
             </div>
             <h3 className="text-[14px] font-semibold text-slate-900 truncate">{trip.route || "Route not available"}</h3>

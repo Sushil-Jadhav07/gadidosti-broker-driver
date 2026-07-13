@@ -13,6 +13,7 @@ import JobRequests    from "./pages/broker/JobRequests";
 import ActiveJobs     from "./pages/broker/ActiveJobs";
 import JobHistory     from "./pages/broker/JobHistory";
 import Earnings       from "./pages/broker/Earnings";
+import BrokerEarningsHistory from "./pages/broker/EarningsHistory";
 import Settlements    from "./pages/broker/Settlements";
 import KYCStatus      from "./pages/broker/KYCStatus";
 import BrokerProfile  from "./pages/broker/Profile";
@@ -27,6 +28,7 @@ import MyTrip           from "./pages/driver/MyTrip";
 import TripHistory      from "./pages/driver/TripHistory";
 import DriverKYC        from "./pages/driver/KYC";
 import DriverEarnings   from "./pages/driver/Earnings";
+import EarningsHistory  from "./pages/driver/EarningsHistory";
 import DriverProfile    from "./pages/driver/Profile";
 
 // Shared
@@ -134,6 +136,7 @@ export default function App() {
             <Route path="/active-jobs"  element={<PrivateRoute role="broker"><BrokerAppLayout><ActiveJobs /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/job-history"  element={<PrivateRoute role="broker"><BrokerAppLayout><JobHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/earnings/history" element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerEarningsHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settlements"  element={<PrivateRoute role="broker"><BrokerAppLayout><Settlements /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/profile"      element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerProfile /></BrokerAppLayout></PrivateRoute>} />
@@ -145,8 +148,9 @@ export default function App() {
               <Route path="/driver/my-trip"  element={<MyTrip />} />
               <Route path="/driver/history"  element={<TripHistory />} />
               <Route path="/driver/kyc"      element={<DriverKYC />} />
-              <Route path="/driver/earnings" element={<DriverEarnings />} />
-              <Route path="/driver/profile"  element={<DriverProfile />} />
+              <Route path="/driver/earnings"         element={<DriverEarnings />} />
+              <Route path="/driver/earnings/history" element={<EarningsHistory />} />
+              <Route path="/driver/profile"          element={<DriverProfile />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

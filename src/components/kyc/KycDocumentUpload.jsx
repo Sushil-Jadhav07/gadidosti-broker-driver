@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { UploadCloud, X, CheckCircle2 } from "lucide-react";
+import { UploadCloud, X, CheckCircle2, Loader2, ExternalLink, RefreshCw } from "lucide-react";
 
 function formatSize(bytes) {
   if (bytes < 1024) return `${bytes} B`;
@@ -7,7 +7,7 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function KycDocumentUpload({ label, hint, icon: Icon, file, onChange, onRemove }) {
+export default function KycDocumentUpload({ label, hint, icon: Icon, file, existingUrl, uploading, onChange, onRemove }) {
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef(null);
 
@@ -21,7 +21,12 @@ export default function KycDocumentUpload({ label, hint, icon: Icon, file, onCha
         {Icon && <Icon size={13} className="text-slate-400" />} {label}
       </label>
 
-      {file ? (
+      {uploading ? (
+        <div className="flex items-center gap-3 border border-primary/20 bg-primary-50 rounded-2xl px-4 py-3.5">
+          <Loader2 size={18} className="text-primary animate-spin flex-shrink-0" />
+          <p className="text-sm font-medium text-slate-600">Uploading…</p>
+        </div>
+      ) : file ? (
         <div className="flex items-center gap-3 border border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3.5">
           <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
             <CheckCircle2 size={18} className="text-emerald-600" />
@@ -37,6 +42,33 @@ export default function KycDocumentUpload({ label, hint, icon: Icon, file, onCha
           >
             <X size={16} />
           </button>
+        </div>
+      ) : existingUrl ? (
+        <div className="flex items-center gap-3 border border-emerald-200 bg-emerald-50 rounded-2xl px-4 py-3.5">
+          <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+            <CheckCircle2 size={18} className="text-emerald-600" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-800">Document uploaded</p>
+            <a href={existingUrl} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+              View file <ExternalLink size={11} />
+            </a>
+          </div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-white transition-colors flex-shrink-0"
+            title="Replace"
+          >
+            <RefreshCw size={16} />
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept="image/*,.pdf"
+            className="hidden"
+            onChange={(e) => { handleFile(e.target.files?.[0]); e.target.value = ""; }}
+          />
         </div>
       ) : (
         <div

@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { vehicleData } from "../../data/driverMockData";
 import {
   LayoutDashboard, Navigation, History, User, ShieldCheck, IndianRupee,
   ChevronLeft, ChevronRight, LogOut, X,
@@ -44,7 +43,6 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
         ${isExpanded ? "w-[260px]" : "w-[260px] lg:w-[76px]"}
       `}
     >
-      {/* Logo */}
       <div className="flex items-center gap-3 px-4 pt-5 pb-4 flex-shrink-0">
         <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
           <img src="/gadidost-logo.png" alt="GadiDost" className="w-5 h-5 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
@@ -58,7 +56,6 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
         </button>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 overflow-y-auto py-2 scrollbar-none px-3">
         {NAV.map((section) => (
           <div key={section.label} className="mb-6">
@@ -70,13 +67,17 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 return (
-                  <div key={item.path} className="relative"
+                  <div
+                    key={item.path}
+                    className="relative"
                     onMouseEnter={() => setHovered(item.label)}
-                    onMouseLeave={() => setHovered(null)}>
+                    onMouseLeave={() => setHovered(null)}
+                  >
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary z-10" />
                     )}
-                    <NavLink to={item.path}
+                    <NavLink
+                      to={item.path}
                       onClick={() => onMobileClose?.()}
                       className={`flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl transition-all ${
                         isActive ? "bg-primary-50 text-primary font-semibold" : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
@@ -112,7 +113,6 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
         ))}
       </nav>
 
-      {/* Driver info + Logout */}
       <div className="flex-shrink-0 px-3 pb-3 pt-2 border-t border-neutral-100">
         <div className={`flex items-center gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 mb-1 ${!isExpanded ? "lg:flex-col lg:items-center lg:gap-1.5" : ""}`}>
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
@@ -120,19 +120,17 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
           </div>
           <div className={`flex-1 min-w-0 ${!isExpanded ? "lg:hidden" : ""}`}>
             <div className="text-neutral-800 text-[13px] font-medium truncate">{user?.name || "Ramesh Singh"}</div>
-            <div className="text-[11px] text-neutral-400 truncate">
-              Driver · {vehicleData.registration}
-            </div>
+            <div className="text-[11px] text-neutral-400 truncate">Driver</div>
           </div>
           <button onClick={logout} className="p-1.5 rounded-lg transition-colors text-neutral-400 hover:text-danger hover:bg-red-50 flex-shrink-0" title="Sign out">
             <LogOut size={15} />
           </button>
         </div>
-        <button onClick={toggleExpanded}
-          className="hidden lg:flex w-full items-center justify-center py-2 rounded-lg text-neutral-400 hover:bg-neutral-50 hover:text-neutral-600 transition-all">
-          {isExpanded
-            ? <ChevronLeft size={15} />
-            : <ChevronRight size={15} />}
+        <button
+          onClick={toggleExpanded}
+          className="hidden lg:flex w-full items-center justify-center py-2 rounded-lg text-neutral-400 hover:bg-neutral-50 hover:text-neutral-600 transition-all"
+        >
+          {isExpanded ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
         </button>
       </div>
     </aside>

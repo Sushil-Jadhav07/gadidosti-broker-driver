@@ -1,4 +1,4 @@
-﻿import {
+import {
   ClipboardList, CheckCircle, Truck, Navigation,
   PackageCheck, Route, CheckCheck, Star,
 } from "lucide-react";
@@ -18,22 +18,24 @@ export default function StatusTimeline({ steps, currentStatus, completedTimes = 
   const currentIndex = steps.findIndex((s) => s.key === currentStatus);
 
   return (
-    <div className="relative">
-      {/* Vertical connector line */}
-      <div className="absolute left-[19px] top-4 bottom-4 w-0.5 bg-slate-200" />
-
-      <div className="space-y-0">
+    <div className="w-full overflow-x-auto">
+      <div className="flex min-w-[560px] sm:min-w-0">
         {steps.map((step, index) => {
           const Icon = iconMap[step.icon] || CheckCircle;
           const isCompleted = index < currentIndex;
           const isCurrent   = index === currentIndex;
-          const isPending   = index > currentIndex;
           const time = completedTimes[step.key];
+          const isLast = index === steps.length - 1;
 
           return (
-            <div key={step.key} className="flex items-start gap-3 relative py-2.5">
-              {/* Icon dot — no z-10 so sticky bar always covers it */}
-              <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 relative ${
+            <div key={step.key} className="relative flex flex-col items-center text-center flex-1">
+              {/* Connector spans from this circle's center to the next one's — anchored to
+                  the circle's fixed vertical center (top-5 = half of the 40px circle) so it
+                  stays put regardless of how tall the label/time text underneath is. */}
+              {!isLast && (
+                <div className={`absolute top-5 left-1/2 w-full h-0.5 ${isCompleted ? "bg-emerald-500" : "bg-slate-200"}`} />
+              )}
+              <div className={`relative z-10 w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
                 isCurrent   ? "bg-primary text-white shadow-md shadow-primary/30" :
                 isCompleted ? "bg-emerald-500 text-white" :
                               "bg-slate-100 text-slate-400"
@@ -43,28 +45,17 @@ export default function StatusTimeline({ steps, currentStatus, completedTimes = 
                   : <Icon className="w-4 h-4" />
                 }
               </div>
-
-              {/* Text */}
-              <div className="flex-1 pt-2">
-                <p className={`text-sm font-semibold ${
-                  isCurrent   ? "text-primary" :
-                  isCompleted ? "text-slate-800" :
-                                "text-slate-400"
-                }`}>
-                  {step.label}
+              <p className={`text-[11px] font-semibold mt-2 leading-tight ${
+                isCurrent   ? "text-primary" :
+                isCompleted ? "text-slate-800" :
+                              "text-slate-400"
+              }`}>
+                {step.label}
+              </p>
+              {time && (
+                <p className={`text-[10px] mt-0.5 ${isCurrent ? "text-primary/70" : "text-slate-400"}`}>
+                  {time}
                 </p>
-                {time && (
-                  <p className={`text-xs mt-0.5 ${isCurrent ? "text-primary/70" : "text-slate-400"}`}>
-                    {time}
-                  </p>
-                )}
-              </div>
-
-              {/* Right tick for completed */}
-              {isCompleted && (
-                <div className="flex items-center pt-2.5">
-                  <CheckCheck className="w-4 h-4 text-emerald-500" />
-                </div>
               )}
             </div>
           );

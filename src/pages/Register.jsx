@@ -2,26 +2,22 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, Building2, Lock, FileText, AlertCircle, RefreshCw, Mail,
+  Truck, User, Eye, EyeOff, CheckCircle, ArrowRight, Building2, Lock, FileText, AlertCircle, Mail,
 } from "lucide-react";
 
 export default function Register() {
   const [role, setRole] = useState("broker");
-  const [step, setStep] = useState("form"); // "form" | "otp" | "done"
+  const [step, setStep] = useState("form"); // "form" | "done"
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [devOtp, setDevOtp] = useState(""); // shown in dev for testing
-  const [otp, setOtp] = useState("");
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [registeredPhone, setRegisteredPhone] = useState("");
   const [form, setForm] = useState({
     name: "", email: "", phone: "", password: "", confirm: "",
     businessName: "", vehicleReg: "",
   });
 
-  const { registerUser, sendOtp, verifyOtp } = useAuth();
+  const { registerUser } = useAuth();
   const navigate = useNavigate();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -45,41 +41,12 @@ export default function Register() {
         business_name: role === "broker" ? form.businessName : undefined,
         vehicle_registration: role === "driver" ? form.vehicleReg : undefined,
       });
-      // Send OTP to the registered phone
-      const otpResult = await sendOtp(form.phone);
-      setRegisteredPhone(form.phone);
-      if (otpResult?.dev_otp) setDevOtp(otpResult.dev_otp);
-      setStep("otp");
+      setStep("done");
+      setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
       setError(err.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    if (!otp || otp.length !== 6) { setError("Please enter the 6-digit OTP."); return; }
-    setError("");
-    setOtpLoading(true);
-    try {
-      await verifyOtp(registeredPhone, otp);
-      setStep("done");
-      setTimeout(() => navigate("/login"), 2500);
-    } catch (err) {
-      setError(err.message || "Invalid OTP. Please try again.");
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleResendOtp = async () => {
-    setError("");
-    try {
-      const result = await sendOtp(registeredPhone);
-      if (result?.dev_otp) setDevOtp(result.dev_otp);
-    } catch (err) {
-      setError(err.message || "Failed to resend OTP.");
     }
   };
 
@@ -96,70 +63,6 @@ export default function Register() {
           </p>
           <div className="mt-5 flex justify-center">
             <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (step === "otp") {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-6">
-            <img src="/gadidost-logo.png" alt="GadiDost" className="h-10 mx-auto mb-4" />
-            <h1 className="text-2xl font-bold text-slate-900 font-poppins">Verify Phone</h1>
-            <p className="text-slate-500 text-sm font-inter mt-1">
-              Enter the 6-digit code sent to<br />
-              <span className="font-semibold text-slate-700">+91 {registeredPhone}</span>
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-modal p-6">
-            {devOtp && (
-              <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3">
-                <p className="text-xs font-semibold text-amber-700 mb-1">Dev Mode — OTP</p>
-                <p className="text-lg font-mono font-bold text-amber-800 tracking-widest">{devOtp}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">OTP Code</label>
-                <input
-                  type="text"
-                  value={otp}
-                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  placeholder="Enter 6-digit OTP"
-                  className="input-field px-4 py-3 text-center text-xl font-mono tracking-[0.4em] w-full"
-                  inputMode="numeric"
-                  maxLength={6}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              {error && (
-                <div className="flex items-center gap-2 bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-sm">
-                  <AlertCircle size={15} className="flex-shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <button type="submit" disabled={otpLoading || otp.length !== 6}
-                className="btn-primary w-full py-3 text-sm flex items-center justify-center gap-2 rounded-xl disabled:opacity-50">
-                {otpLoading ? (
-                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Verifying...</>
-                ) : (
-                  <>Verify &amp; Activate <ArrowRight size={15} /></>
-                )}
-              </button>
-            </form>
-
-            <button type="button" onClick={handleResendOtp}
-              className="mt-4 w-full text-sm text-slate-500 hover:text-primary flex items-center justify-center gap-1.5 transition-colors">
-              <RefreshCw size={13} /> Resend OTP
-            </button>
           </div>
         </div>
       </div>

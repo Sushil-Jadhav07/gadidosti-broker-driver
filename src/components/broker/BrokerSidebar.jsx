@@ -78,7 +78,7 @@ export default function BrokerSidebar({ isExpanded, toggleExpanded, mobileOpen, 
                     onMouseEnter={() => setHovered(item.label)}
                     onMouseLeave={() => setHovered(null)}>
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary z-10" />
                     )}
                     <NavLink to={item.path}
                       className={`flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl transition-all relative ${

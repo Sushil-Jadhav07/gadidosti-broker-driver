@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { api } from "../services/api";
 
 const AuthContext = createContext(null);
@@ -20,6 +20,7 @@ const loadStoredUser = () => {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadStoredUser);
+  const kycRefreshedRef = useRef(false);
 
   const persistSession = useCallback((userData, tokens) => {
     const key = STORAGE_KEY[userData.role] || STORAGE_KEY.broker;
@@ -76,18 +77,6 @@ export function AuthProvider({ children }) {
     return data.data;
   }, []);
 
-  const sendOtp = useCallback(async (phone) => {
-    const data = await api.post("/api/auth/otp/send", { phone, purpose: "phone_verify" });
-    if (!data.success) throw new Error(data.message || "Failed to send OTP");
-    return data.data;
-  }, []);
-
-  const verifyOtp = useCallback(async (phone, otp) => {
-    const data = await api.post("/api/auth/otp/verify", { phone, otp, purpose: "phone_verify" });
-    if (!data.success) throw new Error(data.message || "Invalid or expired OTP");
-    return data.data;
-  }, []);
-
   const logout = useCallback(async () => {
     try {
       if (user?.tokens) {
@@ -104,6 +93,24 @@ export function AuthProvider({ children }) {
     persistSession({ ...prevData, ...partial }, tokens);
   }, [user, persistSession]);
 
+  // kyc_status is a snapshot from login time, cached in localStorage — it never updates on its
+  // own (e.g. after an admin verifies KYC while the session stays logged in), which was leaving
+  // gated pages (JobRequests, MyTrip) stuck showing "Complete Your KYC First" until the user
+  // happened to visit the KYC status page, whose own fetch is what corrects the cache today.
+  // Re-checking once per app load fixes that without waiting on a page that may never be visited.
+  useEffect(() => {
+    if (kycRefreshedRef.current) return;
+    if (!user?.tokens?.access_token || !["broker", "driver"].includes(user.role)) return;
+    kycRefreshedRef.current = true;
+    api.get("/api/kyc/status", user.tokens.access_token)
+      .then((data) => {
+        if (data.success && data.data.kyc_status && data.data.kyc_status !== user.kyc_status) {
+          updateUser({ kyc_status: data.data.kyc_status });
+        }
+      })
+      .catch(() => {});
+  }, [user, updateUser]);
+
   const refreshTokens = useCallback(async () => {
     if (!user?.tokens?.refresh_token) return false;
     try {
@@ -118,7 +125,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, updateUser, sendOtp, verifyOtp, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, updateUser, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );

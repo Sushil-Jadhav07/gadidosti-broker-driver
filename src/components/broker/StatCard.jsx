@@ -1,6 +1,9 @@
 export default function StatCard({ icon: Icon, iconBg, iconColor, label, value, subtext, trend, children }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-100 p-5 shadow-card flex flex-col gap-4 relative overflow-hidden">
+    <div
+      className="bg-white rounded-xl border border-slate-100 p-5 shadow-card flex flex-col gap-4 relative overflow-hidden border-l-4"
+      style={{ borderLeftColor: iconColor }}
+    >
       <div className="flex items-start justify-between">
         <div
           className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"

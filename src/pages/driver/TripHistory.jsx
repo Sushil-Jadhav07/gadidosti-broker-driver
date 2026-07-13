@@ -1,81 +1,94 @@
-﻿import { useState } from "react";
-import { TrendingUp, Route, IndianRupee, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Navigation, Route, IndianRupee } from "lucide-react";
 import TripCard from "../../components/driver/TripCard";
-import { tripHistory, historySummary } from "../../data/driverMockData";
-
-const FILTERS = ["All", "Completed", "In Transit", "Cancelled"];
+import { api, getToken } from "../../services/api";
+import { adaptTrip, formatCurrency, formatDate } from "../../utils";
 
 export default function TripHistory() {
+  const [trips, setTrips] = useState([]);
   const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filtered = tripHistory.filter((t) => {
-    const matchStatus = filter === "All" || t.status === filter;
-    const matchSearch = search === "" ||
-      t.route.toLowerCase().includes(search.toLowerCase()) ||
-      t.id.toLowerCase().includes(search.toLowerCase()) ||
-      t.cargo.toLowerCase().includes(search.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await api.get("/api/analytics/broker", getToken());
+        setTrips((response.data?.tripHistory || []).map(adaptTrip));
+      } catch {
+        setError("Failed to load trip history. Please try again.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filtered = useMemo(() => filter === "All" ? trips : trips.filter((trip) => trip.status === filter), [filter, trips]);
+
+  const totals = useMemo(() => ({
+    trips: trips.length,
+    kms: trips.reduce((sum, trip) => sum + Number(trip.distance || 0), 0),
+    earned: trips.reduce((sum, trip) => sum + Number(trip.earnings || 0), 0),
+  }), [trips]);
+
+  const cards = useMemo(() => trips.map((trip) => ({
+    id: trip.id,
+    bookingId: trip.bookingId,
+    bookingNumber: trip.bookingNumber,
+    status: trip.status,
+    route: trip.pickup?.location && trip.drop?.location ? `${trip.pickup.location} -> ${trip.drop.location}` : trip.route,
+    date: formatDate(trip.createdAt),
+    earnings: trip.earnings,
+    duration: trip.estimatedTime,
+    cargo: trip.cargo?.material,
+    weight: trip.cargo?.weight,
+    distance: trip.distance,
+    pickup: trip.pickup?.location,
+    drop: trip.drop?.location,
+    broker: trip.broker,
+  })), [trips]);
+
+  const filteredCards = useMemo(() => filter === "All" ? cards : cards.filter((c) => c.status === filter), [filter, cards]);
 
   return (
-    <div className="space-y-5">
-      {/* Summary stats */}
-      <div className="grid grid-cols-3 gap-4">
-        {[
-          { label: "Total Trips", value: historySummary.totalTrips,                           icon: Route,      color: "text-primary",    bg: "bg-primary/10" },
-          { label: "Total KMs",   value: historySummary.totalKms.toLocaleString(),            icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Total Earned",value: `Rs ${historySummary.totalEarned.toLocaleString()}`, icon: IndianRupee,color: "text-amber-600",   bg: "bg-amber-50" },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-xl border border-slate-100 shadow-card p-4 flex flex-col gap-3">
-            <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center`}>
-              <Icon className={`w-4 h-4 ${color}`} />
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
-              <p className="text-[15px] font-bold text-slate-900 mt-0.5">{value}</p>
-            </div>
-          </div>
-        ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div><h1 className="text-2xl font-bold text-slate-900">Trip History</h1><p className="text-sm text-slate-500 mt-1">Completed and past trips from analytics.</p></div>
+        <div className="flex gap-2">{["All", "Delivered", "Completed", "In Transit"].map((value) => <button key={value} onClick={() => setFilter(value)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${filter === value ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600"}`}>{value}</button>)}</div>
       </div>
 
-      {/* Search */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search trips by route, ID, or cargo..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input-field w-full pl-9"
-          />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-primary">
+          <Navigation className="w-5 h-5 text-primary mb-3" />
+          <p className="text-sm text-slate-500">Total Trips</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{totals.trips}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-emerald-500">
+          <Route className="w-5 h-5 text-emerald-500 mb-3" />
+          <p className="text-sm text-slate-500">Total KMs</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{totals.kms} km</p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-amber-500">
+          <IndianRupee className="w-5 h-5 text-amber-500 mb-3" />
+          <p className="text-sm text-slate-500">Total Earned</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totals.earned)}</p>
         </div>
       </div>
 
-      {/* Filter tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {FILTERS.map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all whitespace-nowrap ${
-              filter === f
-                ? "bg-primary text-white"
-                : "bg-white text-slate-500 border border-slate-200 hover:bg-slate-50"
-            }`}>
-            {f} {f !== "All" && `(${tripHistory.filter((t) => t.status === f).length})`}
-          </button>
-        ))}
-      </div>
-
-      {/* Trip list */}
-      <div className="space-y-3">
-        {filtered.map((trip) => <TripCard key={trip.id} trip={trip} />)}
-        {filtered.length === 0 && (
-          <div className="bg-white rounded-xl border border-slate-100 shadow-card p-10 text-center">
-            <p className="text-slate-400 text-sm">No trips found</p>
-          </div>
-        )}
-      </div>
+      {loading ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading trip history...</div>
+      ) : error ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
+      ) : !filteredCards.length ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">No trips found.</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {filteredCards.map((trip) => <TripCard key={trip.id} trip={trip} />)}
+        </div>
+      )}
     </div>
   );
 }

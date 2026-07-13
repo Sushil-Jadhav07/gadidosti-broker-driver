@@ -12,11 +12,24 @@ const request = async (method, path, body, token) => {
   return res.json();
 };
 
+// Multipart upload — no Content-Type set manually so the browser fills in the
+// multipart boundary itself (setting it here would break the upload).
+const uploadFile = async (path, formData, token) => {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+    body: formData,
+  });
+  return res.json();
+};
+
 export const api = {
-  post:  (path, body, token) => request('POST',  path, body, token),
-  get:   (path, token)       => request('GET',   path, null, token),
-  put:   (path, body, token) => request('PUT',   path, body, token),
-  patch: (path, body, token) => request('PATCH', path, body, token),
+  post:   (path, body, token) => request('POST',   path, body, token),
+  get:    (path, token)       => request('GET',    path, null, token),
+  put:    (path, body, token) => request('PUT',    path, body, token),
+  patch:  (path, body, token) => request('PATCH',  path, body, token),
+  delete: (path, body, token) => request('DELETE', path, body, token),
+  upload: uploadFile,
 };
 
 export const getStoredAuth = () => {
