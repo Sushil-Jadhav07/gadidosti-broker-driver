@@ -20,7 +20,14 @@ const loadStoredUser = () => {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(loadStoredUser);
-  const kycRefreshedRef = useRef(false);
+  const kycRefreshedForUserRef = useRef(null);
+
+  // Always reflects the truly-current session, unlike a value closed over inside an async
+  // callback (see updateUser below) — a promise started under Account A's render can still
+  // resolve after the user has logged out and logged in as Account B, so anything reading
+  // the closed-over `user` at that point would act on stale, wrong-account data.
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
 
   const persistSession = useCallback((userData, tokens) => {
     const key = STORAGE_KEY[userData.role] || STORAGE_KEY.broker;
@@ -86,26 +93,37 @@ export function AuthProvider({ children }) {
     clearSession(user?.role);
   }, [user, clearSession]);
 
-  // Merge partial fields (e.g. kyc_status, profile edits) into the cached session without a fresh login
-  const updateUser = useCallback((partial) => {
-    if (!user) return;
-    const { tokens, ...prevData } = user;
+  // Merge partial fields (e.g. kyc_status, profile edits) into the cached session without a
+  // fresh login. Reads the CURRENT session from userRef rather than the closed-over `user` —
+  // callers are frequently async (an API response resolving well after the triggering render),
+  // and using a stale closure here is exactly how one account's data could get written into
+  // another account's localStorage entry after a fast logout+login. `forUserId`, when passed,
+  // is an extra explicit check: skip silently if the session has since moved on to someone else,
+  // rather than merging a since-superseded response into whoever is logged in now.
+  const updateUser = useCallback((partial, forUserId) => {
+    const current = userRef.current;
+    if (!current) return;
+    if (forUserId && current.id !== forUserId) return;
+    const { tokens, ...prevData } = current;
     persistSession({ ...prevData, ...partial }, tokens);
-  }, [user, persistSession]);
+  }, [persistSession]);
 
   // kyc_status is a snapshot from login time, cached in localStorage — it never updates on its
   // own (e.g. after an admin verifies KYC while the session stays logged in), which was leaving
   // gated pages (JobRequests, MyTrip) stuck showing "Complete Your KYC First" until the user
   // happened to visit the KYC status page, whose own fetch is what corrects the cache today.
-  // Re-checking once per app load fixes that without waiting on a page that may never be visited.
+  // Re-checking once per logged-in user (not just once per app load) fixes that without waiting
+  // on a page that may never be visited, and without skipping the check entirely for whichever
+  // account logs in second in the same browser session.
   useEffect(() => {
-    if (kycRefreshedRef.current) return;
     if (!user?.tokens?.access_token || !["broker", "driver"].includes(user.role)) return;
-    kycRefreshedRef.current = true;
+    if (kycRefreshedForUserRef.current === user.id) return;
+    kycRefreshedForUserRef.current = user.id;
+    const requestUserId = user.id;
     api.get("/api/kyc/status", user.tokens.access_token)
       .then((data) => {
         if (data.success && data.data.kyc_status && data.data.kyc_status !== user.kyc_status) {
-          updateUser({ kyc_status: data.data.kyc_status });
+          updateUser({ kyc_status: data.data.kyc_status }, requestUserId);
         }
       })
       .catch(() => {});

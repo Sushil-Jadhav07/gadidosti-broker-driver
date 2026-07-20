@@ -1,7 +1,7 @@
 import { Navigation, CheckCheck, Camera, Truck } from "lucide-react";
 
 const BUTTON_CONFIG = {
-  assigned: { label: "Start Trip to Pickup", icon: Navigation, bg: "bg-primary", nextStatus: "en_route_pickup" },
+  confirmed: { label: "Start Trip to Pickup", icon: Navigation, bg: "bg-primary", nextStatus: "en_route_pickup" },
   en_route_pickup: { label: "I've Reached Pickup", icon: Truck, bg: "bg-warning", nextStatus: "picked_up" },
   picked_up: { label: "Start Delivery", icon: Truck, bg: "bg-primary", nextStatus: "in_transit" },
   in_transit: { label: "Mark as Delivered", icon: CheckCheck, bg: "bg-success", nextStatus: "delivered" },
@@ -35,7 +35,7 @@ export default function TripStatusButton({ status, onStatusChange, onUploadPOD, 
       }`}
     >
       <Icon className="w-5 h-5" />
-      {config.label}
+      {disabled && status === "delivered" ? "Uploading..." : config.label}
     </button>
   );
 }

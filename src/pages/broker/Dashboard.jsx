@@ -149,7 +149,7 @@ export default function Dashboard() {
               </div>
               <div className="text-right flex-shrink-0">
                 <p className="text-base font-bold text-slate-900 font-mono">{formatCurrency(req.amount)}</p>
-                <p className="text-[11px] text-amber-500">Expires in {req.expiresIn} min</p>
+                <p className="text-[11px] text-slate-400">{req.timestamp}</p>
               </div>
             </div>
           ))}

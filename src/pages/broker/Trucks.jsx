@@ -3,19 +3,23 @@ import { Plus, Edit2, Trash2, Truck } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
 
 const STATUS_VARIANT = { available: "success", on_trip: "primary", maintenance: "warning" };
-const EMPTY_FORM = { registration: "", type: "", category: "small", capacity: "", make: "", year: "", insuranceExpiry: "" };
+const TRUCK_TYPES = ["small", "medium", "large"];
+const EMPTY_FORM = { registration: "", category: "small", capacity: "", make: "", year: "", insuranceExpiry: "" };
 
 export default function Trucks() {
+  const { addToast } = useToast();
   const [truckList, setTruckList] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [editTruck, setEditTruck] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState("");
+  const [saveError, setSaveError] = useState("");
 
   const loadTrucks = async () => {
     const response = await api.get("/api/vehicles/trucks?limit=100", getToken());
@@ -31,13 +35,13 @@ export default function Trucks() {
     String(truck.make || "").toLowerCase().includes(search.toLowerCase())
   )), [search, truckList]);
 
-  const openAdd = () => { setEditTruck(null); setForm(EMPTY_FORM); setShowModal(true); };
+  const openAdd = () => { setEditTruck(null); setForm(EMPTY_FORM); setSaveError(""); setShowModal(true); };
   const openEdit = (truck) => {
     setEditTruck(truck);
+    setSaveError("");
     setForm({
       registration: truck.registration || "",
-      type: truck.type || "",
-      category: truck.category || "small",
+      category: truck.category || truck.type || "small",
       capacity: truck.capacity || "",
       make: truck.make || "",
       year: String(truck.year || ""),
@@ -46,29 +50,50 @@ export default function Trucks() {
     setShowModal(true);
   };
 
+  const REGISTRATION_REGEX = /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/i;
+
   const handleSave = async () => {
+    if (!form.registration.trim()) {
+      setSaveError("Registration number is required.");
+      return;
+    }
+    if (!editTruck && !REGISTRATION_REGEX.test(form.registration.trim())) {
+      setSaveError("Registration number looks invalid, e.g. MH-12-AB-1234.");
+      return;
+    }
+    if (!form.capacity.trim()) {
+      setSaveError("Capacity is required.");
+      return;
+    }
+    setSaveError("");
     const token = getToken();
     const payload = {
       registration: form.registration,
-      type: form.type,
+      type: form.category,
       category: form.category,
       capacity: form.capacity,
       make: form.make,
       year: Number(form.year) || null,
-      insuranceExpiry: form.insuranceExpiry || null,
+      insurance_expiry: form.insuranceExpiry || null,
     };
-    if (editTruck) {
-      await api.patch(`/api/vehicles/trucks/${editTruck.id}`, payload, token);
-    } else {
-      await api.post("/api/vehicles/trucks", payload, token);
+    const response = editTruck
+      ? await api.patch(`/api/vehicles/trucks/${editTruck.id}`, payload, token)
+      : await api.post("/api/vehicles/trucks", payload, token);
+    if (!response?.success) {
+      setSaveError(response?.message || "Failed to save truck. Please try again.");
+      return;
     }
     setShowModal(false);
     loadTrucks().catch(() => {});
   };
 
   const handleDelete = async () => {
-    await api.delete(`/api/vehicles/trucks/${deleteId}`, getToken());
+    const response = await api.delete(`/api/vehicles/trucks/${deleteId}`, null, getToken());
     setDeleteId(null);
+    if (!response?.success) {
+      addToast(response?.message || "Failed to remove truck. Please try again.", "error");
+      return;
+    }
     loadTrucks().catch(() => {});
   };
 
@@ -93,7 +118,7 @@ export default function Trucks() {
               {filtered.map((truck) => (
                 <tr key={truck.id} className="table-row">
                   <td className="px-4 py-3 font-mono font-semibold text-slate-800">{truck.registration}</td>
-                  <td className="px-4 py-3 text-slate-600">{truck.type}</td>
+                  <td className="px-4 py-3 text-slate-600 capitalize">{truck.category || truck.type || "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{truck.capacity}</td>
                   <td className="px-4 py-3 text-slate-600">{truck.make}</td>
                   <td className="px-4 py-3 text-slate-600">{truck.year || "-"}</td>
@@ -116,15 +141,28 @@ export default function Trucks() {
 
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title={editTruck ? "Edit Truck" : "Add New Truck"} size="lg">
         <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Registration Number</label>
+            <input
+              type="text"
+              value={form.registration}
+              onChange={(event) => setForm((current) => ({ ...current, registration: event.target.value }))}
+              className="input-field px-3 py-2 w-full"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Type</label>
+            <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="input-field px-3 py-2 w-full">
+              {TRUCK_TYPES.map((truckType) => <option key={truckType} value={truckType}>{truckType[0].toUpperCase() + truckType.slice(1)}</option>)}
+            </select>
+          </div>
           {[
-            ["registration", "Registration Number"],
-            ["type", "Truck Type"],
             ["capacity", "Capacity"],
             ["make", "Make / Model"],
             ["year", "Year"],
             ["insuranceExpiry", "Insurance Expiry"],
           ].map(([key, label]) => (
-            <div key={key} className={key === "registration" ? "col-span-2" : ""}>
+            <div key={key}>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">{label}</label>
               <input
                 type={key === "insuranceExpiry" ? "date" : "text"}
@@ -134,12 +172,7 @@ export default function Trucks() {
               />
             </div>
           ))}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Category</label>
-            <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="input-field px-3 py-2 w-full">
-              {["small", "medium", "large", "part"].map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-          </div>
+          {saveError && <div className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{saveError}</div>}
           <div className="col-span-2 flex gap-3 pt-1">
             <button onClick={() => setShowModal(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
             <button onClick={handleSave} className="flex-1 btn-primary px-4 py-2.5 text-sm">{editTruck ? "Save Changes" : "Add Truck"}</button>

@@ -1,7 +1,7 @@
 import { createPortal } from "react-dom";
-import { ShieldAlert, PhoneCall, Siren, MessageSquareWarning, X } from "lucide-react";
+import { ShieldAlert, PhoneCall, Siren, MessageSquareWarning, Wrench, X } from "lucide-react";
 
-export default function EmergencySheet({ isOpen, onClose, brokerPhone, onReportIncident }) {
+export default function EmergencySheet({ isOpen, onClose, brokerPhone, onReportIncident, onReportBreakdown }) {
   if (!isOpen) return null;
 
   const actions = [
@@ -46,6 +46,17 @@ export default function EmergencySheet({ isOpen, onClose, brokerPhone, onReportI
               </div>
             </a>
           ))}
+
+          <button
+            onClick={() => { onReportBreakdown?.(); onClose(); }}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 hover:opacity-80 transition-opacity"
+          >
+            <Wrench size={18} className="text-amber-600" />
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-slate-900">Report Breakdown / Need Mechanic</p>
+              <p className="text-xs text-slate-500">Notify your broker your truck needs a mechanic</p>
+            </div>
+          </button>
 
           <button
             onClick={() => { onReportIncident?.(); onClose(); }}

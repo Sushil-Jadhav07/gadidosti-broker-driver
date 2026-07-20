@@ -1,14 +1,27 @@
 import { useEffect, useState } from "react";
-import { MapPin, Truck, User, AlertTriangle } from "lucide-react";
+import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import DriverDropdown from "../../components/broker/DriverDropdown";
 import StatusTimeline from "../../components/driver/StatusTimeline";
+import ChatWindow from "../../components/ChatWindow";
+import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptBooking, formatCurrency, DRIVER_STATUS_STEPS } from "../../utils";
 
 const STATUS_VARIANT = { "In Transit": "primary", "Picked Up": "warning", Assigned: "default", Accepted: "success" };
+
+const ISSUE_TYPES = [
+  { value: "damaged_goods", label: "Damaged Goods" },
+  { value: "payment_delay", label: "Payment Delay" },
+  { value: "cancellation_fee", label: "Cancellation Fee" },
+  { value: "route_dispute", label: "Route Dispute" },
+  { value: "late_delivery", label: "Late Delivery" },
+  { value: "fuel_surcharge", label: "Fuel Surcharge" },
+  { value: "wrong_items", label: "Wrong Items" },
+  { value: "weight_discrepancy", label: "Weight Discrepancy" },
+];
 
 const STATUS_KEY_MAP = {
   Assigned: "assigned",
@@ -19,7 +32,15 @@ const STATUS_KEY_MAP = {
   Completed: "completed",
 };
 
+const MECHANIC_STATUS_OPTIONS = [
+  { value: "requested", label: "Requested" },
+  { value: "mechanic_assigned", label: "Mechanic Assigned" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "resolved", label: "Resolved" },
+];
+
 export default function ActiveJobs() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [jobs, setJobs] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -27,11 +48,19 @@ export default function ActiveJobs() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  const [chatJob, setChatJob] = useState(null);
   const [selectedJob, setSelectedJob] = useState(null);
   const [resolution, setResolution] = useState("");
   const [resolving, setResolving] = useState(false);
   const [reassignDriverId, setReassignDriverId] = useState("");
   const [reassigning, setReassigning] = useState(false);
+  const [mechanicForm, setMechanicForm] = useState({ status: "", mechanicName: "", mechanicPhone: "", notes: "" });
+  const [updatingMechanic, setUpdatingMechanic] = useState(false);
+
+  const [disputeJob, setDisputeJob] = useState(null);
+  const [disputeIssueType, setDisputeIssueType] = useState("");
+  const [disputeDescription, setDisputeDescription] = useState("");
+  const [submittingDispute, setSubmittingDispute] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -89,6 +118,42 @@ export default function ActiveJobs() {
     setSelectedJob(job);
     setResolution("");
     setReassignDriverId("");
+    const incident = incidentsByBooking[job.id]?.incident;
+    const mr = incident?.mechanicRequest;
+    setMechanicForm({ status: mr?.status || "", mechanicName: mr?.mechanicName || "", mechanicPhone: mr?.mechanicPhone || "", notes: "" });
+  };
+
+  const openDispute = (job) => {
+    setDisputeJob(job);
+    setDisputeIssueType("");
+    setDisputeDescription("");
+  };
+
+  const handleSubmitDispute = async () => {
+    if (!disputeJob) return;
+    if (!disputeIssueType) {
+      addToast("Please select an issue type.", "error");
+      return;
+    }
+    if (!disputeDescription.trim()) {
+      addToast("Please describe the issue.", "error");
+      return;
+    }
+    setSubmittingDispute(true);
+    try {
+      const response = await api.post("/api/disputes", {
+        booking_id: disputeJob.id,
+        issue_type: disputeIssueType,
+        description: disputeDescription.trim(),
+      }, getToken());
+      if (!response.success) throw new Error(response.message || "Failed to raise dispute");
+      addToast("Dispute raised — our team will review it shortly.", "success");
+      setDisputeJob(null);
+    } catch (err) {
+      addToast(err.message || "Failed to raise dispute.", "error");
+    } finally {
+      setSubmittingDispute(false);
+    }
   };
 
   const handleResolve = async () => {
@@ -111,6 +176,38 @@ export default function ActiveJobs() {
       addToast(err.message || "Failed to resolve incident.", "error");
     } finally {
       setResolving(false);
+    }
+  };
+
+  // Breakdown dispatch workflow — updates the linked mechanic_requests row without necessarily
+  // closing out the incident (unless status is set to "Resolved").
+  const handleUpdateMechanic = async () => {
+    if (!selectedJob) return;
+    const entry = incidentsByBooking[selectedJob.id];
+    if (!entry?.incident || !entry.tripId) return;
+
+    setUpdatingMechanic(true);
+    try {
+      const response = await api.patch(
+        `/api/trips/${entry.tripId}/incidents/${entry.incident.id}/mechanic`,
+        {
+          status: mechanicForm.status || undefined,
+          mechanicName: mechanicForm.mechanicName.trim() || undefined,
+          mechanicPhone: mechanicForm.mechanicPhone.trim() || undefined,
+          notes: mechanicForm.notes.trim() || undefined,
+        },
+        getToken()
+      );
+      if (!response.success) throw new Error(response.message || "Failed to update mechanic status");
+      const updatedIncident = response.data?.incident;
+      const stillOpen = updatedIncident && updatedIncident.status !== "resolved";
+      setIncidentsByBooking((current) => ({ ...current, [selectedJob.id]: { ...entry, incident: stillOpen ? updatedIncident : null } }));
+      addToast(stillOpen ? "Mechanic status updated." : "Breakdown marked resolved.", "success");
+      if (!stillOpen) setSelectedJob(null);
+    } catch (err) {
+      addToast(err.message || "Failed to update mechanic status.", "error");
+    } finally {
+      setUpdatingMechanic(false);
     }
   };
 
@@ -164,7 +261,9 @@ export default function ActiveJobs() {
                   <Badge variant={STATUS_VARIANT[job.status] || "default"}>{job.status}</Badge>
                   {incident && (
                     <button onClick={() => openIncident(job)} className="hover:opacity-80 transition-opacity">
-                      <Badge variant="danger">Issue Reported</Badge>
+                      <Badge variant={incident.reason === "breakdown" ? "warning" : "danger"}>
+                        {incident.reason === "breakdown" ? "Breakdown Reported" : "Issue Reported"}
+                      </Badge>
                     </button>
                   )}
                 </div>
@@ -206,11 +305,26 @@ export default function ActiveJobs() {
               <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-3">Trip Progress</p>
               <StatusTimeline steps={DRIVER_STATUS_STEPS} currentStatus={STATUS_KEY_MAP[job.status] || "assigned"} />
             </div>
+
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <button
+                onClick={() => openDispute(job)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-danger hover:underline"
+              >
+                <Flag size={12} /> Report a Problem
+              </button>
+              <button
+                onClick={() => setChatJob(job)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+              >
+                <MessageCircle size={12} /> Chat
+              </button>
+            </div>
           </div>
         );
       })}
 
-      <Modal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} title="Incident Reported" size="sm">
+      <Modal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} title={selectedIncident?.reason === "breakdown" ? "Breakdown Reported" : "Incident Reported"} size="sm">
         {selectedJob && (
           <div className="space-y-4">
             {selectedIncident ? (
@@ -222,6 +336,68 @@ export default function ActiveJobs() {
                     <p className="text-sm text-red-700">{selectedIncident.notes || "No additional notes provided."}</p>
                   </div>
                 </div>
+
+                {selectedIncident.reason === "breakdown" && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-3">
+                    <label className="text-xs font-semibold text-amber-800 flex items-center gap-1.5"><Wrench size={13} /> Mechanic Dispatch</label>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Status</label>
+                      <select
+                        value={mechanicForm.status}
+                        onChange={(e) => setMechanicForm((f) => ({ ...f, status: e.target.value }))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary transition-colors bg-white"
+                      >
+                        <option value="">Unchanged</option>
+                        {MECHANIC_STATUS_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Mechanic Name</label>
+                        <input
+                          type="text"
+                          value={mechanicForm.mechanicName}
+                          onChange={(e) => setMechanicForm((f) => ({ ...f, mechanicName: e.target.value }))}
+                          placeholder="e.g. Ramesh Auto Works"
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Mechanic Phone</label>
+                        <input
+                          type="tel"
+                          value={mechanicForm.mechanicPhone}
+                          onChange={(e) => setMechanicForm((f) => ({ ...f, mechanicPhone: e.target.value }))}
+                          placeholder="10-digit number"
+                          className="w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-primary transition-colors"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-semibold text-slate-500 mb-1 block">Dispatch notes (optional)</label>
+                      <textarea
+                        value={mechanicForm.notes}
+                        onChange={(e) => setMechanicForm((f) => ({ ...f, notes: e.target.value }))}
+                        rows={2}
+                        placeholder="e.g. ETA 30 mins, ordered a replacement tyre"
+                        className="w-full resize-none rounded-lg border border-slate-200 px-2.5 py-2 text-sm outline-none focus:border-primary transition-colors"
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleUpdateMechanic}
+                      disabled={updatingMechanic}
+                      className="w-full py-2.5 text-sm rounded-lg font-semibold bg-amber-500 text-white hover:bg-amber-600 transition-colors disabled:opacity-50"
+                    >
+                      {updatingMechanic ? "Updating..." : "Update Mechanic Status"}
+                    </button>
+                  </div>
+                )}
 
                 <div>
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Resolution notes</label>
@@ -258,6 +434,55 @@ export default function ActiveJobs() {
             )}
           </div>
         )}
+      </Modal>
+
+      <Modal isOpen={!!disputeJob} onClose={() => setDisputeJob(null)} title="Report a Problem" size="sm">
+        {disputeJob && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">{disputeJob.pickup} to {disputeJob.drop}</p>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Issue Type</label>
+              <select
+                value={disputeIssueType}
+                onChange={(e) => setDisputeIssueType(e.target.value)}
+                className="input-field px-3 py-2 w-full"
+              >
+                <option value="">Select an issue...</option>
+                {ISSUE_TYPES.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Description</label>
+              <textarea
+                value={disputeDescription}
+                onChange={(e) => setDisputeDescription(e.target.value)}
+                rows={3}
+                maxLength={2000}
+                placeholder="Describe what went wrong..."
+                className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button onClick={() => setDisputeJob(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
+              <button
+                onClick={handleSubmitDispute}
+                disabled={submittingDispute}
+                className="flex-1 py-2.5 text-sm rounded-lg font-semibold text-white bg-danger hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {submittingDispute ? "Submitting..." : "Submit Dispute"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={!!chatJob} onClose={() => setChatJob(null)} title="Chat" size="sm">
+        {chatJob && <ChatWindow bookingId={chatJob.id} currentUserId={user?.id} />}
       </Modal>
     </div>
   );

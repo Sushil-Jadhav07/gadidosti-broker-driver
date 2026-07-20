@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   User, Mail, Phone, Building2, MapPin, Landmark, Lock,
-  Save, ShieldCheck,
+  Save, ShieldCheck, ArrowRight,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -33,6 +34,7 @@ const Field = ({ label, value, onChange, type = "text", disabled = false }) => (
 export default function Profile() {
   const { user, updateUser } = useAuth();
   const { addToast } = useToast();
+  const navigate = useNavigate();
   const [profile, setProfile] = useState(user || {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -40,21 +42,27 @@ export default function Profile() {
 
   // Backend-modeled fields
   const [form, setForm] = useState({ name: "", email: "", address: "", company_name: "" });
-  // Local-only fields (not backend-modeled yet)
-  const [extra, setExtra] = useState({
-    gst: "", city: "", state: "", pincode: "",
-    bankName: "", accountNumber: "", ifsc: "",
-  });
+  // Local-only fields (not backend-modeled yet) — GST and bank details are NOT here since
+  // those are already modeled, under gst_number/bank_account_number, in the KYC submission
+  // (see kycDocs below) — showing a second, unsaved copy of the same data was the bug.
+  const [extra, setExtra] = useState({ city: "", state: "", pincode: "" });
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
+
+  // Read-only source of truth for GST / bank account — the canonical field names/location
+  // per the KYC schema (kyc.validation.js). Edited via the KYC page, not here.
+  const [kycDocs, setKycDocs] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.get("/api/users/profile", getToken());
-        const data = response.data?.user || response.data || user || {};
+        const [profileRes, kycRes] = await Promise.all([
+          api.get("/api/users/profile", getToken()),
+          api.get("/api/kyc/status", getToken()),
+        ]);
+        const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
         setForm({
           name: data.name || "",
@@ -62,6 +70,7 @@ export default function Profile() {
           address: data.address || "",
           company_name: data.company_name || "",
         });
+        if (kycRes.success) setKycDocs(kycRes.data?.submission?.documents || null);
       } catch {
         setError("Failed to load profile. Please try again.");
         setProfile(user || {});
@@ -73,6 +82,7 @@ export default function Profile() {
   }, [user]);
 
   const handleSaveProfile = async () => {
+    const requestUserId = user?.id;
     setSaving(true);
     try {
       const res = await api.patch("/api/users/profile", {
@@ -84,7 +94,7 @@ export default function Profile() {
       if (!res.success) throw new Error(res.message || "Failed to update profile");
       const updated = res.data?.user || res.data || {};
       setProfile((p) => ({ ...p, ...updated }));
-      updateUser(updated);
+      updateUser(updated, requestUserId);
       addToast("Profile updated.", "success");
     } catch (err) {
       addToast(err.message || "Failed to update profile.", "error");
@@ -115,7 +125,7 @@ export default function Profile() {
   };
 
   const handleSaveExtra = () => {
-    addToast("Saved locally — GST/bank details aren't stored on the server yet.", "warning");
+    addToast("Saved locally — address details aren't stored on the server yet.", "warning");
   };
 
   if (loading) {
@@ -154,7 +164,7 @@ export default function Profile() {
         </div>
         <div className="bg-white rounded-xl border border-slate-100 shadow-modal p-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Building2 size={16} className="text-primary" /></div>
-          <div><p className="text-[11px] text-slate-400 font-semibold uppercase">GST</p><p className="text-sm font-semibold text-slate-800">{extra.gst || "Not provided"}</p></div>
+          <div><p className="text-[11px] text-slate-400 font-semibold uppercase">GST</p><p className="text-sm font-semibold text-slate-800">{kycDocs?.gst_number || "Not provided"}</p></div>
         </div>
       </div>
 
@@ -198,20 +208,36 @@ export default function Profile() {
                 <Field label="State" value={extra.state} onChange={(e) => setExtra((x) => ({ ...x, state: e.target.value }))} />
               </div>
               <Field label="Pincode" value={extra.pincode} onChange={(e) => setExtra((x) => ({ ...x, pincode: e.target.value }))} />
-              <Field label="GST Number" value={extra.gst} onChange={(e) => setExtra((x) => ({ ...x, gst: e.target.value }))} />
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
+                City/state/pincode aren't backend-modeled yet — saved locally only.
+              </div>
+              <button onClick={handleSaveExtra} className="btn-ghost px-4 py-2.5 text-sm border border-slate-200">Save</button>
             </div>
           </div>
 
           <div className="bg-white rounded-xl border border-slate-100 shadow-card">
-            <SectionHeader icon={Landmark} title="Bank Details" />
+            <SectionHeader icon={Landmark} title="GST & Bank Details" />
             <div className="p-5 space-y-3">
-              <Field label="Bank Name" value={extra.bankName} onChange={(e) => setExtra((x) => ({ ...x, bankName: e.target.value }))} />
-              <Field label="Account Number" value={extra.accountNumber} onChange={(e) => setExtra((x) => ({ ...x, accountNumber: e.target.value }))} />
-              <Field label="IFSC Code" value={extra.ifsc} onChange={(e) => setExtra((x) => ({ ...x, ifsc: e.target.value }))} />
-              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-                Bank details aren't backend-modeled yet — saved locally only.
+              {/* Read-only — sourced from the KYC submission, the single source of truth for
+                  these fields. Edited via the KYC page, not duplicated here. */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">GST Number</label>
+                <p className="input-field px-3 py-2 w-full bg-slate-50 text-slate-600 font-mono text-sm">
+                  {kycDocs?.gst_number || "Not provided"}
+                </p>
               </div>
-              <button onClick={handleSaveExtra} className="btn-ghost px-4 py-2.5 text-sm border border-slate-200">Save</button>
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 mb-1.5">Bank Account Number</label>
+                <p className="input-field px-3 py-2 w-full bg-slate-50 text-slate-600 font-mono text-sm">
+                  {kycDocs?.bank_account_number || "Not provided"}
+                </p>
+              </div>
+              <button
+                onClick={() => navigate("/kyc")}
+                className="btn-ghost px-4 py-2.5 text-sm border border-slate-200 flex items-center gap-1.5"
+              >
+                Edit in KYC <ArrowRight size={14} />
+              </button>
             </div>
           </div>
 

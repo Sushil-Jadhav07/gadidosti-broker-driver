@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, ShieldCheck, ShieldAlert, Users, Plus, Info, Search, CheckCircle2, XCircle } from "lucide-react";
+import { Eye, ShieldCheck, ShieldAlert, Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2, UserPlus, Copy, Edit2 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
+import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import TruckDropdown from "../../components/broker/TruckDropdown";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
@@ -12,6 +13,16 @@ const KYC_VARIANT = { Verified: "success", Pending: "warning", Rejected: "danger
 const EMPTY_FORM = {
   lookupPhone: "",
   foundDriver: null,
+  licenseNo: "",
+  licenseExpiry: "",
+  aadhaar: "",
+  truckId: "",
+};
+
+const EMPTY_REGISTER_FORM = {
+  name: "",
+  phone: "",
+  email: "",
   licenseNo: "",
   licenseExpiry: "",
   aadhaar: "",
@@ -36,12 +47,27 @@ export default function Drivers() {
   const [error, setError] = useState(null);
 
   const [showAdd, setShowAdd] = useState(false);
+  const [addMode, setAddMode] = useState("link"); // "link" | "register"
   const [form, setForm] = useState(EMPTY_FORM);
   const [aadhaarDigits, setAadhaarDigits] = useState("");
   const [errors, setErrors] = useState({});
   const [saving, setSaving] = useState(false);
   const [looking, setLooking] = useState(false);
   const [lookupError, setLookupError] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ licenseNo: "", licenseExpiry: "", aadhaar: "", truckId: "", status: "available" });
+  const [editAadhaarDigits, setEditAadhaarDigits] = useState("");
+  const [editErrors, setEditErrors] = useState({});
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const [registerForm, setRegisterForm] = useState(EMPTY_REGISTER_FORM);
+  const [registerAadhaarDigits, setRegisterAadhaarDigits] = useState("");
+  const [registerErrors, setRegisterErrors] = useState({});
+  const [registering, setRegistering] = useState(false);
+  const [tempPasswordResult, setTempPasswordResult] = useState(null);
 
   const loadAll = async () => {
     setLoading(true);
@@ -75,11 +101,27 @@ export default function Drivers() {
     [trucks],
   );
 
+  // For the edit form: unassigned trucks, plus whichever truck this driver already has —
+  // otherwise their own current truck would vanish from the dropdown while editing.
+  const trucksForEdit = useMemo(() => {
+    if (!editTarget) return unassignedTrucks;
+    const editingDriverId = editTarget.id || editTarget.user_id;
+    return trucks.filter((truck) => {
+      const truckDriverId = truck.driverId || truck.driver_id;
+      return !truckDriverId || truckDriverId === editingDriverId;
+    });
+  }, [trucks, unassignedTrucks, editTarget]);
+
   const openAdd = () => {
+    setAddMode("link");
     setForm(EMPTY_FORM);
     setAadhaarDigits("");
     setErrors({});
     setLookupError(null);
+    setRegisterForm(EMPTY_REGISTER_FORM);
+    setRegisterAadhaarDigits("");
+    setRegisterErrors({});
+    setTempPasswordResult(null);
     setShowAdd(true);
   };
 
@@ -147,13 +189,118 @@ export default function Drivers() {
     }
   };
 
+  const validateRegister = () => {
+    const next = {};
+    if (!registerForm.name.trim()) next.name = "Name is required.";
+    if (registerForm.phone.replace(/\D/g, "").length !== 10) next.phone = "Enter a valid 10-digit phone number.";
+    if (!registerForm.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerForm.email.trim())) {
+      next.email = "Enter a valid email address — the driver logs in with email + password.";
+    }
+    if (registerForm.licenseExpiry) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (new Date(registerForm.licenseExpiry) < today) next.licenseExpiry = "License expiry cannot be in the past.";
+    }
+    if (registerAadhaarDigits && registerAadhaarDigits.length !== 12) {
+      next.aadhaar = "Aadhaar must be 12 digits.";
+    }
+    setRegisterErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleRegister = async () => {
+    if (!validateRegister()) return;
+    setRegistering(true);
+    try {
+      const payload = {
+        name: registerForm.name.trim(),
+        phone: registerForm.phone.replace(/\D/g, ""),
+        email: registerForm.email.trim(),
+        license_no: registerForm.licenseNo.trim() || undefined,
+        license_expiry: registerForm.licenseExpiry || undefined,
+        aadhaar: registerAadhaarDigits.length === 12 ? registerAadhaarDigits : undefined,
+        truck_id: registerForm.truckId || undefined,
+      };
+      const res = await api.post("/api/vehicles/drivers/register", payload, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to register driver");
+      setTempPasswordResult({ name: payload.name, email: payload.email, tempPassword: res.data.tempPassword });
+      loadAll();
+    } catch (err) {
+      addToast(err.message || "Failed to register driver.", "error");
+    } finally {
+      setRegistering(false);
+    }
+  };
+
+  const openEdit = (driver) => {
+    setEditTarget(driver);
+    setEditForm({
+      licenseNo: driver.licenseNo || driver.license_no || "",
+      licenseExpiry: (driver.licenseExpiry || driver.license_expiry) ? String(driver.licenseExpiry || driver.license_expiry).slice(0, 10) : "",
+      aadhaar: "",
+      truckId: driver.truckId || driver.truck_id || "",
+      status: driver.status || "available",
+    });
+    setEditAadhaarDigits("");
+    setEditErrors({});
+    setSelected(null);
+  };
+
+  const validateEdit = () => {
+    const next = {};
+    if (editForm.licenseExpiry) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (new Date(editForm.licenseExpiry) < today) next.licenseExpiry = "License expiry cannot be in the past.";
+    }
+    if (editAadhaarDigits && editAadhaarDigits.length !== 12) {
+      next.aadhaar = "Aadhaar must be 12 digits.";
+    }
+    setEditErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTarget || !validateEdit()) return;
+    setSavingEdit(true);
+    try {
+      const id = editTarget.id || editTarget.user_id;
+      const payload = {
+        license_no: editForm.licenseNo.trim() || undefined,
+        license_expiry: editForm.licenseExpiry || undefined,
+        aadhaar: editAadhaarDigits.length === 12 ? editAadhaarDigits : undefined,
+        truck_id: editForm.truckId || undefined,
+        status: editForm.status || undefined,
+      };
+      const res = await api.patch(`/api/vehicles/drivers/${id}`, payload, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to update driver");
+      addToast("Driver details updated.", "success");
+      setEditTarget(null);
+      loadAll();
+    } catch (err) {
+      addToast(err.message || "Failed to update driver.", "error");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const id = deleteTarget.id || deleteTarget.user_id;
+      const res = await api.delete(`/api/vehicles/drivers/${id}`, null, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to remove driver");
+      addToast("Driver removed from your fleet.", "success");
+      setDeleteTarget(null);
+      loadAll();
+    } catch (err) {
+      addToast(err.message || "Failed to remove driver.", "error");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
-        <Info size={16} className="flex-shrink-0 mt-0.5" />
-        <span>Adding a driver links an <b>existing driver account</b> to your fleet — the driver must have already signed up on the app. Search by their phone number below.</span>
-      </div>
-
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <input type="text" placeholder="Search by name or phone..." value={search} onChange={(event) => setSearch(event.target.value)} className="input-field px-3 py-2 max-w-xs" />
         <div className="flex items-center gap-2">
@@ -202,7 +349,13 @@ export default function Drivers() {
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{driver.truckReg || driver.truck_reg || "-"}</td>
                     <td className="px-4 py-3 text-slate-600">{driver.totalTrips || driver.total_trips || 0}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(driver.licenseExpiry || driver.license_expiry)}</td>
-                    <td className="px-4 py-3"><button onClick={() => setSelected(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Eye size={14} /></button></td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => setSelected(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Eye size={14} /></button>
+                        <button onClick={() => openEdit(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Edit2 size={14} /></button>
+                        <button onClick={() => setDeleteTarget(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -232,12 +385,191 @@ export default function Drivers() {
                 </div>
               ))}
             </div>
+            <div className="flex justify-end">
+              <button onClick={() => openEdit(selected)} className="btn-primary px-4 py-2 text-sm flex items-center gap-2"><Edit2 size={14} /> Edit</button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Driver" size="md">
+        {editTarget && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"><span className="text-primary font-bold text-xs">{editTarget.name?.[0] || "D"}</span></div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">{editTarget.name}</p>
+                <p className="text-xs text-slate-500">{editTarget.phone}</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">License No.</label>
+                <input value={editForm.licenseNo} onChange={(e) => setEditForm((f) => ({ ...f, licenseNo: e.target.value }))} className="input-field px-3 py-2 w-full" placeholder="MH-2020123456789" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">License Expiry</label>
+                <input type="date" value={editForm.licenseExpiry} onChange={(e) => setEditForm((f) => ({ ...f, licenseExpiry: e.target.value }))} className="input-field px-3 py-2 w-full" />
+                {editErrors.licenseExpiry && <p className="text-xs text-red-500 mt-1">{editErrors.licenseExpiry}</p>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Aadhaar</label>
+                <input
+                  value={formatAadhaar(editForm.aadhaar, editAadhaarDigits)}
+                  onChange={(e) => setEditAadhaarDigits(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  className="input-field px-3 py-2 w-full font-mono"
+                  placeholder={editTarget.aadhaar || "XXXX-XXXX-1234"}
+                />
+                {editErrors.aadhaar && <p className="text-xs text-red-500 mt-1">{editErrors.aadhaar}</p>}
+                <p className="text-[11px] text-slate-400 mt-1">Leave blank to keep the current Aadhaar on file.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Assign Truck</label>
+                <TruckDropdown trucks={trucksForEdit} value={editForm.truckId} onChange={(id) => setEditForm((f) => ({ ...f, truckId: id }))} />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Status</label>
+              <select value={editForm.status} onChange={(e) => setEditForm((f) => ({ ...f, status: e.target.value }))} className="input-field px-3 py-2 w-full">
+                <option value="available">Available</option>
+                <option value="on_trip">On Trip</option>
+                <option value="offline">Offline</option>
+              </select>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setEditTarget(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
+              <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{savingEdit ? "Saving..." : "Save Changes"}</button>
+            </div>
           </div>
         )}
       </Modal>
 
       <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add Driver" size="md">
+        {tempPasswordResult ? (
+          <div className="space-y-4">
+            <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
+              <CheckCircle2 size={16} className="flex-shrink-0 mt-0.5" />
+              <span><b>{tempPasswordResult.name}</b> has been registered and added to your fleet.</span>
+            </div>
+            <div className="bg-slate-50 rounded-xl p-4 space-y-2">
+              <p className="text-[11px] text-slate-400 font-semibold uppercase">Share these login details with the driver</p>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] text-slate-400">Email</p>
+                  <p className="text-sm font-semibold text-slate-800">{tempPasswordResult.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[11px] text-slate-400">Temporary Password</p>
+                  <p className="text-sm font-mono font-semibold text-slate-800">{tempPasswordResult.tempPassword}</p>
+                </div>
+                <button
+                  onClick={() => { navigator.clipboard?.writeText(tempPasswordResult.tempPassword); addToast("Password copied", "success"); }}
+                  className="p-2 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all flex-shrink-0"
+                >
+                  <Copy size={14} />
+                </button>
+              </div>
+              <p className="text-[11px] text-amber-600">This password is shown only once — the driver can change it from their profile after logging in.</p>
+            </div>
+            <button onClick={() => setShowAdd(false)} className="w-full btn-primary px-4 py-2.5 text-sm">Done</button>
+          </div>
+        ) : (
         <div className="space-y-4">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setAddMode("link")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${addMode === "link" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              Link Existing Driver
+            </button>
+            <button
+              onClick={() => setAddMode("register")}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${addMode === "register" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            >
+              <UserPlus size={12} /> Register New Driver
+            </button>
+          </div>
+
+          {addMode === "register" ? (
+            <>
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
+                <Info size={16} className="flex-shrink-0 mt-0.5" />
+                <span>This creates a brand-new driver account. The driver logs in with email + password, so a temporary password will be generated for you to share with them.</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Full Name *</label>
+                  <input value={registerForm.name} onChange={(e) => setRegisterForm((f) => ({ ...f, name: e.target.value }))} className="input-field px-3 py-2 w-full" placeholder="Ramesh Kumar" />
+                  {registerErrors.name && <p className="text-xs text-red-500 mt-1">{registerErrors.name}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number *</label>
+                  <input
+                    value={registerForm.phone}
+                    onChange={(e) => setRegisterForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                    className="input-field px-3 py-2 w-full font-mono"
+                    placeholder="10-digit phone number"
+                  />
+                  {registerErrors.phone && <p className="text-xs text-red-500 mt-1">{registerErrors.phone}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email *</label>
+                  <input
+                    type="email"
+                    value={registerForm.email}
+                    onChange={(e) => setRegisterForm((f) => ({ ...f, email: e.target.value }))}
+                    className="input-field px-3 py-2 w-full"
+                    placeholder="driver@example.com"
+                  />
+                  {registerErrors.email && <p className="text-xs text-red-500 mt-1">{registerErrors.email}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">License No.</label>
+                  <input value={registerForm.licenseNo} onChange={(e) => setRegisterForm((f) => ({ ...f, licenseNo: e.target.value }))} className="input-field px-3 py-2 w-full" placeholder="MH-2020123456789" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">License Expiry</label>
+                  <input type="date" value={registerForm.licenseExpiry} onChange={(e) => setRegisterForm((f) => ({ ...f, licenseExpiry: e.target.value }))} className="input-field px-3 py-2 w-full" />
+                  {registerErrors.licenseExpiry && <p className="text-xs text-red-500 mt-1">{registerErrors.licenseExpiry}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Aadhaar</label>
+                  <input
+                    value={formatAadhaar(registerForm.aadhaar, registerAadhaarDigits)}
+                    onChange={(e) => setRegisterAadhaarDigits(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    className="input-field px-3 py-2 w-full font-mono"
+                    placeholder="XXXX-XXXX-1234"
+                  />
+                  {registerErrors.aadhaar && <p className="text-xs text-red-500 mt-1">{registerErrors.aadhaar}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Assign Truck</label>
+                  <TruckDropdown trucks={unassignedTrucks} value={registerForm.truckId} onChange={(id) => setRegisterForm((f) => ({ ...f, truckId: id }))} />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
+                <button onClick={handleRegister} disabled={registering} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{registering ? "Registering..." : "Register Driver"}</button>
+              </div>
+            </>
+          ) : (
+          <>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Driver Phone Number *</label>
             {form.foundDriver ? (
@@ -313,8 +645,20 @@ export default function Drivers() {
             <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{saving ? "Adding..." : "Add Driver"}</button>
           </div>
+          </>
+          )}
         </div>
+        )}
       </Modal>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Remove Driver"
+        message={`Remove ${deleteTarget?.name || "this driver"} from your fleet? Their driver account is not deleted — you can add them back later.`}
+        confirmText={deleting ? "Removing..." : "Remove"}
+      />
     </div>
   );
 }

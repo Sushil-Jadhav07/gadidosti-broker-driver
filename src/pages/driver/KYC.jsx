@@ -13,12 +13,14 @@ const FIELDS = [
   { key: "vehicle_insurance_number", label: "Vehicle Insurance Number", placeholder: "INS-2024-567890", icon: ShieldCheck },
 ];
 
-// document_key used for the upload endpoint, and the field this url gets merged
-// into on submit — kept separate from the number fields (license_number etc.)
-// so a photo url never overwrites the number, or vice versa.
+// documentKey must equal urlField — POST /api/kyc/documents/upload immediately merges
+// the uploaded url into kyc_submissions.documents under document_key, before the user
+// ever clicks Submit. Using the same key here means that merge already lands under the
+// field fetchKyc reads back, so an uploaded-but-not-yet-submitted photo survives a
+// refresh/tab-switch instead of only "really" saving once Submit is clicked.
 const PHOTO_FIELDS = {
-  license_number: { documentKey: "license_photo", urlField: "license_photo_url", label: "Driving License" },
-  aadhaar_number: { documentKey: "aadhaar_photo", urlField: "aadhaar_photo_url", label: "Aadhaar Card" },
+  license_number: { documentKey: "license_photo_url", urlField: "license_photo_url", label: "Driving License" },
+  aadhaar_number: { documentKey: "aadhaar_photo_url", urlField: "aadhaar_photo_url", label: "Aadhaar Card" },
 };
 
 export default function DriverKYC() {
@@ -38,12 +40,15 @@ export default function DriverKYC() {
 
   const fetchKyc = useCallback(async () => {
     if (!token) return;
+    const requestUserId = user?.id;
     setLoading(true);
     try {
       const data = await api.get("/api/kyc/status", token);
       if (data.success) {
         setSubmission(data.data.submission);
-        if (data.data.kyc_status) updateUser({ kyc_status: data.data.kyc_status });
+        // Skip if the logged-in account has changed since this request was issued — otherwise
+        // a slow response from a since-logged-out account could overwrite whoever's logged in now.
+        if (data.data.kyc_status) updateUser({ kyc_status: data.data.kyc_status }, requestUserId);
         const docs = data.data.submission?.documents || {};
         setDocUrls({
           license_number: docs[PHOTO_FIELDS.license_number.urlField] || null,
@@ -82,6 +87,7 @@ export default function DriverKYC() {
   };
 
   const handleSubmit = async (documents) => {
+    const requestUserId = user?.id;
     setSubmitting(true);
     try {
       const withPhotos = { ...documents };
@@ -91,7 +97,7 @@ export default function DriverKYC() {
       const result = await api.post("/api/kyc/driver", { documents: withPhotos }, token);
       if (!result.success) throw new Error(result.message || "Submission failed");
       setSubmission(result.data.submission);
-      updateUser({ kyc_status: "submitted" });
+      updateUser({ kyc_status: "submitted" }, requestUserId);
       setJustSubmitted(true);
       setEditing(false);
     } finally {

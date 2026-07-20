@@ -79,13 +79,14 @@ export default function Profile() {
   }, [user]);
 
   const handleSaveProfile = async () => {
+    const requestUserId = user?.id;
     setSaving(true);
     try {
       const res = await api.patch("/api/users/profile", { name: form.name, email: form.email }, getToken());
       if (!res.success) throw new Error(res.message || "Failed to update profile");
       const updated = res.data?.user || res.data || {};
       setProfile((p) => ({ ...p, ...updated }));
-      updateUser(updated);
+      updateUser(updated, requestUserId);
       addToast("Profile updated.", "success");
     } catch (err) {
       addToast(err.message || "Failed to update profile.", "error");

@@ -24,6 +24,7 @@ export const formatDateTime = (value) => {
 
 const BOOKING_STATUS = {
   pending: "Requested",
+  countered: "Countered",
   confirmed: "Accepted",
   assigned: "Assigned",
   en_route_pickup: "En Route Pickup",
@@ -33,6 +34,7 @@ const BOOKING_STATUS = {
   completed: "Completed",
   cancelled: "Cancelled",
   accepted: "Accepted",
+  declined: "Declined",
   expired: "Expired",
 };
 
@@ -54,8 +56,13 @@ export const adaptBooking = (booking) => ({
   createdAtLabel: formatDate(booking.createdAt || booking.date),
 });
 
+// Keeps the raw backend status (e.g. "confirmed", "en_route_pickup") on rawStatus for
+// logic/comparisons, while status becomes the human label for display. Trips are created
+// with status "confirmed" (not "assigned" — that's a booking-only status set before a trip
+// row exists) and only move to "en_route_pickup" once the driver starts the trip.
 export const adaptTrip = (trip) => ({
   ...trip,
+  rawStatus: trip.status,
   status: formatBookingStatus(trip.status),
   earnings: Number(trip.earnings || 0),
   distance: Number(trip.distance || 0),
@@ -70,7 +77,7 @@ export const adaptSettlement = (settlement) => ({
 });
 
 export const DRIVER_STATUS_STEPS = [
-  { key: "assigned", label: "Assigned", icon: "clipboard-list" },
+  { key: "confirmed", label: "Assigned", icon: "clipboard-list" },
   { key: "en_route_pickup", label: "En Route Pickup", icon: "navigation" },
   { key: "picked_up", label: "Picked Up", icon: "package-check" },
   { key: "in_transit", label: "In Transit", icon: "route" },
