@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
+import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
 import EmergencySheet from "../../components/driver/EmergencySheet";
 import ReportIncidentSheet from "../../components/driver/ReportIncidentSheet";
 import ReportBreakdownSheet from "../../components/driver/ReportBreakdownSheet";
@@ -42,71 +43,58 @@ export default function MyTrip() {
   const [activeIncident, setActiveIncident] = useState(null);
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
   const [declining, setDeclining] = useState(false);
-  const [uploadingPod, setUploadingPod] = useState(false);
   const [showChat, setShowChat] = useState(false);
-  const podFileInputRef = useRef(null);
+  // Once the driver commits to wrapping up delivery (in_transit -> delivered), the page
+  // hands off entirely to DeliveryCompletionFlow instead of the normal trip view — see
+  // handleStatusChange's 'delivered' special-case below. Auto-resumes true on load if the
+  // trip is already past that point (e.g. the driver closed the app mid-flow).
+  const [deliveryFlowActive, setDeliveryFlowActive] = useState(false);
+
+  const loadTrip = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get("/api/trips/active", getToken());
+      const loadedTrip = response.data?.trip ? adaptTrip(response.data.trip) : null;
+      setTrip(loadedTrip);
+      setDeliveryFlowActive(loadedTrip?.rawStatus === "delivered");
+
+      if (loadedTrip) {
+        try {
+          const incidentsRes = await api.get(`/api/trips/${loadedTrip.id}/incidents`, getToken());
+          const unresolved = (incidentsRes.data?.incidents || []).find((i) => i.status !== "resolved");
+          setActiveIncident(unresolved || null);
+        } catch { /* non-critical — badge just won't show */ }
+      }
+    } catch {
+      setError("Failed to load trip. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await api.get("/api/trips/active", getToken());
-        const loadedTrip = response.data?.trip ? adaptTrip(response.data.trip) : null;
-        setTrip(loadedTrip);
-
-        if (loadedTrip) {
-          try {
-            const incidentsRes = await api.get(`/api/trips/${loadedTrip.id}/incidents`, getToken());
-            const unresolved = (incidentsRes.data?.incidents || []).find((i) => i.status !== "resolved");
-            setActiveIncident(unresolved || null);
-          } catch { /* non-critical — badge just won't show */ }
-        }
-      } catch {
-        setError("Failed to load trip. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
-    load();
+    loadTrip();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const completedTimes = useMemo(() => Object.fromEntries((trip?.timeline || []).filter((step) => step.time).map((step) => [step.step, formatDateTime(step.time)])), [trip]);
 
   const handleStatusChange = async (nextStatus) => {
     if (!trip) return;
+    // The old flow PATCHed straight to 'delivered' from a single button tap. Now that
+    // transition hands off to the dedicated completion wizard instead — its own "Arrived"
+    // step is the thing that actually PATCHes the status, once the driver swipes to confirm.
+    if (nextStatus === "delivered") {
+      setDeliveryFlowActive(true);
+      return;
+    }
     try {
       const response = await api.patch(`/api/trips/${trip.id}/status`, { status: nextStatus }, getToken());
       if (!response.success) throw new Error(response.message || "Failed to update trip status");
       setTrip(adaptTrip(response.data?.trip));
     } catch (err) {
       addToast(err.message || "Failed to update trip status.", "error");
-    }
-  };
-
-  const handleUploadPOD = () => {
-    if (uploadingPod) return;
-    podFileInputRef.current?.click();
-  };
-
-  const handlePodFileSelected = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file || !trip) return;
-
-    setUploadingPod(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const uploadRes = await api.upload(`/api/trips/${trip.id}/pod`, formData, getToken());
-      if (!uploadRes.success) throw new Error(uploadRes.message || "Failed to upload proof of delivery");
-
-      addToast("Proof of delivery uploaded.", "success");
-      await handleStatusChange("completed");
-    } catch (err) {
-      addToast(err.message || "Failed to upload proof of delivery.", "error");
-    } finally {
-      setUploadingPod(false);
     }
   };
 
@@ -161,6 +149,10 @@ export default function MyTrip() {
   if (loading) return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading trip...</div>;
   if (error) return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>;
   if (!trip) return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">No active trip assigned.</div>;
+
+  if (deliveryFlowActive) {
+    return <DeliveryCompletionFlow trip={trip} onExit={loadTrip} />;
+  }
 
   const statusKey = trip.rawStatus;
   const canDecline = DECLINABLE_STATUSES.includes(statusKey);
@@ -230,7 +222,7 @@ export default function MyTrip() {
               ))}
             </div>
           </div>
-          <RouteMapPanel pickup={trip.pickup} drop={trip.drop} />
+          <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} />
         </div>
       </div>
 
@@ -273,20 +265,9 @@ export default function MyTrip() {
           <TripStatusButton
             status={statusKey}
             onStatusChange={handleStatusChange}
-            onUploadPOD={handleUploadPOD}
-            disabled={uploadingPod}
           />
         </div>
       </div>
-
-      <input
-        ref={podFileInputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-        onChange={handlePodFileSelected}
-      />
 
       <EmergencySheet
         isOpen={showSOS}

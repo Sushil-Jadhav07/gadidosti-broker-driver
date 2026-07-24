@@ -4,6 +4,7 @@ import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import TruckDropdown from "../../components/broker/TruckDropdown";
+import MapView from "../../components/MapView";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatKycStatus, formatDate } from "../../utils";
@@ -95,6 +96,18 @@ export default function Drivers() {
     const matchFilter = filter === "All" || kycStatus === filter;
     return matchSearch && matchFilter;
   }), [drivers, filter, search]);
+
+  // Fleet map markers — only drivers with a known last-reported location (current_lat/lng,
+  // kept fresh via PATCH /api/vehicles/drivers/me/location) show up on the map; the rest are
+  // still visible in the table below, just without a pin.
+  const fleetMarkers = useMemo(() => drivers
+    .filter((driver) => driver.currentLat != null && driver.currentLng != null)
+    .map((driver) => ({
+      id: driver.id || driver.user_id,
+      position: { lat: Number(driver.currentLat), lng: Number(driver.currentLng) },
+      color: driver.status === "on_trip" ? "blue" : driver.status === "offline" ? "yellow" : "green",
+      title: `${driver.name}${driver.truckReg ? ` — ${driver.truckReg}` : ""}`,
+    })), [drivers]);
 
   const unassignedTrucks = useMemo(
     () => trucks.filter((truck) => !truck.driverId && !truck.driver_id),
@@ -309,6 +322,24 @@ export default function Drivers() {
           ))}
           <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm flex items-center gap-2"><Plus size={15} /> Add Driver</button>
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+        <h3 className="font-bold text-slate-900 text-[15px] mb-4">Fleet Map</h3>
+        {loading ? (
+          <div className="h-[320px] flex items-center justify-center text-slate-400 text-sm">Loading drivers...</div>
+        ) : error ? (
+          <div className="h-[320px] flex items-center justify-center text-red-500 text-sm">{error}</div>
+        ) : fleetMarkers.length ? (
+          <div className="relative h-[320px] rounded-xl overflow-hidden border border-slate-100">
+            <MapView markers={fleetMarkers} height="100%" className="absolute inset-0" />
+          </div>
+        ) : (
+          <div className="h-[320px] flex flex-col items-center justify-center text-slate-400 text-sm">
+            <Users size={28} className="mb-2 opacity-30" />
+            No drivers currently reporting a location
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">

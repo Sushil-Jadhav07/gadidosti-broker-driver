@@ -99,7 +99,7 @@ export default function Home() {
                 ))}
               </div>
             </div>
-            <RouteMapPanel pickup={activeTrip.pickup} drop={activeTrip.drop} />
+            <RouteMapPanel pickup={activeTrip.pickup} drop={activeTrip.drop} currentLocation={activeTrip.currentLocation} />
           </div>
         </div>
       )}
