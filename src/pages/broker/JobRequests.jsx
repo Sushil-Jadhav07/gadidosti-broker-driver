@@ -23,8 +23,7 @@ export default function JobRequests() {
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [accepted, setAccepted] = useState(0);
-  const [confirmAction, setConfirmAction] = useState(null);
+  const [rejectId, setRejectId] = useState(null);
   const [assignRequest, setAssignRequest] = useState(null);
   const [assignForm, setAssignForm] = useState({ driverId: "", truckId: "" });
   const [assigning, setAssigning] = useState(false);
@@ -105,24 +104,6 @@ export default function JobRequests() {
     }
   };
 
-  const handleAccept = async (id) => {
-    try {
-      await api.patch(`/api/jobs/requests/${id}/accept`, {}, getToken());
-      setAccepted((count) => count + 1);
-      setRequests((current) => current.map((request) => (
-        request.id === id ? { ...request, status: "Accepted" } : request
-      )));
-      const req = requests.find((r) => r.id === id);
-      setAssignForm({ driverId: "", truckId: "" });
-      setAssignRequest(req ? { ...req, status: "Accepted" } : { id });
-      addToast("Job accepted. Now assign a driver and truck.", "success");
-    } catch (err) {
-      addToast(err.message || "Failed to accept job.", "error");
-    } finally {
-      setConfirmAction(null);
-    }
-  };
-
   const handleReject = async (id) => {
     try {
       await api.patch(`/api/jobs/requests/${id}/decline`, {}, getToken());
@@ -132,7 +113,7 @@ export default function JobRequests() {
     } catch (err) {
       addToast(err.message || "Failed to decline job.", "error");
     } finally {
-      setConfirmAction(null);
+      setRejectId(null);
     }
   };
 
@@ -165,12 +146,6 @@ export default function JobRequests() {
 
   return (
     <div className="space-y-4">
-      {accepted > 0 && (
-        <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-emerald-700">
-          <CheckCircle size={16} />{accepted} request{accepted > 1 ? "s" : ""} accepted and ready for driver assignment.
-        </div>
-      )}
-
       {loading && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading job requests...</div>
       )}
@@ -252,11 +227,15 @@ export default function JobRequests() {
                     <Clock size={13} /> Waiting for client&apos;s response to your {formatCurrency(req.amount)} offer
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setConfirmAction({ type: "accept", id: req.id })} className="flex-1 btn-primary py-2 text-xs flex items-center justify-center gap-1.5"><CheckCircle size={14} /> Accept</button>
-                    <button onClick={() => openCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
-                    <button onClick={() => setConfirmAction({ type: "reject", id: req.id })} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Reject</button>
-                  </div>
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
+                      <button onClick={() => setRejectId(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 text-center mt-2">
+                      Your offer of {formatCurrency(req.amount)} is live — the client is comparing brokers and will pick one. No action needed unless you want to counter or decline.
+                    </p>
+                  </>
                 )}
                 <div className="flex items-center gap-1.5 mt-3 text-xs text-slate-400">
                   <Phone size={12} />{req.clientName}: {req.clientPhone} - {req.timestamp}
@@ -268,12 +247,12 @@ export default function JobRequests() {
       )}
 
       <ConfirmDialog
-        isOpen={!!confirmAction} onClose={() => setConfirmAction(null)}
-        onConfirm={() => { if (confirmAction?.type === "accept") handleAccept(confirmAction.id); else handleReject(confirmAction?.id); }}
-        title={confirmAction?.type === "accept" ? "Accept Job?" : "Reject Job?"}
-        message={confirmAction?.type === "accept" ? "This job will be moved to assignment." : "Are you sure you want to reject this job request?"}
-        confirmText={confirmAction?.type === "accept" ? "Accept" : "Reject"}
-        variant={confirmAction?.type === "accept" ? "warning" : "danger"}
+        isOpen={!!rejectId} onClose={() => setRejectId(null)}
+        onConfirm={() => handleReject(rejectId)}
+        title="Decline Job?"
+        message="Are you sure you want to decline this job request?"
+        confirmText="Decline"
+        variant="danger"
       />
 
       <Modal isOpen={!!assignRequest} onClose={() => setAssignRequest(null)} title="Assign Driver & Truck" size="sm">
