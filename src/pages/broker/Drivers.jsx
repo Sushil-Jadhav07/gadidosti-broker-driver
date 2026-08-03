@@ -30,12 +30,71 @@ const EMPTY_REGISTER_FORM = {
   truckId: "",
 };
 
-const formatAadhaar = (raw, digits) => {
+const formatAadhaar = (digits) => {
   // digits holds the true underlying digit string (up to 12); display masks all but the last 4.
   const groups = [];
   for (let i = 0; i < digits.length; i += 4) groups.push(digits.slice(i, i + 4));
   return groups.map((g, i) => (i === groups.length - 1 ? g : "X".repeat(g.length))).join("-");
 };
+
+// The displayed value is masked (XXXX-XXXX-1234), so it can't be used to recover the real
+// digit string on change — the X's aren't digits and get stripped along with everything they
+// stand for. Keystrokes are captured directly instead, and the display is purely derived.
+const handleAadhaarKeyDown = (setDigits) => (event) => {
+  if (event.key === "Tab" || event.metaKey || event.ctrlKey) return;
+  event.preventDefault();
+  if (event.key === "Backspace" || event.key === "Delete") {
+    setDigits((prev) => prev.slice(0, -1));
+  } else if (/^[0-9]$/.test(event.key)) {
+    setDigits((prev) => (prev.length < 12 ? prev + event.key : prev));
+  }
+};
+
+const handleAadhaarPaste = (setDigits) => (event) => {
+  event.preventDefault();
+  setDigits(event.clipboardData.getData("text").replace(/\D/g, "").slice(0, 12));
+};
+
+const isoToDdMmYyyy = (iso) => {
+  const [y, m, d] = (iso || "").split("-");
+  return y && m && d ? `${d}${m}${y}` : "";
+};
+
+const ddMmYyyyToIso = (digits) => {
+  if (digits.length !== 8) return "";
+  const d = digits.slice(0, 2);
+  const m = digits.slice(2, 4);
+  const y = digits.slice(4, 8);
+  return `${y}-${m}-${d}`;
+};
+
+const formatDateDigits = (digits) => [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/");
+
+// Plain text input formatted as dd/mm/yyyy. The native <input type="date"> renders its display
+// format from the browser/OS locale rather than anything we control, so digits are captured
+// directly here and converted to/from the yyyy-mm-dd string the API expects. Modal unmounts its
+// children on close (see Modal.jsx), so the useState initializer is enough to pick up a fresh
+// `value` each time this reopens — no sync effect needed while the user is mid-edit.
+function DateInput({ value, onChange, placeholder = "dd/mm/yyyy" }) {
+  const [digits, setDigits] = useState(() => isoToDdMmYyyy(value));
+
+  const handleChange = (event) => {
+    const nextDigits = event.target.value.replace(/\D/g, "").slice(0, 8);
+    setDigits(nextDigits);
+    onChange(ddMmYyyyToIso(nextDigits));
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      value={formatDateDigits(digits)}
+      onChange={handleChange}
+      placeholder={placeholder}
+      className="input-field px-3 py-2 w-full font-mono"
+    />
+  );
+}
 
 export default function Drivers() {
   const { addToast } = useToast();
@@ -196,7 +255,9 @@ export default function Drivers() {
       setShowAdd(false);
       loadAll();
     } catch (err) {
-      addToast(err.message || "Failed to add driver.", "error");
+      const message = err.message || "Failed to add driver.";
+      setErrors((prev) => ({ ...prev, form: message }));
+      addToast(message, "error");
     } finally {
       setSaving(false);
     }
@@ -238,7 +299,9 @@ export default function Drivers() {
       setTempPasswordResult({ name: payload.name, email: payload.email, tempPassword: res.data.tempPassword });
       loadAll();
     } catch (err) {
-      addToast(err.message || "Failed to register driver.", "error");
+      const message = err.message || "Failed to register driver.";
+      setRegisterErrors((prev) => ({ ...prev, form: message }));
+      addToast(message, "error");
     } finally {
       setRegistering(false);
     }
@@ -289,7 +352,9 @@ export default function Drivers() {
       setEditTarget(null);
       loadAll();
     } catch (err) {
-      addToast(err.message || "Failed to update driver.", "error");
+      const message = err.message || "Failed to update driver.";
+      setEditErrors((prev) => ({ ...prev, form: message }));
+      addToast(message, "error");
     } finally {
       setSavingEdit(false);
     }
@@ -441,7 +506,7 @@ export default function Drivers() {
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">License Expiry</label>
-                <input type="date" value={editForm.licenseExpiry} onChange={(e) => setEditForm((f) => ({ ...f, licenseExpiry: e.target.value }))} className="input-field px-3 py-2 w-full" />
+                <DateInput value={editForm.licenseExpiry} onChange={(iso) => setEditForm((f) => ({ ...f, licenseExpiry: iso }))} />
                 {editErrors.licenseExpiry && <p className="text-xs text-red-500 mt-1">{editErrors.licenseExpiry}</p>}
               </div>
             </div>
@@ -450,8 +515,10 @@ export default function Drivers() {
               <div>
                 <label className="block text-xs font-semibold text-slate-600 mb-1.5">Aadhaar</label>
                 <input
-                  value={formatAadhaar(editForm.aadhaar, editAadhaarDigits)}
-                  onChange={(e) => setEditAadhaarDigits(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                  value={formatAadhaar(editAadhaarDigits)}
+                  onKeyDown={handleAadhaarKeyDown(setEditAadhaarDigits)}
+                  onPaste={handleAadhaarPaste(setEditAadhaarDigits)}
+                  onChange={() => {}}
                   className="input-field px-3 py-2 w-full font-mono"
                   placeholder={editTarget.aadhaar || "XXXX-XXXX-1234"}
                 />
@@ -473,6 +540,7 @@ export default function Drivers() {
               </select>
             </div>
 
+            {editErrors.form && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{editErrors.form}</div>}
             <div className="flex gap-3 pt-1">
               <button onClick={() => setEditTarget(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
               <button onClick={handleSaveEdit} disabled={savingEdit} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{savingEdit ? "Saving..." : "Save Changes"}</button>
@@ -572,7 +640,7 @@ export default function Drivers() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">License Expiry</label>
-                  <input type="date" value={registerForm.licenseExpiry} onChange={(e) => setRegisterForm((f) => ({ ...f, licenseExpiry: e.target.value }))} className="input-field px-3 py-2 w-full" />
+                  <DateInput value={registerForm.licenseExpiry} onChange={(iso) => setRegisterForm((f) => ({ ...f, licenseExpiry: iso }))} />
                   {registerErrors.licenseExpiry && <p className="text-xs text-red-500 mt-1">{registerErrors.licenseExpiry}</p>}
                 </div>
               </div>
@@ -581,8 +649,10 @@ export default function Drivers() {
                 <div>
                   <label className="block text-xs font-semibold text-slate-600 mb-1.5">Aadhaar</label>
                   <input
-                    value={formatAadhaar(registerForm.aadhaar, registerAadhaarDigits)}
-                    onChange={(e) => setRegisterAadhaarDigits(e.target.value.replace(/\D/g, "").slice(0, 12))}
+                    value={formatAadhaar(registerAadhaarDigits)}
+                    onKeyDown={handleAadhaarKeyDown(setRegisterAadhaarDigits)}
+                    onPaste={handleAadhaarPaste(setRegisterAadhaarDigits)}
+                    onChange={() => {}}
                     className="input-field px-3 py-2 w-full font-mono"
                     placeholder="XXXX-XXXX-1234"
                   />
@@ -594,6 +664,7 @@ export default function Drivers() {
                 </div>
               </div>
 
+              {registerErrors.form && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{registerErrors.form}</div>}
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
                 <button onClick={handleRegister} disabled={registering} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{registering ? "Registering..." : "Register Driver"}</button>
@@ -647,7 +718,7 @@ export default function Drivers() {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">License Expiry</label>
-              <input type="date" value={form.licenseExpiry} onChange={(e) => setForm((f) => ({ ...f, licenseExpiry: e.target.value }))} className="input-field px-3 py-2 w-full" />
+              <DateInput value={form.licenseExpiry} onChange={(iso) => setForm((f) => ({ ...f, licenseExpiry: iso }))} />
               {errors.licenseExpiry && <p className="text-xs text-red-500 mt-1">{errors.licenseExpiry}</p>}
             </div>
           </div>
@@ -656,11 +727,10 @@ export default function Drivers() {
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">Aadhaar</label>
               <input
-                value={formatAadhaar(form.aadhaar, aadhaarDigits)}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, "").slice(0, 12);
-                  setAadhaarDigits(digits);
-                }}
+                value={formatAadhaar(aadhaarDigits)}
+                onKeyDown={handleAadhaarKeyDown(setAadhaarDigits)}
+                onPaste={handleAadhaarPaste(setAadhaarDigits)}
+                onChange={() => {}}
                 className="input-field px-3 py-2 w-full font-mono"
                 placeholder="XXXX-XXXX-1234"
               />
@@ -672,6 +742,7 @@ export default function Drivers() {
             </div>
           </div>
 
+          {errors.form && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{errors.form}</div>}
           <div className="flex gap-3 pt-1">
             <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
             <button onClick={handleSave} disabled={saving} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{saving ? "Adding..." : "Add Driver"}</button>

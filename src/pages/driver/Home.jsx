@@ -13,6 +13,8 @@ const KYC_BANNER = {
   rejected: { text: "Your KYC submission was rejected. Please review and resubmit.", cta: "Resubmit KYC" },
 };
 
+const titleCase = (value) => (value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -20,6 +22,7 @@ export default function Home() {
   const [upcomingTrip, setUpcomingTrip] = useState(null);
   const [history, setHistory] = useState([]);
   const [profile, setProfile] = useState(user || {});
+  const [assignedTruck, setAssignedTruck] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const kycBanner = KYC_BANNER[user?.kyc_status || "pending"];
@@ -30,12 +33,14 @@ export default function Home() {
       setError(null);
       try {
         const token = getToken();
-        const [profileRes, activeRes, upcomingRes, analyticsRes] = await Promise.all([
+        const [truckRes, profileRes, activeRes, upcomingRes, analyticsRes] = await Promise.all([
+          api.get("/api/vehicles/drivers/me/truck", token),
           api.get("/api/users/profile", token),
           api.get("/api/trips/active", token),
           api.get("/api/trips/upcoming", token),
           api.get("/api/analytics/broker", token),
         ]);
+        setAssignedTruck(truckRes.data?.truck || null);
         setProfile(profileRes.data?.user || profileRes.data || user || {});
         setActiveTrip(activeRes.data?.trip ? adaptTrip(activeRes.data.trip) : null);
         setUpcomingTrip(upcomingRes.data?.trip ? adaptTrip(upcomingRes.data.trip) : null);
@@ -81,42 +86,73 @@ export default function Home() {
         ))}
       </div>
 
-      {activeTrip && (
+      {assignedTruck ? (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-900 text-[15px]">Active Trip</h3>
-            <Badge status={activeTrip.status} />
+            <h3 className="font-bold text-slate-900 text-[15px]">My Truck</h3>
+            <Badge>{titleCase(assignedTruck.status) || "Unknown"}</Badge>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-[1fr_600px] gap-5">
-            <div className="flex flex-col">
-              <div className="space-y-3">
-                <div><p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Pickup</p><p className="text-sm font-semibold text-slate-800">{activeTrip.pickup?.location}</p></div>
-                <div><p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Drop</p><p className="text-sm font-semibold text-slate-800">{activeTrip.drop?.location}</p></div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[
+              ["Registration", assignedTruck.registration],
+              ["Type", titleCase(assignedTruck.category || assignedTruck.type)],
+              ["Capacity", assignedTruck.capacity],
+              ["Make", assignedTruck.make ? `${assignedTruck.make}${assignedTruck.year ? ` (${assignedTruck.year})` : ""}` : null],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
+                <p className="text-sm font-semibold text-slate-800 mt-0.5">{value || "-"}</p>
               </div>
-              <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 mt-4">
-                {[{ label: "Distance", value: `${activeTrip.distance} km`, icon: MapPin }, { label: "Est. Time", value: activeTrip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(activeTrip.earnings), icon: TrendingUp }].map((item) => (
-                  <div key={item.label} className="text-center"><item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" /><p className="text-[11px] text-slate-400">{item.label}</p><p className="text-sm font-bold text-slate-800">{item.value}</p></div>
-                ))}
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-10 text-center text-slate-400">
+          <Truck size={28} className="mx-auto mb-2 opacity-30" />
+          No truck assigned yet — contact your broker.
+        </div>
+      )}
+
+      {assignedTruck && (
+        <>
+          {activeTrip && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-slate-900 text-[15px]">Active Trip</h3>
+                <Badge status={activeTrip.status} />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_600px] gap-5">
+                <div className="flex flex-col">
+                  <div className="space-y-3">
+                    <div><p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Pickup</p><p className="text-sm font-semibold text-slate-800">{activeTrip.pickup?.location}</p></div>
+                    <div><p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Drop</p><p className="text-sm font-semibold text-slate-800">{activeTrip.drop?.location}</p></div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 pt-4 border-t border-slate-100 mt-4">
+                    {[{ label: "Distance", value: `${activeTrip.distance} km`, icon: MapPin }, { label: "Est. Time", value: activeTrip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(activeTrip.earnings), icon: TrendingUp }].map((item) => (
+                      <div key={item.label} className="text-center"><item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" /><p className="text-[11px] text-slate-400">{item.label}</p><p className="text-sm font-bold text-slate-800">{item.value}</p></div>
+                    ))}
+                  </div>
+                </div>
+                <RouteMapPanel pickup={activeTrip.pickup} drop={activeTrip.drop} currentLocation={activeTrip.currentLocation} />
               </div>
             </div>
-            <RouteMapPanel pickup={activeTrip.pickup} drop={activeTrip.drop} currentLocation={activeTrip.currentLocation} />
-          </div>
-        </div>
-      )}
+          )}
 
-      {upcomingTrip && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-          <div className="flex items-center justify-between mb-4"><h3 className="font-bold text-slate-900 text-[15px]">Upcoming Assignment</h3><Badge status="Upcoming" /></div>
-          <p className="text-[15px] font-bold text-slate-900">{upcomingTrip.pickup?.location} {"->"} {upcomingTrip.drop?.location}</p>
-          <p className="text-xs text-slate-500 mt-1">{upcomingTrip.cargo?.material} - {upcomingTrip.distance} km</p>
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between"><p className="text-xs text-slate-500">Driver: {profile.name || user?.name}</p><p className="text-[15px] font-bold text-primary">{formatCurrency(upcomingTrip.earnings)}</p></div>
-        </div>
-      )}
+          {upcomingTrip && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+              <div className="flex items-center justify-between mb-4"><h3 className="font-bold text-slate-900 text-[15px]">Upcoming Assignment</h3><Badge status="Upcoming" /></div>
+              <p className="text-[15px] font-bold text-slate-900">{upcomingTrip.pickup?.location} {"->"} {upcomingTrip.drop?.location}</p>
+              <p className="text-xs text-slate-500 mt-1">{upcomingTrip.cargo?.material} - {upcomingTrip.distance} km</p>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between"><p className="text-xs text-slate-500">Driver: {profile.name || user?.name}</p><p className="text-[15px] font-bold text-primary">{formatCurrency(upcomingTrip.earnings)}</p></div>
+            </div>
+          )}
 
-      {!activeTrip && !upcomingTrip && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-10 text-center text-slate-400">
-          No active or upcoming trips right now.
-        </div>
+          {!activeTrip && !upcomingTrip && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-10 text-center text-slate-400">
+              No active or upcoming trips right now.
+            </div>
+          )}
+        </>
       )}
     </div>
   );

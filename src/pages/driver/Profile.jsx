@@ -36,12 +36,14 @@ const KYC_BADGE = {
   Rejected: "bg-red-50 text-red-600 border-red-200",
 };
 
+const titleCase = (value) => (value || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+
 export default function Profile() {
   const { user, updateUser } = useAuth();
   const { addToast } = useToast();
   const [profile, setProfile] = useState(user || {});
   const [kyc, setKyc] = useState(null);
-  const [vehicle, setVehicle] = useState(null);
+  const [assignedTruck, setAssignedTruck] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -56,18 +58,16 @@ export default function Profile() {
       setError(null);
       try {
         const token = getToken();
-        const [profileRes, kycRes, activeRes, upcomingRes] = await Promise.all([
+        const [profileRes, kycRes, truckRes] = await Promise.all([
           api.get("/api/users/profile", token),
           api.get("/api/kyc/status", token),
-          api.get("/api/trips/active", token),
-          api.get("/api/trips/upcoming", token),
+          api.get("/api/vehicles/drivers/me/truck", token),
         ]);
         const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
         setForm({ name: data.name || "", email: data.email || "" });
         setKyc(kycRes.data || null);
-        const trip = activeRes.data?.trip || upcomingRes.data?.trip || null;
-        setVehicle(trip ? { registration: trip.truckReg || trip.truck_reg } : null);
+        setAssignedTruck(truckRes.data?.truck || null);
       } catch {
         setError("Failed to load profile. Please try again.");
         setProfile(user || {});
@@ -159,7 +159,7 @@ export default function Profile() {
         </div>
         <div className="bg-white rounded-xl border border-slate-100 shadow-modal p-4 flex items-center gap-3">
           <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Truck size={16} className="text-primary" /></div>
-          <div><p className="text-[11px] text-slate-400 font-semibold uppercase">Vehicle</p><p className="text-sm font-semibold text-slate-800">{vehicle?.registration || "Not Assigned"}</p></div>
+          <div><p className="text-[11px] text-slate-400 font-semibold uppercase">Vehicle</p><p className="text-sm font-semibold text-slate-800">{assignedTruck?.registration || "Not Assigned"}</p></div>
         </div>
       </div>
 
@@ -196,16 +196,31 @@ export default function Profile() {
           <div className="bg-white rounded-xl border border-slate-100 shadow-card">
             <SectionHeader icon={Truck} title="My Vehicle" />
             <div className="p-5">
-              {vehicle?.registration ? (
-                <div className="bg-slate-50 rounded-xl p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Truck size={18} className="text-primary" /></div>
-                  <div>
-                    <p className="text-[11px] text-slate-400 font-semibold uppercase">Registration</p>
-                    <p className="text-sm font-bold text-slate-800 font-mono">{vehicle.registration}</p>
+              {assignedTruck ? (
+                <div className="space-y-3">
+                  <div className="bg-slate-50 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"><Truck size={18} className="text-primary" /></div>
+                    <div>
+                      <p className="text-[11px] text-slate-400 font-semibold uppercase">Registration</p>
+                      <p className="text-sm font-bold text-slate-800 font-mono">{assignedTruck.registration}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ["Type", titleCase(assignedTruck.category || assignedTruck.type)],
+                      ["Capacity", assignedTruck.capacity],
+                      ["Make", assignedTruck.make ? `${assignedTruck.make}${assignedTruck.year ? ` (${assignedTruck.year})` : ""}` : null],
+                      ["Status", titleCase(assignedTruck.status)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-[11px] text-slate-400 font-semibold uppercase">{label}</p>
+                        <p className="text-sm font-semibold text-slate-800 mt-0.5">{value || "-"}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-slate-400">No vehicle currently assigned — vehicle details appear here once you have an active or upcoming trip.</p>
+                <p className="text-sm text-slate-400">No truck assigned yet — contact your broker.</p>
               )}
             </div>
           </div>

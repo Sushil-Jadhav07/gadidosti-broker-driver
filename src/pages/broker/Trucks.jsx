@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
-import { Plus, Edit2, Trash2, Truck } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { Plus, Edit2, Trash2, Truck, MoreVertical, UserCog } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import DriverDropdown from "../../components/broker/DriverDropdown";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
@@ -10,6 +12,75 @@ import { formatDate } from "../../utils";
 const STATUS_VARIANT = { available: "success", on_trip: "primary", maintenance: "warning" };
 const TRUCK_TYPES = ["small", "medium", "large"];
 const EMPTY_FORM = { registration: "", category: "small", capacity: "", make: "", year: "", insuranceExpiry: "" };
+
+// Kebab menu for a table row — panel is portaled to document.body and positioned via
+// getBoundingClientRect so it isn't clipped by the table's overflow-x-auto container.
+function TruckRowMenu({ onEdit, onAssignDriver, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const btnRef = useRef(null);
+  const panelRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (btnRef.current?.contains(event.target)) return;
+      if (panelRef.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const updatePos = () => {
+      const rect = btnRef.current?.getBoundingClientRect();
+      if (rect) setPos({ top: rect.bottom + 6, left: rect.right - 176 });
+    };
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [open]);
+
+  const menuItem = (label, Icon, onClick, danger = false) => (
+    <button
+      onClick={() => { setOpen(false); onClick(); }}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors ${
+        danger ? "text-red-600 hover:bg-red-50" : "text-slate-700 hover:bg-slate-50"
+      }`}
+    >
+      <Icon size={14} /> {label}
+    </button>
+  );
+
+  return (
+    <div className="relative inline-block">
+      <button
+        ref={btnRef}
+        onClick={() => setOpen((value) => !value)}
+        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+      >
+        <MoreVertical size={16} />
+      </button>
+      {open && pos && createPortal(
+        <div
+          ref={panelRef}
+          className="fixed z-[10000] w-44 bg-white border border-slate-100 rounded-lg shadow-modal py-1"
+          style={{ top: pos.top, left: pos.left }}
+        >
+          {menuItem("Edit", Edit2, onEdit)}
+          {menuItem("Assign Driver", UserCog, onAssignDriver)}
+          {menuItem("Delete", Trash2, onDelete, true)}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 export default function Trucks() {
   const { addToast } = useToast();
@@ -20,6 +91,13 @@ export default function Trucks() {
   const [deleteId, setDeleteId] = useState(null);
   const [search, setSearch] = useState("");
   const [saveError, setSaveError] = useState("");
+
+  const [assignTruck, setAssignTruck] = useState(null);
+  const [assignDriverId, setAssignDriverId] = useState("");
+  const [assignError, setAssignError] = useState("");
+  const [assigning, setAssigning] = useState(false);
+  const [activeDrivers, setActiveDrivers] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
 
   const loadTrucks = async () => {
     const response = await api.get("/api/vehicles/trucks?limit=100", getToken());
@@ -87,6 +165,39 @@ export default function Trucks() {
     loadTrucks().catch(() => {});
   };
 
+  const openAssign = async (truck) => {
+    setAssignTruck(truck);
+    setAssignDriverId("");
+    setAssignError("");
+    setLoadingDrivers(true);
+    try {
+      const response = await api.get("/api/vehicles/drivers?limit=100", getToken());
+      setActiveDrivers((response.data?.drivers || []).filter((driver) => driver.status === "available"));
+    } catch {
+      setActiveDrivers([]);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  };
+
+  const handleAssignDriver = async () => {
+    if (!assignDriverId) {
+      setAssignError("Select a driver to assign.");
+      return;
+    }
+    setAssigning(true);
+    setAssignError("");
+    const response = await api.post(`/api/vehicles/trucks/${assignTruck.id}/assign-driver`, { driver_id: assignDriverId }, getToken());
+    setAssigning(false);
+    if (!response?.success) {
+      setAssignError(response?.message || "Failed to assign driver. Please try again.");
+      return;
+    }
+    addToast(response.message || "Driver assigned to truck.", "success");
+    setAssignTruck(null);
+    loadTrucks().catch(() => {});
+  };
+
   const handleDelete = async () => {
     const response = await api.delete(`/api/vehicles/trucks/${deleteId}`, null, getToken());
     setDeleteId(null);
@@ -124,12 +235,13 @@ export default function Trucks() {
                   <td className="px-4 py-3 text-slate-600">{truck.year || "-"}</td>
                   <td className="px-4 py-3 text-slate-600">{formatDate(truck.insuranceExpiry)}</td>
                   <td className="px-4 py-3"><Badge variant={STATUS_VARIANT[truck.status] || "default"}>{truck.status}</Badge></td>
-                  <td className="px-4 py-3 text-slate-600">{truck.driver_name || "-"}</td>
+                  <td className="px-4 py-3 text-slate-600">{truck.driver || "-"}</td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(truck)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Edit2 size={14} /></button>
-                      <button onClick={() => setDeleteId(truck.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
-                    </div>
+                    <TruckRowMenu
+                      onEdit={() => openEdit(truck)}
+                      onAssignDriver={() => openAssign(truck)}
+                      onDelete={() => setDeleteId(truck.id)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -178,6 +290,30 @@ export default function Trucks() {
             <button onClick={handleSave} className="flex-1 btn-primary px-4 py-2.5 text-sm">{editTruck ? "Save Changes" : "Add Truck"}</button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={!!assignTruck} onClose={() => setAssignTruck(null)} title="Assign Driver" size="sm">
+        {assignTruck && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 rounded-xl p-3">
+              <p className="text-[11px] text-slate-400 font-semibold mb-0.5">Truck</p>
+              <p className="text-sm font-mono font-semibold text-slate-800">{assignTruck.registration}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Driver</label>
+              {loadingDrivers ? (
+                <div className="text-sm text-slate-400 py-2">Loading active drivers...</div>
+              ) : (
+                <DriverDropdown drivers={activeDrivers} value={assignDriverId} onChange={setAssignDriverId} placeholder="Select an active driver" />
+              )}
+              {assignError && <p className="text-xs text-red-500 mt-1.5">{assignError}</p>}
+            </div>
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setAssignTruck(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
+              <button onClick={handleAssignDriver} disabled={assigning} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{assigning ? "Assigning..." : "Assign Driver"}</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <ConfirmDialog isOpen={!!deleteId} onClose={() => setDeleteId(null)} onConfirm={handleDelete} title="Remove Truck" message="Are you sure you want to remove this truck from your fleet?" confirmText="Remove" />

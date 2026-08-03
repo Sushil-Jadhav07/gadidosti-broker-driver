@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import {
   LayoutDashboard, Navigation, History, User, ShieldCheck, IndianRupee,
-  ChevronLeft, ChevronRight, LogOut, X,
+  LogOut, X,
 } from "lucide-react";
 
 const NAV = [
@@ -30,7 +30,7 @@ const KYC_DOT = {
   verified: null,
 };
 
-export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, onMobileClose }) {
+export default function DriverSidebar({ isExpanded, onExpand, onCollapse, mobileOpen, onMobileClose }) {
   const [hovered, setHovered] = useState(null);
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -38,6 +38,8 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
 
   return (
     <aside
+      onMouseEnter={onExpand}
+      onMouseLeave={onCollapse}
       className={`fixed left-0 top-0 h-screen z-50 flex flex-col overflow-hidden bg-white border-r border-neutral-100 transition-all duration-300
         ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         ${isExpanded ? "w-[260px]" : "w-[260px] lg:w-[76px]"}
@@ -126,12 +128,6 @@ export default function DriverSidebar({ isExpanded, toggleExpanded, mobileOpen, 
             <LogOut size={15} />
           </button>
         </div>
-        <button
-          onClick={toggleExpanded}
-          className="hidden lg:flex w-full items-center justify-center py-2 rounded-lg text-neutral-400 hover:bg-neutral-50 hover:text-neutral-600 transition-all"
-        >
-          {isExpanded ? <ChevronLeft size={15} /> : <ChevronRight size={15} />}
-        </button>
       </div>
     </aside>
   );

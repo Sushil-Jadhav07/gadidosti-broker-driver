@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ToastProvider } from "./hooks/useToast";
+import { useDriverLocationTracking } from "./hooks/useDriverLocationTracking";
 
 // Broker
 import BrokerSidebar  from "./components/broker/BrokerSidebar";
@@ -37,7 +38,7 @@ import Register from "./pages/Register";
 
 // ────── Broker Layout ──────
 function BrokerAppLayout({ children }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
@@ -49,7 +50,8 @@ function BrokerAppLayout({ children }) {
       )}
       <BrokerSidebar
         isExpanded={expanded}
-        toggleExpanded={() => setExpanded((e) => !e)}
+        onExpand={() => setExpanded(true)}
+        onCollapse={() => setExpanded(false)}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
@@ -65,10 +67,14 @@ function BrokerAppLayout({ children }) {
 
 // ────── Driver Layout ──────
 function DriverAppLayout() {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { window.scrollTo(0, 0); setMobileOpen(false); }, [location.pathname]);
+
+  // Lives here (not inside a single driver page) so geolocation tracking survives navigating
+  // between driver pages instead of restarting every time the route changes.
+  const { online, toggleOnline, locationError } = useDriverLocationTracking();
 
   return (
     <div className="min-h-screen bg-slate-100 font-sans">
@@ -77,12 +83,21 @@ function DriverAppLayout() {
       )}
       <DriverSidebar
         isExpanded={expanded}
-        toggleExpanded={() => setExpanded((e) => !e)}
+        onExpand={() => setExpanded(true)}
+        onCollapse={() => setExpanded(false)}
         mobileOpen={mobileOpen}
         onMobileClose={() => setMobileOpen(false)}
       />
       <div className={`min-h-screen flex flex-col transition-all duration-300 ${expanded ? "lg:ml-[260px]" : "lg:ml-[72px]"}`}>
-        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} />
+        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} online={online} onToggleOnline={toggleOnline} />
+        {(online || locationError) && (
+          <div className={`px-4 lg:px-6 py-1.5 text-xs font-semibold flex items-center gap-2 ${
+            locationError ? "bg-amber-50 text-amber-700 border-b border-amber-100" : "bg-emerald-50 text-emerald-700 border-b border-emerald-100"
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${locationError ? "bg-amber-500" : "bg-emerald-500 animate-pulse"}`} />
+            {locationError || "You're online — keep this tab open to keep sharing your location."}
+          </div>
+        )}
         <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
           <div className="animate-fade-in">
             <Outlet />

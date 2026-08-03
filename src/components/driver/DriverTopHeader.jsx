@@ -12,7 +12,7 @@ const PAGE = {
   "/driver/profile": { title: "Profile",     sub: "Your account and KYC documents" },
 };
 
-export default function DriverTopHeader({ currentPath, onMenuClick }) {
+export default function DriverTopHeader({ currentPath, onMenuClick, online, onToggleOnline }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -67,6 +67,16 @@ export default function DriverTopHeader({ currentPath, onMenuClick }) {
 
       {/* Right */}
       <div className="flex items-center gap-2">
+        <button
+          onClick={onToggleOnline}
+          className={`flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+            online ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+          {online ? "Online" : "Offline"}
+        </button>
+
         <ChatBell />
         <NotificationBell />
 
