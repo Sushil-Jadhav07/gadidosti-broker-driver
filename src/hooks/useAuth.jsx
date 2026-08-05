@@ -75,11 +75,31 @@ export function AuthProvider({ children }) {
   // backward-compat alias
   const login = loginBroker;
 
-  const registerUser = useCallback(async ({ name, email, phone, password, role, business_name, vehicle_registration }) => {
+  const registerUser = useCallback(async ({ name, email, phone, password, role, business_name }) => {
     const payload = { name, email, phone, password, role };
     if (business_name) payload.business_name = business_name;
-    if (vehicle_registration) payload.vehicle_registration = vehicle_registration;
     const data = await api.post("/api/auth/register", payload);
+    if (!data.success) throw new Error(data.message || "Registration failed");
+    return data.data;
+  }, []);
+
+  // Self-registration for an independent owner-operator driver: one call creates the user,
+  // driver profile, and their own truck together (broker_id = their own id — see
+  // registerDriverWithTruck in auth.controller.js). Distinct from registerUser/POST
+  // /api/auth/register, which never accepted truck fields at all.
+  const registerDriver = useCallback(async ({
+    name, email, phone, password, confirmPassword,
+    registration, category, capacity, make, year, insuranceExpiry,
+  }) => {
+    const payload = {
+      name, phone, email, password,
+      confirm_password: confirmPassword,
+      registration, category, capacity,
+    };
+    if (make) payload.make = make;
+    if (year) payload.year = Number(year);
+    if (insuranceExpiry) payload.insurance_expiry = insuranceExpiry;
+    const data = await api.post("/api/auth/register/driver", payload);
     if (!data.success) throw new Error(data.message || "Registration failed");
     return data.data;
   }, []);
@@ -143,7 +163,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, updateUser, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, registerDriver, updateUser, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );
