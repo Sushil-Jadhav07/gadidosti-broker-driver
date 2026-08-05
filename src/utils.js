@@ -48,6 +48,17 @@ export const adaptJobRequest = (request) => ({
   distance: Number(request.distance || 0),
 });
 
+// Driver <-> broker negotiation requests (/api/driver-requests). Same shape as a job request
+// plus driverTimedOut, which flips to true 3 minutes after the driver stops responding and
+// hands the turn to their broker.
+export const adaptDriverRequest = (request) => ({
+  ...request,
+  status: formatBookingStatus(request.status),
+  amount: Number(request.amount || 0),
+  distance: Number(request.distance || 0),
+  driverTimedOut: !!request.driverTimedOut,
+});
+
 export const adaptBooking = (booking) => ({
   ...booking,
   status: formatBookingStatus(booking.status),

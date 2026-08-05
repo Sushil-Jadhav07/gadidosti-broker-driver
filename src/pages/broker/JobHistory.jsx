@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Trash2 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
+import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptBooking, bookingRef, formatCurrency, formatDate } from "../../utils";
 
@@ -8,28 +10,53 @@ const PAGE_SIZE = 10;
 const STATUS_BADGE = { completed: "success", cancelled: "danger" };
 
 export default function JobHistory() {
+  const { addToast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState("all");
   const [page, setPage] = useState(1);
+  const [deleteId, setDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get("/api/bookings?status=completed,cancelled&limit=100", getToken());
+      setBookings((response.data?.bookings || []).map(adaptBooking));
+    } catch {
+      setError("Failed to load job history. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await api.get("/api/bookings?status=completed,cancelled&limit=100", getToken());
-        setBookings((response.data?.bookings || []).map(adaptBooking));
-      } catch {
-        setError("Failed to load job history. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  // Both statuses shown on this page (completed, cancelled) are always eligible for removal —
+  // only bookings still in progress (confirmed/assigned/en_route_pickup/.../delivered) can't be,
+  // and those never show up here in the first place.
+  const handleDelete = async (bookingId) => {
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/api/bookings/${bookingId}`, null, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to remove booking");
+      setBookings((current) => current.filter((booking) => booking.id !== bookingId));
+      addToast(res.message || "Booking removed from your list.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to remove booking.", "error");
+      // A 404/409 here means our local copy is stale (already deleted, or its status just
+      // changed) — resync with the server instead of leaving a dead row in the list.
+      load();
+    } finally {
+      setDeleting(false);
+      setDeleteId(null);
+    }
+  };
 
   const rows = useMemo(() => bookings.map((booking) => ({
     id: booking.id,
@@ -118,7 +145,7 @@ export default function JobHistory() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Booking ID", "Route", "Truck", "Driver", "Date", "Amount", "Fee", "Net", "Status"].map((label) => (
+                  {["Booking ID", "Route", "Truck", "Driver", "Date", "Amount", "Fee", "Net", "Status", "Actions"].map((label) => (
                     <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{label}</th>
                   ))}
                 </tr>
@@ -138,6 +165,15 @@ export default function JobHistory() {
                       <Badge variant={STATUS_BADGE[row.status] || "default"} size="sm">
                         {row.status === "completed" ? "Completed" : "Cancelled"}
                       </Badge>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <button
+                        onClick={() => setDeleteId(row.id)}
+                        title="Remove from my list"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -166,6 +202,15 @@ export default function JobHistory() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteId} onClose={() => setDeleteId(null)}
+        onConfirm={() => handleDelete(deleteId)}
+        title="Remove from my list?"
+        message="This only removes it from your own list — it stays visible to admin. There's no undo."
+        confirmText={deleting ? "Removing..." : "Remove"}
+        variant="danger"
+      />
     </div>
   );
 }

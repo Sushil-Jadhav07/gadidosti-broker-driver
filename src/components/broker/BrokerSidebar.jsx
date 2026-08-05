@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import {
-  LayoutDashboard, Truck, Users, Inbox, ClipboardList, History,
+  LayoutDashboard, Truck, Users, Inbox, UserCog, ClipboardList, History,
   IndianRupee, Wallet, ShieldCheck, User, Settings,
   LogOut, X,
 } from "lucide-react";
@@ -13,6 +13,7 @@ const NAV = [
   {
     label: "JOBS", items: [
       { label: "Job Requests", icon: Inbox, path: "/job-requests", badge: 3 },
+      { label: "Driver Requests", icon: UserCog, path: "/driver-requests" },
       { label: "Active Jobs", icon: ClipboardList, path: "/active-jobs", badge: 4 },
       { label: "Job History", icon: History, path: "/job-history" },
     ],

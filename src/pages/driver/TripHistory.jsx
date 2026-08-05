@@ -1,30 +1,56 @@
 import { useEffect, useMemo, useState } from "react";
 import { Navigation, Route, IndianRupee } from "lucide-react";
 import TripCard from "../../components/driver/TripCard";
+import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptTrip, formatCurrency, formatDate } from "../../utils";
 
 export default function TripHistory() {
+  const { addToast } = useToast();
   const [trips, setTrips] = useState([]);
   const [filter, setFilter] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get("/api/analytics/broker", getToken());
+      setTrips((response.data?.tripHistory || []).map(adaptTrip));
+    } catch {
+      setError("Failed to load trip history. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await api.get("/api/analytics/broker", getToken());
-        setTrips((response.data?.tripHistory || []).map(adaptTrip));
-      } catch {
-        setError("Failed to load trip history. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-    };
     load();
   }, []);
+
+  // Only ever offered on an independent (self-registered, no-broker) driver's own bookings —
+  // a driver working under a real broker will get 403 "Not your booking" back from the server,
+  // which we surface as-is rather than trying to pre-detect that case client-side.
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/api/bookings/${deleteTarget.bookingId}`, null, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to remove booking");
+      setTrips((current) => current.filter((trip) => trip.id !== deleteTarget.id));
+      addToast(res.message || "Booking removed from your list.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to remove booking.", "error");
+      load();
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+    }
+  };
 
   const filtered = useMemo(() => filter === "All" ? trips : trips.filter((trip) => trip.status === filter), [filter, trips]);
 
@@ -86,9 +112,18 @@ export default function TripHistory() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">No trips found.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredCards.map((trip) => <TripCard key={trip.id} trip={trip} />)}
+          {filteredCards.map((trip) => <TripCard key={trip.id} trip={trip} onDelete={setDeleteTarget} />)}
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget} onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Remove from my list?"
+        message="This only removes it from your own list — it stays visible to admin. There's no undo."
+        confirmText={deleting ? "Removing..." : "Remove"}
+        variant="danger"
+      />
     </div>
   );
 }

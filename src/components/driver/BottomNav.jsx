@@ -1,11 +1,12 @@
 ﻿import { useLocation, useNavigate } from "react-router-dom";
-import { Home, Navigation, History, User } from "lucide-react";
+import { Home, Inbox, Navigation, History, User } from "lucide-react";
 
 const navItems = [
-  { path: "/driver",         label: "Home",    icon: Home },
-  { path: "/driver/my-trip", label: "My Trip", icon: Navigation },
-  { path: "/driver/history", label: "History", icon: History },
-  { path: "/driver/profile", label: "Profile", icon: User },
+  { path: "/driver",          label: "Home",     icon: Home },
+  { path: "/driver/requests", label: "Requests", icon: Inbox },
+  { path: "/driver/my-trip",  label: "My Trip",  icon: Navigation },
+  { path: "/driver/history",  label: "History",  icon: History },
+  { path: "/driver/profile",  label: "Profile",  icon: User },
 ];
 
 export default function BottomNav() {

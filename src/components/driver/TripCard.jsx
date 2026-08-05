@@ -1,11 +1,17 @@
 ﻿import { useState } from "react";
-import { ChevronDown, ChevronUp, MapPin, Package, Phone } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Package, Phone, Trash2 } from "lucide-react";
 import Badge from "./Badge";
 import { bookingRef } from "../../utils";
 
-export default function TripCard({ trip }) {
+// Delete is only ever allowed while the underlying booking is pending/cancelled/completed —
+// on this page that means Completed or Cancelled, since anything still in progress never
+// reaches trip history. onDelete is optional so this card can still be reused read-only.
+const DELETABLE_STATUSES = ["Completed", "Cancelled"];
+
+export default function TripCard({ trip, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   if (!trip) return null;
+  const canDelete = onDelete && DELETABLE_STATUSES.includes(trip.status);
 
   const earningColor = {
     Completed: "text-emerald-600",
@@ -68,6 +74,14 @@ export default function TripCard({ trip }) {
                 <p className="text-sm font-medium text-slate-800">{trip.broker}</p>
               </div>
             </div>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(trip); }}
+              className="w-full flex items-center justify-center gap-1.5 mt-1 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Remove from my list
+            </button>
           )}
         </div>
       )}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import {
-  LayoutDashboard, Navigation, History, User, ShieldCheck, IndianRupee,
+  LayoutDashboard, Inbox, Navigation, History, User, ShieldCheck, IndianRupee,
   LogOut, X,
 } from "lucide-react";
 
@@ -10,6 +10,7 @@ const NAV = [
   { label: "MAIN", items: [{ label: "Dashboard", icon: LayoutDashboard, path: "/driver" }] },
   {
     label: "TRIPS", items: [
+      { label: "Requests", icon: Inbox, path: "/driver/requests" },
       { label: "My Trip", icon: Navigation, path: "/driver/my-trip", badge: 1 },
       { label: "Trip History", icon: History, path: "/driver/history" },
       { label: "Earnings", icon: IndianRupee, path: "/driver/earnings" },
