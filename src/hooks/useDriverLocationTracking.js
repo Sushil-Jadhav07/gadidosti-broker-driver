@@ -42,7 +42,9 @@ export function useDriverLocationTracking() {
         if (now - last.time < MIN_INTERVAL_MS && !moved) return;
 
         lastSentRef.current = { lat, lng, time: now };
-        api.patch("/api/vehicles/drivers/me/location", { lat, lng }, getToken()).catch(() => {});
+        api.patch("/api/vehicles/drivers/me/location", { lat, lng }, getToken()).catch((err) => {
+          console.error("Failed to push location update:", err);
+        });
       },
       (err) => {
         setLocationError(
@@ -50,8 +52,13 @@ export function useDriverLocationTracking() {
             ? "Enable location access to go online."
             : "Couldn't get your location. Check your device's location settings."
         );
+        console.error("watchPosition error:", err);
       },
-      { enableHighAccuracy: true, maximumAge: 5000 }
+      // maximumAge: 0 — never accept a cached fix. Some browsers/OS location providers will
+      // keep re-delivering the same cached position to watchPosition callbacks for a surprisingly
+      // long time when a nonzero maximumAge lets them; this is what caused location to appear
+      // "frozen" at whatever value was first captured instead of tracking movement.
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
