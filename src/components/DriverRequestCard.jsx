@@ -9,8 +9,8 @@ import { formatCurrency, bookingRef } from "../utils";
 // needs the lockout banner on its own cards).
 export default function DriverRequestCard({ req, role, onAccept, onDecline, onCounter }) {
   const isDriver = role === "driver";
-  const locked = isDriver && req.status === "Pending" && req.driverTimedOut;
-  const canAct = req.status === "Pending" && !locked;
+  const locked = isDriver && req.status === "Requested" && req.driverTimedOut;
+  const canAct = req.status === "Requested" && !locked;
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex flex-col">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
+import { useBrokerSidebarCounts } from "../../hooks/useBrokerSidebarCounts";
 import {
   LayoutDashboard, Truck, Users, Inbox, UserCog, ClipboardList, History,
   IndianRupee, Wallet, ShieldCheck, User, Settings,
@@ -12,9 +13,9 @@ const NAV = [
   { label: "FLEET", items: [{ label: "My Trucks", icon: Truck, path: "/trucks" }, { label: "Drivers", icon: Users, path: "/drivers" }] },
   {
     label: "JOBS", items: [
-      { label: "Job Requests", icon: Inbox, path: "/job-requests", badge: 3 },
+      { label: "Job Requests", icon: Inbox, path: "/job-requests" },
       { label: "Driver Requests", icon: UserCog, path: "/driver-requests" },
-      { label: "Active Jobs", icon: ClipboardList, path: "/active-jobs", badge: 4 },
+      { label: "Active Jobs", icon: ClipboardList, path: "/active-jobs" },
       { label: "Job History", icon: History, path: "/job-history" },
     ],
   },
@@ -40,6 +41,12 @@ export default function BrokerSidebar({ isExpanded, onExpand, onCollapse, mobile
   const location = useLocation();
   const { user, logout } = useAuth();
   const kycDot = KYC_DOT[user?.kyc_status || "pending"];
+  const { jobRequests, activeJobs, driverRequests } = useBrokerSidebarCounts(!!user?.tokens?.access_token);
+  const badges = {
+    "/job-requests": jobRequests,
+    "/driver-requests": driverRequests,
+    "/active-jobs": activeJobs,
+  };
 
   return (
     <aside
@@ -76,6 +83,7 @@ export default function BrokerSidebar({ isExpanded, onExpand, onCollapse, mobile
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
+                const badge = badges[item.path];
                 return (
                   <div key={item.path} className="relative"
                     onMouseEnter={() => setHovered(item.label)}
@@ -92,9 +100,9 @@ export default function BrokerSidebar({ isExpanded, onExpand, onCollapse, mobile
                       <span className={`text-[13px] whitespace-nowrap flex-1 ${(!isExpanded) ? "lg:hidden" : ""}`}>
                         {item.label}
                       </span>
-                      {item.badge && (
+                      {!!badge && (
                         <span className={`text-[10px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none ${(!isExpanded) ? "lg:hidden" : ""}`}>
-                          {item.badge}
+                          {badge > 9 ? "9+" : badge}
                         </span>
                       )}
                       {item.path === "/kyc" && kycDot && (
@@ -106,7 +114,7 @@ export default function BrokerSidebar({ isExpanded, onExpand, onCollapse, mobile
                       <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 z-50 pointer-events-none hidden lg:block">
                         <div className="bg-neutral-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap shadow-modal">
                           {item.label}
-                          {item.badge && <span className="ml-2 bg-primary text-white text-[9px] px-1.5 py-0.5 rounded-full">{item.badge}</span>}
+                          {!!badge && <span className="ml-2 bg-primary text-white text-[9px] px-1.5 py-0.5 rounded-full">{badge > 9 ? "9+" : badge}</span>}
                           {item.path === "/kyc" && kycDot && <span className={`ml-2 inline-block w-1.5 h-1.5 rounded-full ${kycDot}`} />}
                         </div>
                       </div>
