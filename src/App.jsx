@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ToastProvider } from "./hooks/useToast";
 import { useDriverLocationTracking } from "./hooks/useDriverLocationTracking";
+import FcmBridge from "./components/FcmBridge";
 
 // Broker
 import BrokerSidebar  from "./components/broker/BrokerSidebar";
@@ -139,6 +140,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <FcmBridge />
           <Routes>
             {/* Public */}
             <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />

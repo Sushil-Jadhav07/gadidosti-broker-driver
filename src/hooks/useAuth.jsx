@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { api } from "../services/api";
+import { unregisterFcmToken } from "../lib/fcm";
 
 const AuthContext = createContext(null);
 
@@ -107,6 +108,7 @@ export function AuthProvider({ children }) {
   const logout = useCallback(async () => {
     try {
       if (user?.tokens) {
+        await unregisterFcmToken(user.tokens.access_token);
         await api.post("/api/auth/logout", { refresh_token: user.tokens.refresh_token }, user.tokens.access_token);
       }
     } catch {}

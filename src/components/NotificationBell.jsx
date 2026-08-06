@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bell, CheckCheck } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
+import { routeForNotification } from "../lib/notificationRoutes";
 
 function timeAgo(dateStr) {
   const diffSec = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
@@ -13,6 +15,7 @@ function timeAgo(dateStr) {
 
 export default function NotificationBell() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -36,6 +39,13 @@ export default function NotificationBell() {
 
   useEffect(() => { fetchNotifications(); }, [fetchNotifications]);
 
+  // A foreground push (see FcmBridge) fires this once it's shown as a toast, so the bell's
+  // count updates without waiting for the next time it happens to be opened/closed.
+  useEffect(() => {
+    window.addEventListener("notifications:refresh", fetchNotifications);
+    return () => window.removeEventListener("notifications:refresh", fetchNotifications);
+  }, [fetchNotifications]);
+
   useEffect(() => {
     const handler = (e) => {
       if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false);
@@ -43,6 +53,12 @@ export default function NotificationBell() {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const handleOpenNotification = (n) => {
+    if (!n.is_read) markRead(n.id);
+    const target = routeForNotification({ type: n.type, meta: n.meta || {}, role: user?.role });
+    if (target) { setOpen(false); navigate(target); }
+  };
 
   const markRead = async (id) => {
     setNotifications((list) => list.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
@@ -91,7 +107,7 @@ export default function NotificationBell() {
               notifications.map((n) => (
                 <button
                   key={n.id}
-                  onClick={() => !n.is_read && markRead(n.id)}
+                  onClick={() => handleOpenNotification(n)}
                   className={`w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex gap-2 ${!n.is_read ? "bg-primary/5" : ""}`}
                 >
                   <span className={`mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 ${!n.is_read ? "bg-primary" : "bg-transparent"}`} />
