@@ -10,9 +10,12 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptJobRequest, formatCurrency, bookingRef } from "../../utils";
+import { useDriverRequestSocket } from "../../hooks/useDriverRequestSocket";
 
-// Job requests are polled (not pushed) so the client's counters/accepts show up here without
-// a manual page refresh — same "5-10s" cadence used for live location/booking tracking elsewhere.
+// Job requests themselves are still polled (not pushed) so the client's counters/accepts show
+// up here without a manual page refresh — same "5-10s" cadence used for live location/booking
+// tracking elsewhere. The driver's response to an assign-driver offer (below) is pushed over
+// the socket instead, since that's tracked locally in pendingAssignments, not refetched here.
 const POLL_INTERVAL_MS = 8000;
 
 export default function JobRequests() {
@@ -36,6 +39,13 @@ export default function JobRequests() {
   // but a background poll would otherwise fetch it fresh and resurrect it. Track dismissed IDs
   // so polling can't bring back a card the broker already finished with.
   const dismissedIdsRef = useRef(new Set());
+
+  // Assigning a driver no longer finishes the job instantly (assignDriver now creates a
+  // driver_requests negotiation instead of locking the driver in — see job.controller.js) —
+  // keyed by jobRequest.id so the card stays visible showing "waiting on driver" instead of
+  // being dismissed. Updated live via the driver-request-updated socket event, matched on
+  // jobRequestId (only set for this broker-assign origin, see driverRequest.controller.js).
+  const [pendingAssignments, setPendingAssignments] = useState({});
 
   const loadAll = async () => {
     setLoading(true);
@@ -121,13 +131,16 @@ export default function JobRequests() {
     if (!assignRequest) return;
     setAssigning(true);
     try {
-      await api.post(`/api/jobs/${assignRequest.id}/assign-driver`, {
+      const res = await api.post(`/api/jobs/${assignRequest.id}/assign-driver`, {
         driverId: assignForm.driverId,
         truckId: assignForm.truckId,
       }, getToken());
-      dismissedIdsRef.current.add(assignRequest.id);
-      setRequests((current) => current.filter((request) => request.id !== assignRequest.id));
-      addToast("Driver and truck assigned. Trip created.", "success");
+      if (!res?.success) throw new Error(res?.message || "Failed to assign driver");
+      // Card stays in the list, now showing a "waiting on driver" state — see pendingAssignments.
+      if (res.data?.request) {
+        setPendingAssignments((current) => ({ ...current, [assignRequest.id]: res.data.request }));
+      }
+      addToast("Offer sent to the driver — waiting for their response.", "success");
       setAssignRequest(null);
     } catch (err) {
       addToast(err.message || "Failed to assign driver.", "error");
@@ -135,6 +148,22 @@ export default function JobRequests() {
       setAssigning(false);
     }
   };
+
+  // Driver's response to an assign-driver offer arrives here live instead of via polling — only
+  // relevant for requests this screen actually sent (jobRequestId matches a tracked pending one).
+  useDriverRequestSocket((payload) => {
+    if (!payload?.jobRequestId || !(payload.jobRequestId in pendingAssignments)) return;
+    if (payload.status === "declined") {
+      setPendingAssignments((current) => {
+        const next = { ...current };
+        delete next[payload.jobRequestId];
+        return next;
+      });
+      addToast(`${payload.driverName || "The driver"} declined — pick a different driver for this job.`, "error");
+    } else {
+      setPendingAssignments((current) => ({ ...current, [payload.jobRequestId]: payload }));
+    }
+  });
 
   if (user?.kyc_status !== "verified") {
     return (
@@ -215,7 +244,18 @@ export default function JobRequests() {
               )}
 
               <div className="mt-auto">
-                {req.status === "Accepted" ? (
+                {pendingAssignments[req.id] ? (
+                  <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
+                    <Clock size={13} />
+                    {pendingAssignments[req.id].status === "accepted"
+                      ? `${pendingAssignments[req.id].driverName || "Driver"} accepted — waiting for the client to confirm`
+                      : pendingAssignments[req.id].status === "countered"
+                      ? `${pendingAssignments[req.id].driverName || "Driver"} countered — respond from Driver Requests`
+                      : pendingAssignments[req.id].driverTimedOut
+                      ? `${pendingAssignments[req.id].driverName || "Driver"} hasn't responded — respond on their behalf from Driver Requests`
+                      : `Waiting for ${pendingAssignments[req.id].driverName || "the driver"} to respond`}
+                  </div>
+                ) : req.status === "Accepted" ? (
                   <button
                     onClick={() => { setAssignForm({ driverId: "", truckId: "" }); setAssignRequest(req); }}
                     className="w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2"

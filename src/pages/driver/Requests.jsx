@@ -8,11 +8,14 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptDriverRequest } from "../../utils";
+import { useDriverRequestSocket } from "../../hooks/useDriverRequestSocket";
 
 const LIMIT = 10;
-// Polled (not pushed) so a client's counter-offer — or the 3-minute driverTimedOut handover —
-// shows up without a manual refresh, same cadence used for job requests elsewhere.
-const POLL_INTERVAL_MS = 8000;
+// Live updates now arrive over the socket (useDriverRequestSocket) — a client's counter-offer,
+// the 2-minute driverTimedOut handover, or a brand-new broker-assigned offer all push straight
+// in. Polling stays on as a fallback in case the socket connection drops, at a longer interval
+// since it's no longer doing the real-time work.
+const POLL_INTERVAL_MS = 30000;
 
 export default function DriverRequests() {
   const { user } = useAuth();
@@ -70,6 +73,18 @@ export default function DriverRequests() {
     const payload = res.data?.request || res.data || {};
     setRequests((current) => current.map((r) => (r.id === id ? adaptDriverRequest({ ...r, ...payload }) : r)));
   };
+
+  // Socket push can be a brand-new offer this driver hasn't seen yet (a broker just assigned
+  // them via job.controller.js's assignDriver), not just an update to one already in the list —
+  // upsert instead of the map-only applyUpdate above, which silently drops unknown ids.
+  useDriverRequestSocket((payload) => {
+    if (!payload?.id) return;
+    setRequests((current) => {
+      const adapted = adaptDriverRequest(payload);
+      const exists = current.some((r) => r.id === payload.id);
+      return exists ? current.map((r) => (r.id === payload.id ? adapted : r)) : [adapted, ...current];
+    });
+  });
 
   const handleAccept = async (id) => {
     try {
@@ -140,7 +155,7 @@ export default function DriverRequests() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Requests</h1>
-        <p className="text-sm text-slate-500 mt-1">Respond within 3 minutes — after that your broker can act on your behalf.</p>
+        <p className="text-sm text-slate-500 mt-1">Respond within 2 minutes — after that your broker can act on your behalf.</p>
       </div>
 
       {loading && (

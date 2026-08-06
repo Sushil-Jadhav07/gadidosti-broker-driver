@@ -49,7 +49,7 @@ export const adaptJobRequest = (request) => ({
 });
 
 // Driver <-> broker negotiation requests (/api/driver-requests). Same shape as a job request
-// plus driverTimedOut, which flips to true 3 minutes after the driver stops responding and
+// plus driverTimedOut, which flips to true 2 minutes after the driver stops responding and
 // hands the turn to their broker.
 export const adaptDriverRequest = (request) => ({
   ...request,

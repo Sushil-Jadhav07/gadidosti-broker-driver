@@ -8,9 +8,13 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptDriverRequest } from "../../utils";
+import { useDriverRequestSocket } from "../../hooks/useDriverRequestSocket";
 
 const LIMIT = 10;
-const POLL_INTERVAL_MS = 8000;
+// Live updates now arrive over the socket (useDriverRequestSocket) — polling stays on as a
+// fallback in case the socket connection drops, at a longer interval since it's no longer
+// doing the real-time work.
+const POLL_INTERVAL_MS = 30000;
 
 export default function DriverRequests() {
   const { user } = useAuth();
@@ -68,6 +72,20 @@ export default function DriverRequests() {
     const payload = res.data?.request || res.data || {};
     setRequests((current) => current.map((r) => (r.id === id ? adaptDriverRequest({ ...r, ...payload }) : r)));
   };
+
+  // This list is server-scoped to requests the driver has already timed out on (see
+  // findTimedOutByBroker) — only insert a socket-pushed request the broker hasn't seen yet if
+  // it's actually reached that state (driverTimedOut), otherwise just update it in place if
+  // already present (e.g. it flips to declined/accepted while shown).
+  useDriverRequestSocket((payload) => {
+    if (!payload?.id) return;
+    setRequests((current) => {
+      const exists = current.some((r) => r.id === payload.id);
+      if (!exists && !payload.driverTimedOut) return current;
+      const adapted = adaptDriverRequest(payload);
+      return exists ? current.map((r) => (r.id === payload.id ? adapted : r)) : [adapted, ...current];
+    });
+  });
 
   const handleAccept = async (id) => {
     try {
@@ -138,7 +156,7 @@ export default function DriverRequests() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Driver Requests</h1>
-        <p className="text-sm text-slate-500 mt-1">Requests your drivers didn&apos;t respond to within 3 minutes — you can now respond on their behalf.</p>
+        <p className="text-sm text-slate-500 mt-1">Requests your drivers didn&apos;t respond to within 2 minutes — you can now respond on their behalf.</p>
       </div>
 
       {loading && (
