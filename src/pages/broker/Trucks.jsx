@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { Plus, Edit2, Trash2, Truck, MoreVertical, UserCog, History } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverDropdown from "../../components/broker/DriverDropdown";
-import TripHistoryList from "../../components/TripHistoryList";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
@@ -85,6 +85,7 @@ function TruckRowMenu({ onEdit, onAssignDriver, onHistory, onDelete }) {
 }
 
 export default function Trucks() {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [truckList, setTruckList] = useState([]);
   const [showModal, setShowModal] = useState(false);
@@ -94,7 +95,6 @@ export default function Trucks() {
   const [search, setSearch] = useState("");
   const [saveError, setSaveError] = useState("");
 
-  const [historyTruck, setHistoryTruck] = useState(null);
   const [assignTruck, setAssignTruck] = useState(null);
   const [assignDriverId, setAssignDriverId] = useState("");
   const [assignError, setAssignError] = useState("");
@@ -243,7 +243,7 @@ export default function Trucks() {
                     <TruckRowMenu
                       onEdit={() => openEdit(truck)}
                       onAssignDriver={() => openAssign(truck)}
-                      onHistory={() => setHistoryTruck(truck)}
+                      onHistory={() => navigate(`/trucks/${truck.id}/history`)}
                       onDelete={() => setDeleteId(truck.id)}
                     />
                   </td>
@@ -316,18 +316,6 @@ export default function Trucks() {
               <button onClick={() => setAssignTruck(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
               <button onClick={handleAssignDriver} disabled={assigning} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{assigning ? "Assigning..." : "Assign Driver"}</button>
             </div>
-          </div>
-        )}
-      </Modal>
-
-      <Modal isOpen={!!historyTruck} onClose={() => setHistoryTruck(null)} title="Trip History" size="md">
-        {historyTruck && (
-          <div className="space-y-3">
-            <div className="bg-slate-50 rounded-xl p-3">
-              <p className="text-[11px] text-slate-400 font-semibold mb-0.5">Truck</p>
-              <p className="text-sm font-mono font-semibold text-slate-800">{historyTruck.registration}</p>
-            </div>
-            <TripHistoryList truckId={historyTruck.id} />
           </div>
         )}
       </Modal>

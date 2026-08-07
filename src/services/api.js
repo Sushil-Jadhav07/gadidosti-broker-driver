@@ -33,6 +33,15 @@ const getFileBlobUrl = async (url, token) => {
   return URL.createObjectURL(blob);
 };
 
+// Same as getFileBlobUrl but returns the raw Blob — needed to build a File for the native
+// Web Share API (sharing to WhatsApp etc. with the actual PDF attached), where an object URL
+// string isn't usable.
+const getFileBlob = async (url, token) => {
+  const res = await fetch(url, { headers: { ...(token && { Authorization: `Bearer ${token}` }) } });
+  if (!res.ok) throw new Error(`Failed to load file (${res.status})`);
+  return res.blob();
+};
+
 export const api = {
   post:   (path, body, token) => request('POST',   path, body, token),
   get:    (path, token)       => request('GET',    path, null, token),
@@ -41,6 +50,7 @@ export const api = {
   delete: (path, body, token) => request('DELETE', path, body, token),
   upload: uploadFile,
   getFileBlobUrl,
+  getFileBlob,
 };
 
 export const getStoredAuth = () => {

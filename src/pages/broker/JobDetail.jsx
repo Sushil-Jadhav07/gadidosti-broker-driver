@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration } from "../../utils";
+import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
+
+const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
 
 const STATUS_BADGE = { Completed: "success", Cancelled: "danger" };
 const PAYMENT_BADGE = { paid: "success", pending: "warning", refunded: "default" };
@@ -36,6 +38,8 @@ export default function JobDetail() {
   const [deleting, setDeleting] = useState(false);
   const [emailOpen, setEmailOpen] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [notifying, setNotifying] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -69,6 +73,35 @@ export default function JobDetail() {
       addToast(err.message || "Failed to download invoice.", "error");
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleShareInvoice = async () => {
+    setSharing(true);
+    try {
+      const blob = await api.getFileBlob(`${API_BASE}/api/bookings/${id}/invoice`, getToken());
+      await shareInvoicePdf({
+        blob,
+        filename: `invoice-${booking.bookingNumber}.pdf`,
+        text: `Invoice for ${bookingRef(booking)} (${booking.pickup} → ${booking.drop}, ${formatCurrency(booking.amount)}) — see attached.`,
+      });
+    } catch (err) {
+      if (err?.name !== "AbortError") addToast(err.message || "Failed to share invoice.", "error");
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const handleNotifyClient = async () => {
+    setNotifying(true);
+    try {
+      const res = await api.post(`/api/bookings/${id}/invoice/notify`, {}, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to notify client");
+      addToast("Client notified — invoice shared to their portal.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to notify client.", "error");
+    } finally {
+      setNotifying(false);
     }
   };
 
@@ -110,20 +143,40 @@ export default function JobDetail() {
               </div>
               <h1 className="text-xl font-bold text-slate-900">{booking.pickup} <span className="text-slate-300">→</span> {booking.drop}</h1>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                onClick={handleDownloadInvoice}
-                disabled={downloading}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
-              >
-                <Download size={14} /> {downloading ? "Downloading..." : "Download Invoice"}
-              </button>
-              <button
-                onClick={() => setEmailOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
-              >
-                <Mail size={14} /> Send Invoice by Email
-              </button>
+            <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0">
+              {INVOICE_READY_STATUSES.includes(booking.status) ? (
+                <>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    disabled={downloading}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+                  >
+                    <Download size={14} /> {downloading ? "Downloading..." : "Download Invoice"}
+                  </button>
+                  <button
+                    onClick={() => setEmailOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+                  >
+                    <Mail size={14} /> Send by Email
+                  </button>
+                  <button
+                    onClick={handleShareInvoice}
+                    disabled={sharing}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
+                  >
+                    <Share2 size={14} /> {sharing ? "Preparing..." : "Share via WhatsApp"}
+                  </button>
+                  <button
+                    onClick={handleNotifyClient}
+                    disabled={notifying}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
+                  >
+                    <Send size={14} /> {notifying ? "Sending..." : "Notify Client"}
+                  </button>
+                </>
+              ) : (
+                <span className="text-xs text-slate-400 italic px-1">Invoice available once delivery is complete</span>
+              )}
               {["Completed", "Cancelled"].includes(booking.status) && (
                 <button
                   onClick={() => setDeleteOpen(true)}

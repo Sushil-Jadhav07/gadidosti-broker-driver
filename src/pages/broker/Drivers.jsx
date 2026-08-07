@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, ShieldCheck, ShieldAlert, Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2, UserPlus, Copy, Edit2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Eye, ShieldCheck, ShieldAlert, Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2, UserPlus, Copy, Edit2, ArrowUpRight } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
@@ -98,6 +99,7 @@ function DateInput({ value, onChange, placeholder = "dd/mm/yyyy" }) {
 }
 
 export default function Drivers() {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
@@ -483,7 +485,15 @@ export default function Drivers() {
               ))}
             </div>
             <div>
-              <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-1.5">Trip History</p>
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Trip History</p>
+                <button
+                  onClick={() => navigate(`/drivers/${selected.id || selected.user_id}/history`)}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                >
+                  View full history <ArrowUpRight size={11} />
+                </button>
+              </div>
               <TripHistoryList driverId={selected.id || selected.user_id} />
             </div>
             <div className="flex justify-end">

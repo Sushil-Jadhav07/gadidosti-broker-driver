@@ -47,6 +47,18 @@ const BOOKING_STATUS = {
   expired: "Expired",
 };
 
+// Shares a PDF via the browser's native share sheet (attaches the actual file on phones where
+// WhatsApp/etc. are registered share targets); falls back to a wa.me text-only link on desktop
+// or browsers without file-sharing support. No backend WhatsApp API involved.
+export const shareInvoicePdf = async ({ blob, filename, text }) => {
+  const file = new File([blob], filename, { type: "application/pdf" });
+  if (navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: "Invoice", text });
+  } else {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  }
+};
+
 export const formatBookingStatus = (status) => BOOKING_STATUS[status] || status || "Requested";
 export const formatKycStatus = (status) => status ? `${status.charAt(0).toUpperCase()}${status.slice(1)}` : "Pending";
 
