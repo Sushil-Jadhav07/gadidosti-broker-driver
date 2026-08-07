@@ -15,6 +15,15 @@ export const formatDate = (value) => {
   return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
 };
 
+// timeTakenMinutes (backend-computed, delivered_at - started_at) -> "2h 15m" / "45m" / "—".
+export const formatDuration = (minutes) => {
+  if (minutes == null || Number.isNaN(minutes)) return "—";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+};
+
 export const formatDateTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);

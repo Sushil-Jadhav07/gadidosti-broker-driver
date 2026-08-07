@@ -19,7 +19,7 @@ function groupByMonth(rows) {
   return Array.from(groups.values());
 }
 
-export default function MonthlyEarningsTable({ rows = [] }) {
+export default function MonthlyEarningsTable({ rows = [], onRowClick }) {
   const months = groupByMonth(rows);
 
   return (
@@ -43,7 +43,7 @@ export default function MonthlyEarningsTable({ rows = [] }) {
                   </td>
                 </tr>
                 {group.rows.map((row) => (
-                  <tr key={row.id} className="table-row">
+                  <tr key={row.id} onClick={() => onRowClick?.(row)} className={`table-row ${onRowClick ? "cursor-pointer" : ""}`}>
                     <td className="px-4 py-3 font-mono text-xs text-slate-600">{bookingRef(row)}</td>
                     <td className="px-4 py-3 text-slate-600">{formatDate(row.date || row.createdAt)}</td>
                     <td className="px-4 py-3 text-slate-800">{row.status}</td>

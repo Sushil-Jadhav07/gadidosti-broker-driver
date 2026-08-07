@@ -15,6 +15,7 @@ import JobRequests    from "./pages/broker/JobRequests";
 import BrokerDriverRequests from "./pages/broker/DriverRequests";
 import ActiveJobs     from "./pages/broker/ActiveJobs";
 import JobHistory     from "./pages/broker/JobHistory";
+import JobDetail      from "./pages/broker/JobDetail";
 import Earnings       from "./pages/broker/Earnings";
 import BrokerEarningsHistory from "./pages/broker/EarningsHistory";
 import Settlements    from "./pages/broker/Settlements";
@@ -30,9 +31,9 @@ import DriverHome       from "./pages/driver/Home";
 import DriverRequests   from "./pages/driver/Requests";
 import MyTrip           from "./pages/driver/MyTrip";
 import TripHistory      from "./pages/driver/TripHistory";
+import TripDetail       from "./pages/driver/TripDetail";
 import DriverKYC        from "./pages/driver/KYC";
 import DriverEarnings   from "./pages/driver/Earnings";
-import EarningsHistory  from "./pages/driver/EarningsHistory";
 import DriverProfile    from "./pages/driver/Profile";
 
 // Shared
@@ -155,6 +156,7 @@ export default function App() {
             <Route path="/driver-requests" element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerDriverRequests /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/active-jobs"  element={<PrivateRoute role="broker"><BrokerAppLayout><ActiveJobs /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/job-history"  element={<PrivateRoute role="broker"><BrokerAppLayout><JobHistory /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/job-history/:id" element={<PrivateRoute role="broker"><BrokerAppLayout><JobDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings/history" element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerEarningsHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settlements"  element={<PrivateRoute role="broker"><BrokerAppLayout><Settlements /></BrokerAppLayout></PrivateRoute>} />
@@ -168,9 +170,9 @@ export default function App() {
               <Route path="/driver/requests" element={<DriverRequests />} />
               <Route path="/driver/my-trip"  element={<MyTrip />} />
               <Route path="/driver/history"  element={<TripHistory />} />
+              <Route path="/driver/history/:id" element={<TripDetail />} />
               <Route path="/driver/kyc"      element={<DriverKYC />} />
               <Route path="/driver/earnings"         element={<DriverEarnings />} />
-              <Route path="/driver/earnings/history" element={<EarningsHistory />} />
               <Route path="/driver/profile"          element={<DriverProfile />} />
             </Route>
 

@@ -95,7 +95,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
 
         {req.status === "Accepted" && (
           <div className="w-full bg-emerald-50 border border-emerald-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-emerald-700 flex items-center justify-center gap-2">
-            <CheckCircle2 size={13} /> Accepted — waiting for the client to confirm
+            <CheckCircle2 size={13} /> Accepted — trip confirmed
           </div>
         )}
 

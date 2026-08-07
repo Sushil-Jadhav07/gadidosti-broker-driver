@@ -214,13 +214,15 @@ export default function MyTrip() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-[1fr_600px] gap-5">
-          <div className="flex flex-col">
-            <div className="grid grid-cols-3 gap-3 py-4 border-t border-b border-slate-100">
-              {[{ label: "Distance", value: `${trip.distance} km`, icon: Navigation }, { label: "Est. Time", value: trip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(trip.earnings), icon: IndianRupee }].map((item) => (
-                <div key={item.label} className="text-center"><item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" /><p className="text-[10px] text-slate-400">{item.label}</p><p className="text-sm font-bold text-slate-800">{item.value}</p></div>
-              ))}
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3 content-start">
+            {[{ label: "Distance", value: `${trip.distance} km`, icon: Navigation }, { label: "Est. Time", value: trip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(trip.earnings), icon: IndianRupee }].map((item) => (
+              <div key={item.label} className="bg-slate-50 rounded-lg p-3 text-center">
+                <item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+                <p className="text-[10px] text-slate-400">{item.label}</p>
+                <p className="text-sm font-bold text-slate-800">{item.value}</p>
+              </div>
+            ))}
           </div>
           <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} />
         </div>
@@ -237,7 +239,7 @@ export default function MyTrip() {
       <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
         <h3 className="font-bold text-slate-900 text-[15px] mb-4">Contact</h3>
         <div className="space-y-3">
-          {[["Broker", trip.broker, trip.brokerPhone], ["Pickup Contact", trip.pickup?.contactPerson, trip.pickup?.contactPhone]].map(([label, name, phone]) => (
+          {[["Broker", trip.broker, trip.brokerPhone], ["Pickup Contact", trip.pickup?.contactPerson, trip.pickup?.contactPhone], ["Drop Contact", trip.drop?.contactPerson, trip.drop?.contactPhone]].map(([label, name, phone]) => (
             <div key={label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
               <div><p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p><p className="text-sm font-semibold text-slate-800">{name || "-"}</p></div>
               {phone ? <a href={`tel:${phone}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold"><Phone className="w-3.5 h-3.5" />{phone}</a> : <span className="text-xs text-slate-400">-</span>}

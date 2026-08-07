@@ -1,0 +1,209 @@
+import { useEffect, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock } from "lucide-react";
+import Badge from "../../components/broker/Badge";
+import ConfirmDialog from "../../components/broker/ConfirmDialog";
+import RouteMapPanel from "../../components/driver/RouteMapPanel";
+import InvoiceEmailModal from "../../components/InvoiceEmailModal";
+import { useToast } from "../../hooks/useToast";
+import { api, getToken } from "../../services/api";
+import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration } from "../../utils";
+
+const STATUS_BADGE = { Completed: "success", Cancelled: "danger" };
+const PAYMENT_BADGE = { paid: "success", pending: "warning", refunded: "default" };
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+function DetailRow({ icon: Icon, label, value }) {
+  return (
+    <div className="flex items-start gap-3 py-2.5 border-b border-slate-50 last:border-b-0">
+      <Icon size={15} className="text-slate-400 mt-0.5 flex-shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p>
+        <p className="text-sm font-medium text-slate-800 truncate">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+export default function JobDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { addToast } = useToast();
+  const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(`/api/bookings/${id}`, getToken());
+      if (!response?.success || !response.data?.booking) throw new Error(response?.message || "Job not found");
+      setBooking(adaptBooking(response.data.booking));
+    } catch (err) {
+      setError(err.message || "Failed to load job details. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const handleDownloadInvoice = async () => {
+    setDownloading(true);
+    try {
+      const blobUrl = await api.getFileBlobUrl(`${API_BASE}/api/bookings/${id}/invoice`, getToken());
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `invoice-${booking.bookingNumber}.pdf`;
+      a.click();
+      URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      addToast(err.message || "Failed to download invoice.", "error");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    try {
+      const res = await api.delete(`/api/bookings/${id}`, null, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to remove booking");
+      addToast(res.message || "Booking removed from your list.", "success");
+      navigate("/job-history");
+    } catch (err) {
+      addToast(err.message || "Failed to remove booking.", "error");
+    } finally {
+      setDeleting(false);
+      setDeleteOpen(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <button onClick={() => navigate("/job-history")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
+        <ArrowLeft size={15} /> Back to Job History
+      </button>
+
+      {loading ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading job details...</div>
+      ) : error ? (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500 flex flex-col items-center gap-2">
+          <span>{error}</span>
+          <button onClick={load} className="underline text-sm">Retry</button>
+        </div>
+      ) : booking ? (
+        <>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs font-mono text-slate-400">{bookingRef(booking)}</span>
+                <Badge variant={STATUS_BADGE[booking.status] || "default"} size="sm">{booking.status}</Badge>
+              </div>
+              <h1 className="text-xl font-bold text-slate-900">{booking.pickup} <span className="text-slate-300">→</span> {booking.drop}</h1>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={handleDownloadInvoice}
+                disabled={downloading}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+              >
+                <Download size={14} /> {downloading ? "Downloading..." : "Download Invoice"}
+              </button>
+              <button
+                onClick={() => setEmailOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+              >
+                <Mail size={14} /> Send Invoice by Email
+              </button>
+              {["Completed", "Cancelled"].includes(booking.status) && (
+                <button
+                  onClick={() => setDeleteOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                >
+                  <Trash2 size={14} /> Remove from my list
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-2 overflow-hidden">
+              <RouteMapPanel
+                pickup={{ location: booking.pickup, lat: booking.pickupLat, lng: booking.pickupLng }}
+                drop={{ location: booking.drop, lat: booking.dropLat, lng: booking.dropLng }}
+              />
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Job Details</p>
+              <div>
+                <DetailRow icon={Truck} label="Truck" value={booking.truckReg || "—"} />
+                <DetailRow icon={User} label="Driver" value={booking.driver?.name || "—"} />
+                {booking.driver?.phone && <DetailRow icon={Phone} label="Driver Phone" value={booking.driver.phone} />}
+                <DetailRow icon={Calendar} label="Date" value={formatDate(booking.date || booking.createdAt)} />
+                <DetailRow icon={Ruler} label="Distance" value={booking.distance ? `${booking.distance} km` : "—"} />
+                <DetailRow icon={Package} label="Cargo" value={`${booking.material || "—"} · ${booking.weight ? `${booking.weight} ${booking.weightUnit || ""}`.trim() : "—"}`} />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Earnings &amp; Payment</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1"><IndianRupee size={11} /> Amount</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{formatCurrency(booking.amount)}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Platform Fee</p>
+                  <p className="text-sm font-bold text-red-500 mt-0.5">{formatCurrency(booking.platformFee)}</p>
+                </div>
+                <div className="bg-emerald-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-emerald-600 font-semibold uppercase">Net Earnings</p>
+                  <p className="text-sm font-bold text-emerald-700 mt-0.5">{formatCurrency(Number(booking.amount || 0) - Number(booking.platformFee || 0))}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Status</p>
+                  <p className="mt-0.5"><Badge variant={PAYMENT_BADGE[booking.paymentStatus] || "default"} size="sm">{booking.paymentStatus || "pending"}</Badge></p>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Mode</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5 capitalize">{booking.paymentMode || "—"}</p>
+                </div>
+                <div className="bg-slate-50 rounded-lg px-3 py-2.5">
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1"><Clock size={11} /> Time Taken</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{formatDuration(booking.timeTakenMinutes)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <ConfirmDialog
+            isOpen={deleteOpen} onClose={() => setDeleteOpen(false)}
+            onConfirm={handleDelete}
+            title="Remove from my list?"
+            message="This only removes it from your own list — it stays visible to admin. There's no undo."
+            confirmText={deleting ? "Removing..." : "Remove"}
+            variant="danger"
+          />
+
+          <InvoiceEmailModal
+            isOpen={emailOpen}
+            onClose={() => setEmailOpen(false)}
+            bookingId={id}
+            defaultTo={booking.clientEmail || ""}
+            bookingRef={bookingRef(booking)}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+}

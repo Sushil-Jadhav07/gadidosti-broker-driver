@@ -19,7 +19,13 @@ const NAV = [
       { label: "Job History", icon: History, path: "/job-history" },
     ],
   },
-  { label: "FINANCE", items: [{ label: "Earnings", icon: IndianRupee, path: "/earnings" }, { label: "Settlements", icon: Wallet, path: "/settlements" }] },
+  {
+    label: "FINANCE", items: [
+      { label: "Earnings", icon: IndianRupee, path: "/earnings" },
+      { label: "Earnings History", icon: History, path: "/earnings/history" },
+      { label: "Settlements", icon: Wallet, path: "/settlements" },
+    ],
+  },
   {
     label: "ACCOUNT", items: [
       { label: "KYC Status", icon: ShieldCheck, path: "/kyc" },

@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { Search, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Search, Trash2, Eye, ArrowRight } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, bookingRef, formatCurrency, formatDate } from "../../utils";
+import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration } from "../../utils";
+
+const PAYMENT_BADGE = { paid: "success", pending: "warning", refunded: "default" };
 
 const PAGE_SIZE = 10;
-const STATUS_BADGE = { completed: "success", cancelled: "danger" };
+// adaptBooking already turns booking.status into the capitalized display label ("Completed"/
+// "Cancelled") before this page ever sees it — compare/key against that, not the raw lowercase
+// backend enum values (comparing against those was a bug: it made every row fall through to
+// "Cancelled" regardless of its real status, and the tab counts/filter always read 0).
+const STATUS_BADGE = { Completed: "success", Cancelled: "danger" };
 
 export default function JobHistory() {
+  const navigate = useNavigate();
   const { addToast } = useToast();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +69,8 @@ export default function JobHistory() {
   const rows = useMemo(() => bookings.map((booking) => ({
     id: booking.id,
     bookingNumber: booking.bookingNumber,
+    pickup: booking.pickup || "-",
+    drop: booking.drop || "-",
     route: `${booking.pickup} -> ${booking.drop}`,
     truck: booking.truckReg || "-",
     driver: booking.driver?.name || "-",
@@ -69,11 +79,14 @@ export default function JobHistory() {
     platformFee: Number(booking.platformFee || 0),
     net: Number(booking.amount || 0) - Number(booking.platformFee || 0),
     status: booking.status,
+    paymentStatus: booking.paymentStatus || "pending",
+    paymentMode: booking.paymentMode || null,
+    timeTakenMinutes: booking.timeTakenMinutes,
   })), [bookings]);
 
   const counts = useMemo(() => ({
-    completed: rows.filter((r) => r.status === "completed").length,
-    cancelled: rows.filter((r) => r.status === "cancelled").length,
+    Completed: rows.filter((r) => r.status === "Completed").length,
+    Cancelled: rows.filter((r) => r.status === "Cancelled").length,
   }), [rows]);
 
   const filtered = useMemo(() => {
@@ -111,8 +124,8 @@ export default function JobHistory() {
         <div className="flex gap-2">
           {[
             { key: "all", label: "All" },
-            { key: "completed", label: `Completed (${counts.completed})` },
-            { key: "cancelled", label: `Cancelled (${counts.cancelled})` },
+            { key: "Completed", label: `Completed (${counts.Completed})` },
+            { key: "Cancelled", label: `Cancelled (${counts.Cancelled})` },
           ].map((t) => (
             <button
               key={t.key}
@@ -145,16 +158,26 @@ export default function JobHistory() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Booking ID", "Route", "Truck", "Driver", "Date", "Amount", "Fee", "Net", "Status", "Actions"].map((label) => (
+                  {["Booking ID", "Route", "Truck", "Driver", "Date", "Amount", "Fee", "Net", "Payment", "Time Taken", "Status", "Actions"].map((label) => (
                     <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{label}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {paged.map((row) => (
-                  <tr key={row.id} className="table-row">
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`/job-history/${row.id}`)}
+                    className="table-row cursor-pointer"
+                  >
                     <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">{bookingRef(row)}</td>
-                    <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{row.route}</td>
+                    <td className="px-4 py-3 font-semibold text-slate-800 max-w-[260px]">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate" title={row.pickup}>{row.pickup}</span>
+                        <ArrowRight size={12} className="text-slate-300 flex-shrink-0" />
+                        <span className="truncate" title={row.drop}>{row.drop}</span>
+                      </div>
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{row.truck}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{row.driver}</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDate(row.date)}</td>
@@ -162,18 +185,33 @@ export default function JobHistory() {
                     <td className="px-4 py-3 text-red-500 whitespace-nowrap">{formatCurrency(row.platformFee)}</td>
                     <td className="px-4 py-3 text-emerald-700 font-semibold whitespace-nowrap">{formatCurrency(row.net)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
+                      <Badge variant={PAYMENT_BADGE[row.paymentStatus] || "default"} size="sm">
+                        {row.paymentStatus}{row.paymentMode ? ` · ${row.paymentMode}` : ""}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDuration(row.timeTakenMinutes)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <Badge variant={STATUS_BADGE[row.status] || "default"} size="sm">
-                        {row.status === "completed" ? "Completed" : "Cancelled"}
+                        {row.status}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <button
-                        onClick={() => setDeleteId(row.id)}
-                        title="Remove from my list"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => navigate(`/job-history/${row.id}`)}
+                          title="View job details"
+                          className="p-1.5 rounded-lg text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                        >
+                          <Eye size={15} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(row.id)}
+                          title="Remove from my list"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

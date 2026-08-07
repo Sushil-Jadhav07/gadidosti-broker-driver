@@ -151,6 +151,9 @@ export default function JobRequests() {
 
   // Driver's response to an assign-driver offer arrives here live instead of via polling — only
   // relevant for requests this screen actually sent (jobRequestId matches a tracked pending one).
+  // 'accepted' is now terminal (the driver/broker accepting finalizes the trip immediately, no
+  // separate client confirmation step — see driverRequest.controller.js's finalizeDriverRequest),
+  // so it's dismissed the same way a decline is, just with a success toast instead of an error one.
   useDriverRequestSocket((payload) => {
     if (!payload?.jobRequestId || !(payload.jobRequestId in pendingAssignments)) return;
     if (payload.status === "declined") {
@@ -160,6 +163,15 @@ export default function JobRequests() {
         return next;
       });
       addToast(`${payload.driverName || "The driver"} declined — pick a different driver for this job.`, "error");
+    } else if (payload.status === "accepted") {
+      dismissedIdsRef.current.add(payload.jobRequestId);
+      setRequests((current) => current.filter((request) => request.id !== payload.jobRequestId));
+      setPendingAssignments((current) => {
+        const next = { ...current };
+        delete next[payload.jobRequestId];
+        return next;
+      });
+      addToast(`${payload.driverName || "The driver"} confirmed — trip created at ${formatCurrency(payload.amount)}.`, "success");
     } else {
       setPendingAssignments((current) => ({ ...current, [payload.jobRequestId]: payload }));
     }
@@ -247,9 +259,7 @@ export default function JobRequests() {
                 {pendingAssignments[req.id] ? (
                   <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
                     <Clock size={13} />
-                    {pendingAssignments[req.id].status === "accepted"
-                      ? `${pendingAssignments[req.id].driverName || "Driver"} accepted — waiting for the client to confirm`
-                      : pendingAssignments[req.id].status === "countered"
+                    {pendingAssignments[req.id].status === "countered"
                       ? `${pendingAssignments[req.id].driverName || "Driver"} countered — respond from Driver Requests`
                       : pendingAssignments[req.id].driverTimedOut
                       ? `${pendingAssignments[req.id].driverName || "Driver"} hasn't responded — respond on their behalf from Driver Requests`

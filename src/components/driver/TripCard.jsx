@@ -1,5 +1,5 @@
 ﻿import { useState } from "react";
-import { ChevronDown, ChevronUp, MapPin, Package, Phone, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, MapPin, Package, Phone, Trash2, ArrowUpRight } from "lucide-react";
 import Badge from "./Badge";
 import { bookingRef } from "../../utils";
 
@@ -8,7 +8,7 @@ import { bookingRef } from "../../utils";
 // reaches trip history. onDelete is optional so this card can still be reused read-only.
 const DELETABLE_STATUSES = ["Completed", "Cancelled"];
 
-export default function TripCard({ trip, onDelete }) {
+export default function TripCard({ trip, onDelete, onViewDetails }) {
   const [expanded, setExpanded] = useState(false);
   if (!trip) return null;
   const canDelete = onDelete && DELETABLE_STATUSES.includes(trip.status);
@@ -74,6 +74,14 @@ export default function TripCard({ trip, onDelete }) {
                 <p className="text-sm font-medium text-slate-800">{trip.broker}</p>
               </div>
             </div>
+          )}
+          {onViewDetails && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onViewDetails(); }}
+              className="w-full flex items-center justify-center gap-1.5 mt-1 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+            >
+              View Full Details <ArrowUpRight className="w-3.5 h-3.5" />
+            </button>
           )}
           {canDelete && (
             <button

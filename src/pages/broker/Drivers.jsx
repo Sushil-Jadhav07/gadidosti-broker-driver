@@ -5,6 +5,7 @@ import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import TruckDropdown from "../../components/broker/TruckDropdown";
 import MapView from "../../components/MapView";
+import TripHistoryList from "../../components/TripHistoryList";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatKycStatus, formatDate } from "../../utils";
@@ -480,6 +481,10 @@ export default function Drivers() {
                   <p className="text-sm font-semibold text-slate-800">{value || "-"}</p>
                 </div>
               ))}
+            </div>
+            <div>
+              <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-1.5">Trip History</p>
+              <TripHistoryList driverId={selected.id || selected.user_id} />
             </div>
             <div className="flex justify-end">
               <button onClick={() => openEdit(selected)} className="btn-primary px-4 py-2 text-sm flex items-center gap-2"><Edit2 size={14} /> Edit</button>
