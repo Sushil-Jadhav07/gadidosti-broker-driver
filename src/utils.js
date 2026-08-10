@@ -47,6 +47,18 @@ const BOOKING_STATUS = {
   expired: "Expired",
 };
 
+// Builds a rotated truck marker icon for live-position markers — a plain <Marker icon="..."/>
+// URL can't rotate a PNG, but wrapping it in an inline SVG <image> with a rotate() transform
+// can. headingDeg comes from the GPS device's course/bearing field; defaults to 0 (pointing
+// up/north) when unknown rather than skipping rotation entirely.
+export const buildTruckIcon = (headingDeg) => {
+  const angle = Number.isFinite(headingDeg) ? headingDeg : 0;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">` +
+    `<g transform="rotate(${angle} 20 20)"><image href="/truck/truck-marker.png" x="4" y="4" width="32" height="32" /></g>` +
+    `</svg>`;
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+};
+
 // Shares a PDF via the browser's native share sheet (attaches the actual file on phones where
 // WhatsApp/etc. are registered share targets); falls back to a wa.me text-only link on desktop
 // or browsers without file-sharing support. No backend WhatsApp API involved.

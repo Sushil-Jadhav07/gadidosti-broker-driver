@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle } from "lucide-react";
+import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2 } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
@@ -44,6 +44,7 @@ export default function MyTrip() {
   const [showDeclineConfirm, setShowDeclineConfirm] = useState(false);
   const [declining, setDeclining] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [completingStop, setCompletingStop] = useState(null);
   // Once the driver commits to wrapping up delivery (in_transit -> delivered), the page
   // hands off entirely to DeliveryCompletionFlow instead of the normal trip view — see
   // handleStatusChange's 'delivered' special-case below. Auto-resumes true on load if the
@@ -95,6 +96,23 @@ export default function MyTrip() {
       setTrip(adaptTrip(response.data?.trip));
     } catch (err) {
       addToast(err.message || "Failed to update trip status.", "error");
+    }
+  };
+
+  // Marks one extra loading/unloading stop complete — proximity-gated server-side, same
+  // "you're Xkm away" error shape as the pickup/delivered gate, surfaced via toast here since
+  // this button lives outside the main status flow.
+  const handleCompleteStop = async (index) => {
+    if (!trip) return;
+    setCompletingStop(index);
+    try {
+      const response = await api.patch(`/api/trips/${trip.id}/stops/${index}/complete`, {}, getToken());
+      if (!response.success) throw new Error(response.message || "Failed to complete stop");
+      setTrip(adaptTrip(response.data?.trip));
+    } catch (err) {
+      addToast(err.message || "Failed to complete stop.", "error");
+    } finally {
+      setCompletingStop(null);
     }
   };
 
@@ -156,6 +174,22 @@ export default function MyTrip() {
 
   const statusKey = trip.rawStatus;
   const canDecline = DECLINABLE_STATUSES.includes(statusKey);
+
+  // Extra loading/unloading stops (Ola/Uber-style add-stop) — empty for the vast majority of
+  // trips, which keeps everything below exactly as it always was. Only the earliest pending
+  // stop of each type is actionable (sequential, mirrors the backend's own enforcement).
+  const stops = trip.stops || [];
+  const pendingLoading = stops.filter((s) => s.type === "loading" && s.status !== "done");
+  const pendingUnloading = stops.filter((s) => s.type === "unloading" && s.status !== "done");
+  const hasExtraStops = stops.some((s) => s.type === "loading" || s.type === "unloading");
+  const nextActionableIndex = (type) => stops.findIndex((s) => s.type === type && s.status !== "done");
+
+  let statusButtonDisabledReason = null;
+  if (statusKey === "picked_up" && pendingLoading.length > 0) {
+    statusButtonDisabledReason = `Complete ${pendingLoading.length} more loading stop${pendingLoading.length === 1 ? "" : "s"} first`;
+  } else if (statusKey === "in_transit" && pendingUnloading.length > 0) {
+    statusButtonDisabledReason = `Complete ${pendingUnloading.length} more unloading stop${pendingUnloading.length === 1 ? "" : "s"} first`;
+  }
 
   return (
     <div className="space-y-5">
@@ -224,7 +258,7 @@ export default function MyTrip() {
               </div>
             ))}
           </div>
-          <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} />
+          <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} stops={stops} />
         </div>
       </div>
 
@@ -248,6 +282,38 @@ export default function MyTrip() {
         </div>
       </div>
 
+      {hasExtraStops && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+          <h3 className="font-bold text-slate-900 text-[15px] mb-4">Loading &amp; Unloading Stops</h3>
+          <div className="space-y-2">
+            {stops.map((stop, index) => {
+              if (stop.type !== "loading" && stop.type !== "unloading") return null;
+              const isDone = stop.status === "done";
+              const isActionable = index === nextActionableIndex(stop.type);
+              const Icon = stop.type === "loading" ? PackagePlus : PackageMinus;
+              return (
+                <div key={index} className={`flex items-center gap-3 rounded-lg p-3 ${isDone ? "bg-emerald-50" : "bg-slate-50"}`}>
+                  {isDone ? <CheckCircle2 size={18} className="text-emerald-600 flex-shrink-0" /> : <Icon size={18} className="text-slate-400 flex-shrink-0" />}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{stop.type === "loading" ? "Loading Point" : "Unloading Point"}</p>
+                    <p className="text-sm font-medium text-slate-800 truncate">{stop.location || "—"}</p>
+                  </div>
+                  {!isDone && (
+                    <button
+                      onClick={() => handleCompleteStop(index)}
+                      disabled={!isActionable || completingStop === index}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold text-white bg-primary hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                    >
+                      {completingStop === index ? "..." : stop.type === "loading" ? "Mark Loaded" : "Mark Unloaded"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
         <h3 className="font-bold text-slate-900 text-[15px] mb-4">Trip Status</h3>
         <StatusTimeline steps={DRIVER_STATUS_STEPS} currentStatus={statusKey} completedTimes={completedTimes} />
@@ -267,7 +333,11 @@ export default function MyTrip() {
           <TripStatusButton
             status={statusKey}
             onStatusChange={handleStatusChange}
+            disabled={!!statusButtonDisabledReason}
           />
+          {statusButtonDisabledReason && (
+            <p className="text-[11px] text-amber-600 font-medium text-center mt-1.5">{statusButtonDisabledReason}</p>
+          )}
         </div>
       </div>
 

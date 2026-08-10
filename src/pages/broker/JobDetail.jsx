@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
@@ -193,6 +193,8 @@ export default function JobDetail() {
               <RouteMapPanel
                 pickup={{ location: booking.pickup, lat: booking.pickupLat, lng: booking.pickupLng }}
                 drop={{ location: booking.drop, lat: booking.dropLat, lng: booking.dropLng }}
+                currentLocation={booking.currentLat != null && booking.currentLng != null ? { lat: booking.currentLat, lng: booking.currentLng } : null}
+                stops={booking.stops || []}
               />
             </div>
 
@@ -207,6 +209,27 @@ export default function JobDetail() {
                 <DetailRow icon={Package} label="Cargo" value={`${booking.material || "—"} · ${booking.weight ? `${booking.weight} ${booking.weightUnit || ""}`.trim() : "—"}`} />
               </div>
             </div>
+
+            {(booking.stops || []).some((s) => s.type === "loading" || s.type === "unloading") && (
+              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Loading &amp; Unloading Stops</p>
+                <div className="space-y-1.5">
+                  {booking.stops.map((stop, index) => {
+                    if (stop.type !== "loading" && stop.type !== "unloading") return null;
+                    const isDone = stop.status === "done";
+                    const Icon = stop.type === "loading" ? PackagePlus : PackageMinus;
+                    return (
+                      <div key={index} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${isDone ? "bg-emerald-50" : "bg-slate-50"}`}>
+                        {isDone ? <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" /> : <Circle size={15} className="text-slate-300 flex-shrink-0" />}
+                        <Icon size={14} className="text-slate-400 flex-shrink-0" />
+                        <span className="text-sm text-slate-700 truncate flex-1">{stop.location || "—"}</span>
+                        <span className={`text-[11px] font-semibold flex-shrink-0 ${isDone ? "text-emerald-600" : "text-slate-400"}`}>{isDone ? "Done" : "Pending"}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Earnings &amp; Payment</p>

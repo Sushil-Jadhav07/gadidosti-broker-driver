@@ -24,7 +24,8 @@ function RouteRenderer({ route, onResolved }) {
   useEffect(() => {
     setDirections(null);
     setRequested(false);
-  }, [route.origin, route.destination]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.origin, route.destination, JSON.stringify(route.waypoints || [])]);
 
   if (!route.origin || !route.destination) return null;
 
@@ -32,7 +33,15 @@ function RouteRenderer({ route, onResolved }) {
     <>
       {!requested && (
         <DirectionsService
-          options={{ origin: route.origin, destination: route.destination, travelMode: "DRIVING" }}
+          options={{
+            origin: route.origin,
+            destination: route.destination,
+            waypoints: route.waypoints,
+            // Stop order is operationally meaningful (load before unload, not just shortest
+            // path) — never let Google reorder them.
+            optimizeWaypoints: false,
+            travelMode: "DRIVING",
+          }}
           callback={(result, status) => {
             setRequested(true);
             if (status === "OK" && result) {
@@ -141,7 +150,17 @@ export default function MapView({ routes = [], markers = [], height = "400px", c
       options={MAP_OPTIONS}
     >
       {allMarkers.map((m) => (
-        <Marker key={m.id} position={m.position} icon={{ url: MARKER_ICON(m.color) }} title={m.title} label={m.label} />
+        <Marker
+          key={m.id}
+          position={m.position}
+          icon={m.iconUrl ? {
+            url: m.iconUrl,
+            scaledSize: new window.google.maps.Size(40, 40),
+            anchor: new window.google.maps.Point(20, 20),
+          } : { url: MARKER_ICON(m.color) }}
+          title={m.title}
+          label={m.label}
+        />
       ))}
       {routes.map((route) => (
         <RouteRenderer key={route.id} route={route} onResolved={handleResolved} />

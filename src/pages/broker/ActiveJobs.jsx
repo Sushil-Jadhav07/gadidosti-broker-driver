@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle, Navigation } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import DriverDropdown from "../../components/broker/DriverDropdown";
@@ -40,6 +41,7 @@ const MECHANIC_STATUS_OPTIONS = [
 ];
 
 export default function ActiveJobs() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
   const [jobs, setJobs] = useState([]);
@@ -306,19 +308,27 @@ export default function ActiveJobs() {
               <StatusTimeline steps={DRIVER_STATUS_STEPS} currentStatus={STATUS_KEY_MAP[job.status] || "assigned"} />
             </div>
 
-            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
               <button
                 onClick={() => openDispute(job)}
                 className="flex items-center gap-1.5 text-xs font-semibold text-danger hover:underline"
               >
                 <Flag size={12} /> Report a Problem
               </button>
-              <button
-                onClick={() => setChatJob(job)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
-              >
-                <MessageCircle size={12} /> Chat
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => navigate(`/job-history/${job.id}`)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <Navigation size={12} /> Track Live
+                </button>
+                <button
+                  onClick={() => setChatJob(job)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <MessageCircle size={12} /> Chat
+                </button>
+              </div>
             </div>
           </div>
         );
