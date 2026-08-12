@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
+import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
+import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
 
 const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
 
@@ -40,6 +41,11 @@ export default function JobDetail() {
   const [downloading, setDownloading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [notifying, setNotifying] = useState(false);
+  // Lets the broker finish proof-of-delivery + payment collection on a driver's behalf —
+  // e.g. the driver marked the trip delivered and then logged out/is unreachable. Only
+  // fetched on demand (not on every load) since it's only relevant once status is Delivered.
+  const [completingTrip, setCompletingTrip] = useState(null);
+  const [loadingCompletion, setLoadingCompletion] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -120,6 +126,40 @@ export default function JobDetail() {
     }
   };
 
+  const handleOpenCompletion = async () => {
+    setLoadingCompletion(true);
+    try {
+      const res = await api.get(`/api/trips/booking/${id}`, getToken());
+      if (!res?.success || !res.data?.trip) throw new Error(res?.message || "Trip not found");
+      setCompletingTrip(adaptTrip(res.data.trip));
+    } catch (err) {
+      addToast(err.message || "Failed to load trip for completion.", "error");
+    } finally {
+      setLoadingCompletion(false);
+    }
+  };
+
+  if (completingTrip) {
+    return (
+      <div className="space-y-4">
+        <button
+          onClick={() => setCompletingTrip(null)}
+          className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors"
+        >
+          <ArrowLeft size={15} /> Back to Job Details
+        </button>
+        <DeliveryCompletionFlow
+          trip={completingTrip}
+          canUploadQr={false}
+          onExit={() => {
+            setCompletingTrip(null);
+            load();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <button onClick={() => navigate("/job-history")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
@@ -144,6 +184,15 @@ export default function JobDetail() {
               <h1 className="text-xl font-bold text-slate-900">{booking.pickup} <span className="text-slate-300">→</span> {booking.drop}</h1>
             </div>
             <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0">
+              {booking.status === "Delivered" && (
+                <button
+                  onClick={handleOpenCompletion}
+                  disabled={loadingCompletion}
+                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-primary rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+                >
+                  <ClipboardCheck size={14} /> {loadingCompletion ? "Loading..." : "Complete Delivery"}
+                </button>
+              )}
               {INVOICE_READY_STATUSES.includes(booking.status) ? (
                 <>
                   <button
