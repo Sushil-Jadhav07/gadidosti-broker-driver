@@ -11,6 +11,12 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
   const isDriver = role === "driver";
   const locked = isDriver && req.status === "Requested" && req.driverTimedOut;
   const canAct = req.status === "Requested" && !locked;
+  // Mutual-confirmation: one side already accepted, the other must now confirm/decline — no
+  // more countering past here. "client" pending means the client already committed and it's
+  // this driver/broker's turn; "respondent" pending means the reverse (this app already
+  // committed and is waiting on the client).
+  const isYourTurnToConfirm = req.status === "Awaiting Confirmation" && req.pendingConfirmationBy === "client";
+  const isWaitingOnClient = req.status === "Awaiting Confirmation" && req.pendingConfirmationBy === "respondent";
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex flex-col">
@@ -90,6 +96,22 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
         {req.status === "Countered" && (
           <div className="w-full bg-amber-50 border border-amber-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-amber-700 flex items-center justify-center gap-2">
             <Clock size={13} /> Waiting for the client&apos;s response to your {formatCurrency(req.amount)} offer
+          </div>
+        )}
+
+        {isYourTurnToConfirm && (
+          <>
+            <p className="text-[11px] text-slate-400 text-center mb-2">The client accepted at {formatCurrency(req.amount)} — confirm to finalize.</p>
+            <div className="flex items-center gap-2">
+              <button onClick={() => onAccept(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all flex items-center justify-center gap-1.5"><CheckCircle2 size={14} /> Confirm</button>
+              <button onClick={() => onDecline(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
+            </div>
+          </>
+        )}
+
+        {isWaitingOnClient && (
+          <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
+            <Clock size={13} /> You accepted — waiting for the client to confirm
           </div>
         )}
 

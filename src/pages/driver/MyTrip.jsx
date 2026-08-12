@@ -189,6 +189,28 @@ export default function MyTrip() {
   const statusKey = trip.rawStatus;
   const canDecline = DECLINABLE_STATUSES.includes(statusKey);
 
+  // Where "Open in Maps" should point right now — mirrors the backend's own next-stop
+  // ordering (pickup -> loading stops -> unloading stops -> drop) so it always matches
+  // whatever the status button/checklist above says is next.
+  const nextDestination = (() => {
+    if (["confirmed", "en_route_pickup"].includes(statusKey)) return trip.pickup;
+    if (statusKey === "picked_up") {
+      const stop = trip.stops?.find((s) => s.type === "loading" && s.status !== "done");
+      if (stop) return { location: stop.location, lat: stop.lat, lng: stop.lng };
+    }
+    if (["picked_up", "in_transit"].includes(statusKey)) {
+      const stop = trip.stops?.find((s) => s.type === "unloading" && s.status !== "done");
+      if (stop) return { location: stop.location, lat: stop.lat, lng: stop.lng };
+    }
+    return trip.drop;
+  })();
+
+  const openInMaps = () => {
+    if (nextDestination?.lat == null || nextDestination?.lng == null) return;
+    const url = `https://www.google.com/maps/dir/?api=1&destination=${nextDestination.lat},${nextDestination.lng}&travelmode=driving`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
   // Extra loading/unloading stops (Ola/Uber-style add-stop) — empty for the vast majority of
   // trips, which keeps everything below exactly as it always was. Only the earliest pending
   // stop of each type is actionable (sequential, mirrors the backend's own enforcement).
@@ -230,6 +252,15 @@ export default function MyTrip() {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              onClick={openInMaps}
+              disabled={nextDestination?.lat == null || nextDestination?.lng == null}
+              title="Open directions in Google Maps"
+              className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-xs hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Navigation size={16} />
+              Directions
+            </button>
             <button
               onClick={() => setShowChat(true)}
               title="Chat"

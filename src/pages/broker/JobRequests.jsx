@@ -11,6 +11,7 @@ import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptJobRequest, formatCurrency, bookingRef } from "../../utils";
 import { useDriverRequestSocket } from "../../hooks/useDriverRequestSocket";
+import { useJobRequestSocket } from "../../hooks/useJobRequestSocket";
 
 // Job requests themselves are still polled (not pushed) so the client's counters/accepts show
 // up here without a manual page refresh — same "5-10s" cadence used for live location/booking
@@ -127,6 +128,29 @@ export default function JobRequests() {
     }
   };
 
+  // Mutual-confirmation: this can be the first commit (client hasn't accepted yet — the
+  // request just parks at "awaiting_confirmation", nothing is finalized) or the finalizing
+  // confirmation (client already accepted first — this locks in the booking immediately).
+  // Reused for both "Accept" (from Requested) and "Confirm" (from Awaiting Confirmation,
+  // client's turn) — same endpoint either way.
+  const handleAccept = async (id) => {
+    try {
+      const res = await api.patch(`/api/jobs/requests/${id}/accept`, {}, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to accept job request");
+      if (res.data?.request) {
+        const updated = adaptJobRequest(res.data.request);
+        setRequests((current) => current.map((request) => (request.id === updated.id ? updated : request)));
+        addToast("Accepted — waiting for the client to confirm.", "success");
+      } else {
+        // Finalized immediately (client had already committed) — booking is now confirmed.
+        setRequests((current) => current.map((request) => (request.id === id ? { ...request, status: "Accepted" } : request)));
+        addToast("Booking confirmed!", "success");
+      }
+    } catch (err) {
+      addToast(err.message || "Failed to accept job request.", "error");
+    }
+  };
+
   const submitAssignment = async () => {
     if (!assignRequest) return;
     setAssigning(true);
@@ -175,6 +199,21 @@ export default function JobRequests() {
     } else {
       setPendingAssignments((current) => ({ ...current, [payload.jobRequestId]: payload }));
     }
+  });
+
+  // Live updates to the negotiation itself (client accepted/countered/declined/rejected) —
+  // makes "your turn to confirm" arrive immediately instead of waiting out the 8s poll.
+  useJobRequestSocket((payload) => {
+    if (!payload?.id || dismissedIdsRef.current.has(payload.id)) return;
+    const updated = adaptJobRequest(payload);
+    if (["Declined", "Expired"].includes(updated.status)) {
+      setRequests((current) => current.filter((request) => request.id !== updated.id));
+      return;
+    }
+    setRequests((current) => {
+      const exists = current.some((request) => request.id === updated.id);
+      return exists ? current.map((request) => (request.id === updated.id ? updated : request)) : [updated, ...current];
+    });
   });
 
   if (user?.kyc_status !== "verified") {
@@ -276,14 +315,31 @@ export default function JobRequests() {
                   <div className="w-full bg-amber-50 border border-amber-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-amber-700 flex items-center justify-center gap-2">
                     <Clock size={13} /> Waiting for client&apos;s response to your {formatCurrency(req.amount)} offer
                   </div>
+                ) : req.status === "Awaiting Confirmation" && req.pendingConfirmationBy === "client" ? (
+                  /* Mutual-confirmation: the client already accepted — your turn, no more countering. */
+                  <>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleAccept(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all flex items-center justify-center gap-1.5"><CheckCircle size={14} /> Confirm</button>
+                      <button onClick={() => setRejectId(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
+                    </div>
+                    <p className="text-[11px] text-slate-400 text-center mt-2">
+                      The client accepted at {formatCurrency(req.amount)} — confirm to finalize the booking.
+                    </p>
+                  </>
+                ) : req.status === "Awaiting Confirmation" ? (
+                  /* You already accepted (pendingConfirmationBy === 'broker') — waiting on the client. */
+                  <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
+                    <Clock size={13} /> You accepted — waiting for the client to confirm
+                  </div>
                 ) : (
                   <>
                     <div className="flex items-center gap-2">
+                      <button onClick={() => handleAccept(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all flex items-center justify-center gap-1.5"><CheckCircle size={14} /> Accept</button>
                       <button onClick={() => openCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
                       <button onClick={() => setRejectId(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
                     </div>
                     <p className="text-[11px] text-slate-400 text-center mt-2">
-                      Your offer of {formatCurrency(req.amount)} is live — the client is comparing brokers and will pick one. No action needed unless you want to counter or decline.
+                      Your offer of {formatCurrency(req.amount)} is live — accept to lock it in (client must also confirm), or counter/decline.
                     </p>
                   </>
                 )}

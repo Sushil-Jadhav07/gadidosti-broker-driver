@@ -45,6 +45,9 @@ const BOOKING_STATUS = {
   accepted: "Accepted",
   declined: "Declined",
   expired: "Expired",
+  // Mutual-confirmation: one side already accepted, the other must now confirm or decline
+  // (see the request/offer's pendingConfirmationBy field) — no more negotiating past here.
+  awaiting_confirmation: "Awaiting Confirmation",
 };
 
 // Builds a rotated truck marker icon for live-position markers — a plain <Marker icon="..."/>

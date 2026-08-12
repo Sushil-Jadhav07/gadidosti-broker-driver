@@ -21,9 +21,17 @@ const haversineMeters = (lat1, lng1, lat2, lng2) => {
 // (not a single page) so tracking survives navigating between driver pages instead of
 // restarting watchPosition on every route change. The "online" flag persists to localStorage
 // so it resumes automatically if the driver reloads the tab while still online.
+//
+// "Online" means "available for new job offers" — it's a separate concept from "currently on
+// a trip a client is tracking." A driver mid-delivery who never toggled Online (or toggled it
+// off once assigned, since they're not looking for more work) would otherwise never push a
+// location at all, leaving driver_profiles.current_lat/lng permanently null and the client's
+// tracking page with no truck marker to show. So location sharing runs whenever EITHER online
+// is on OR there's an active trip — trip presence forces sharing regardless of the toggle.
 export function useDriverLocationTracking() {
   const [online, setOnline] = useState(() => localStorage.getItem(STORAGE_KEY) === "1");
   const [locationError, setLocationError] = useState(null);
+  const [hasActiveTrip, setHasActiveTrip] = useState(false);
   const lastSentRef = useRef({ lat: null, lng: null, time: 0 });
   // trips.current_lat/current_lng — read by the backend's pickup/delivery proximity gate
   // (trip.controller.js's updateTripStatus) — is a completely different column from
@@ -33,14 +41,18 @@ export function useDriverLocationTracking() {
   // watchPosition tick can push to both places.
   const activeTripIdRef = useRef(null);
 
+  // Runs regardless of the online toggle — this is what lets a trip force tracking on even
+  // when the driver is (or goes) "offline" for new-job purposes.
   useEffect(() => {
-    if (!online) return undefined;
-
     let cancelled = false;
     const refreshActiveTrip = async () => {
       try {
         const res = await api.get("/api/trips/active", getToken());
-        if (!cancelled) activeTripIdRef.current = res?.data?.trip?.id || null;
+        const tripId = res?.data?.trip?.id || null;
+        if (!cancelled) {
+          activeTripIdRef.current = tripId;
+          setHasActiveTrip(!!tripId);
+        }
       } catch {
         /* keep the last-known trip id — next refresh retries */
       }
@@ -52,10 +64,12 @@ export function useDriverLocationTracking() {
       cancelled = true;
       clearInterval(tripRefreshInterval);
     };
-  }, [online]);
+  }, []);
+
+  const tracking = online || hasActiveTrip;
 
   useEffect(() => {
-    if (!online) return;
+    if (!tracking) return;
     if (!navigator.geolocation) {
       setLocationError("This browser doesn't support location sharing.");
       return;
@@ -85,7 +99,7 @@ export function useDriverLocationTracking() {
       (err) => {
         setLocationError(
           err.code === 1
-            ? "Enable location access to go online."
+            ? "Enable location access so your trip can be tracked."
             : "Couldn't get your location. Check your device's location settings."
         );
         console.error("watchPosition error:", err);
@@ -98,7 +112,7 @@ export function useDriverLocationTracking() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
-  }, [online]);
+  }, [tracking]);
 
   const toggleOnline = useCallback(() => {
     setOnline((prev) => {
