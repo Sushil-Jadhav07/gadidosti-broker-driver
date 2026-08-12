@@ -14,6 +14,7 @@ import ChatWindow from "../../components/ChatWindow";
 import KycGate from "../../components/kyc/KycGate";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
+import { useBookingPaymentSocket } from "../../hooks/useBookingPaymentSocket";
 import { api, getToken } from "../../services/api";
 import { DRIVER_STATUS_STEPS, adaptTrip, formatCurrency, formatDateTime, bookingRef } from "../../utils";
 
@@ -78,6 +79,19 @@ export default function MyTrip() {
     loadTrip();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live push the moment the client pays via the app — without this the driver would only
+  // find out at delivery-completion time (DeliveryCompletionFlow re-fetches then), which is
+  // too late to be useful mid-trip.
+  useBookingPaymentSocket((payload) => {
+    setTrip((current) => {
+      if (!current || payload?.bookingId !== current.bookingId) return current;
+      return { ...current, paymentStatus: payload.paymentStatus };
+    });
+    if (payload?.paymentStatus === "paid") {
+      addToast(`Payment received for ${payload.bookingNumber || "this booking"} — no COD collection needed.`, "success");
+    }
+  });
 
   const completedTimes = useMemo(() => Object.fromEntries((trip?.timeline || []).filter((step) => step.time).map((step) => [step.step, formatDateTime(step.time)])), [trip]);
 
@@ -200,6 +214,11 @@ export default function MyTrip() {
             <h2 className="text-[16px] font-bold text-slate-900 mt-0.5">{trip.pickup?.location} {"->"} {trip.drop?.location}</h2>
             <div className="flex items-center flex-wrap gap-1.5 mt-2">
               <Badge status={trip.status} />
+              {trip.paymentStatus === "paid" && (
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 size={12} /> Paid
+                </span>
+              )}
               {activeIncident && (
                 <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
                   activeIncident.reason === "breakdown" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-600 border border-red-200"
