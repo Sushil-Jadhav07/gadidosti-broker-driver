@@ -1,5 +1,5 @@
 import MapView from "../MapView";
-import { buildTruckIcon } from "../../utils";
+import { buildTruckIcon } from "../../lib/truckIcon";
 
 // Real embedded map for a single trip's pickup -> drop route (drawn via the Directions API),
 // plus an optional live truck marker when currentLocation is available — sourced straight
