@@ -12,7 +12,7 @@ const PAGE = {
   "/driver/profile": { title: "Profile",     sub: "Your account and KYC documents" },
 };
 
-export default function DriverTopHeader({ currentPath, onMenuClick, online, onToggleOnline }) {
+export default function DriverTopHeader({ currentPath, onMenuClick, online, onToggleOnline, onlineToggleLocked }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -69,9 +69,11 @@ export default function DriverTopHeader({ currentPath, onMenuClick, online, onTo
       <div className="flex items-center gap-2">
         <button
           onClick={onToggleOnline}
+          disabled={onlineToggleLocked}
+          title={onlineToggleLocked ? "Can't go offline while you have an active trip" : undefined}
           className={`flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
             online ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-          }`}
+          } ${onlineToggleLocked ? "opacity-70 cursor-not-allowed hover:bg-emerald-50" : ""}`}
         >
           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
           {online ? "Online" : "Offline"}

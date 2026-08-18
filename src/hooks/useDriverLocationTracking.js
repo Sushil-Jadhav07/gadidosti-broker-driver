@@ -114,8 +114,15 @@ export function useDriverLocationTracking() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [tracking]);
 
+  // Blocks turning Online off while a trip is active — going offline mid-delivery is exactly
+  // the state a client/broker tracking screen can't afford (see the module comment above on
+  // why trip presence already forces tracking regardless of this toggle; this additionally
+  // stops the toggle itself from lying about it). Turning ON, or toggling at all with no active
+  // trip, is unaffected. DriverTopHeader also disables the button outright in this state — this
+  // guard is defense in depth in case anything else ever calls toggleOnline directly.
   const toggleOnline = useCallback(() => {
     setOnline((prev) => {
+      if (prev && activeTripIdRef.current) return prev;
       const next = !prev;
       localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
       if (!next) setLocationError(null);
@@ -123,5 +130,5 @@ export function useDriverLocationTracking() {
     });
   }, []);
 
-  return { online, toggleOnline, locationError };
+  return { online, toggleOnline, locationError, hasActiveTrip };
 }
