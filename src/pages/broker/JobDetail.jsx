@@ -7,6 +7,7 @@ import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import { useToast } from "../../hooks/useToast";
+import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
 import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
 
@@ -47,17 +48,19 @@ export default function JobDetail() {
   const [completingTrip, setCompletingTrip] = useState(null);
   const [loadingCompletion, setLoadingCompletion] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    setError(null);
+  const load = async ({ silent } = {}) => {
+    if (!silent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const response = await api.get(`/api/bookings/${id}`, getToken());
       if (!response?.success || !response.data?.booking) throw new Error(response?.message || "Job not found");
       setBooking(adaptBooking(response.data.booking));
     } catch (err) {
-      setError(err.message || "Failed to load job details. Please try again.");
+      if (!silent) setError(err.message || "Failed to load job details. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -65,6 +68,13 @@ export default function JobDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  // Live push the moment this job's trip status changes (picked up, delivered, etc.) — updates
+  // the status badge/timeline without the broker needing to reload the page. Silent refresh
+  // (no loading spinner) since this can fire at any point while the page is open.
+  useTripStatusSocket((updatedTrip) => {
+    if (updatedTrip?.bookingId === id) load({ silent: true });
+  });
 
   const handleDownloadInvoice = async () => {
     setDownloading(true);

@@ -15,6 +15,7 @@ import KycGate from "../../components/kyc/KycGate";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { useBookingPaymentSocket } from "../../hooks/useBookingPaymentSocket";
+import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
 import { DRIVER_STATUS_STEPS, adaptTrip, formatCurrency, formatDateTime, bookingRef } from "../../utils";
 
@@ -91,6 +92,13 @@ export default function MyTrip() {
     if (payload?.paymentStatus === "paid") {
       addToast(`Payment received for ${payload.bookingNumber || "this booking"} — no COD collection needed.`, "success");
     }
+  });
+
+  // Live push the moment this trip's status changes — covers e.g. a broker completing delivery
+  // on this driver's behalf. A full reload (not a partial merge) since a status change can
+  // affect several derived things at once (deliveryFlowActive, timeline, stop checklist).
+  useTripStatusSocket((updatedTrip) => {
+    if (updatedTrip?.id && updatedTrip.id === trip?.id) loadTrip();
   });
 
   const completedTimes = useMemo(() => Object.fromEntries((trip?.timeline || []).filter((step) => step.time).map((step) => [step.step, formatDateTime(step.time)])), [trip]);
