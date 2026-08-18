@@ -29,7 +29,9 @@ const haversineMeters = (lat1, lng1, lat2, lng2) => {
 // tracking page with no truck marker to show. So location sharing runs whenever EITHER online
 // is on OR there's an active trip — trip presence forces sharing regardless of the toggle.
 export function useDriverLocationTracking() {
-  const [online, setOnline] = useState(() => localStorage.getItem(STORAGE_KEY) === "1");
+  // The raw toggle preference — what the driver last explicitly chose, persisted to
+  // localStorage. NOT what's shown in the UI or returned as `online` below — see `tracking`.
+  const [rawOnline, setRawOnline] = useState(() => localStorage.getItem(STORAGE_KEY) === "1");
   const [locationError, setLocationError] = useState(null);
   const [hasActiveTrip, setHasActiveTrip] = useState(false);
   const lastSentRef = useRef({ lat: null, lng: null, time: 0 });
@@ -66,7 +68,12 @@ export function useDriverLocationTracking() {
     };
   }, []);
 
-  const tracking = online || hasActiveTrip;
+  // The EFFECTIVE state — this, not rawOnline, is what gets shown in the UI (returned below as
+  // `online`) and what drives the geolocation watch. Without this, a driver who was never
+  // toggled Online before a trip landed on them could sit there showing "Offline" for the
+  // entire trip, which is confusing/wrong even though location was quietly being tracked
+  // anyway — the toggle shouldn't be able to lie about whether they're effectively online.
+  const tracking = rawOnline || hasActiveTrip;
 
   useEffect(() => {
     if (!tracking) return;
@@ -114,15 +121,16 @@ export function useDriverLocationTracking() {
     return () => navigator.geolocation.clearWatch(watchId);
   }, [tracking]);
 
-  // Blocks turning Online off while a trip is active — going offline mid-delivery is exactly
-  // the state a client/broker tracking screen can't afford (see the module comment above on
-  // why trip presence already forces tracking regardless of this toggle; this additionally
-  // stops the toggle itself from lying about it). Turning ON, or toggling at all with no active
-  // trip, is unaffected. DriverTopHeader also disables the button outright in this state — this
-  // guard is defense in depth in case anything else ever calls toggleOnline directly.
+  // Fully locked while a trip is active — not just "can't turn off", nothing to toggle at all,
+  // since the effective state (`tracking` above) is already forced to "online" by the trip
+  // regardless of what's clicked. Going offline mid-delivery is exactly the state a client/
+  // broker tracking screen can't afford. DriverTopHeader also disables the button outright in
+  // this state (via `hasActiveTrip` below) — this guard is defense in depth in case anything
+  // else ever calls toggleOnline directly. Once the trip ends, the toggle goes back to
+  // reflecting/controlling the raw preference normally.
   const toggleOnline = useCallback(() => {
-    setOnline((prev) => {
-      if (prev && activeTripIdRef.current) return prev;
+    if (activeTripIdRef.current) return;
+    setRawOnline((prev) => {
       const next = !prev;
       localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
       if (!next) setLocationError(null);
@@ -130,5 +138,5 @@ export function useDriverLocationTracking() {
     });
   }, []);
 
-  return { online, toggleOnline, locationError, hasActiveTrip };
+  return { online: tracking, toggleOnline, locationError, hasActiveTrip };
 }

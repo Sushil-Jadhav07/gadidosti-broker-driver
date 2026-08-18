@@ -95,7 +95,7 @@ function DriverAppLayout() {
         onMobileClose={() => setMobileOpen(false)}
       />
       <div className={`min-h-screen flex flex-col transition-all duration-300 ${expanded ? "lg:ml-[260px]" : "lg:ml-[72px]"}`}>
-        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} online={online} onToggleOnline={toggleOnline} onlineToggleLocked={online && hasActiveTrip} />
+        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} online={online} onToggleOnline={toggleOnline} onlineToggleLocked={hasActiveTrip} />
         {(online || locationError) && (
           <div className={`px-4 lg:px-6 py-1.5 text-xs font-semibold flex items-center gap-2 ${
             locationError ? "bg-amber-50 text-amber-700 border-b border-amber-100" : "bg-emerald-50 text-emerald-700 border-b border-emerald-100"
