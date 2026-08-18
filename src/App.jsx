@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from "./hooks/useAuth";
 import { ToastProvider } from "./hooks/useToast";
 import { useDriverLocationTracking } from "./hooks/useDriverLocationTracking";
 import FcmBridge from "./components/FcmBridge";
+import SessionGuard from "./components/SessionGuard";
 
 // Broker
 import BrokerSidebar  from "./components/broker/BrokerSidebar";
@@ -143,6 +144,7 @@ export default function App() {
       <AuthProvider>
         <ToastProvider>
           <FcmBridge />
+          <SessionGuard />
           <Routes>
             {/* Public */}
             <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
