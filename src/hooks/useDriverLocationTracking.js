@@ -2,7 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getToken } from "../services/api";
 
 const STORAGE_KEY = "ssk_driver_online";
-const MIN_INTERVAL_MS = 8000; // don't send more than once per ~8s
+// 3s floor — matches MapView.jsx's ANIM_MS tween duration on the client (kept in sync
+// intentionally: a fix arrives right as the previous fix's eased tween finishes, instead of the
+// marker sitting still for several seconds between each smooth hop). The backend's dedicated
+// driverLocationRateLimit (60 req/min, driver-keyed) comfortably covers this: this floor alone
+// caps stationary pings at 20/min, and even sustained highway speed (~90-100 km/h, needing
+// ~1.8-2s to cover MIN_DISTANCE_M) tops out around 30-33/min via the distance trigger below —
+// both well under the 60/min budget.
+const MIN_INTERVAL_MS = 3000;
 const MIN_DISTANCE_M = 50;    // ...unless moved at least ~50m
 const ACTIVE_TRIP_REFRESH_MS = 60000; // re-check which trip (if any) is active every ~60s
 
@@ -85,20 +92,26 @@ export function useDriverLocationTracking() {
     setLocationError(null);
     const watchId = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
+        const { latitude: lat, longitude: lng, heading } = pos.coords;
         const now = Date.now();
         const last = lastSentRef.current;
         const moved = last.lat == null || haversineMeters(last.lat, last.lng, lat, lng) >= MIN_DISTANCE_M;
         if (now - last.time < MIN_INTERVAL_MS && !moved) return;
 
         lastSentRef.current = { lat, lng, time: now };
-        api.patch("/api/vehicles/drivers/me/location", { lat, lng }, getToken()).catch((err) => {
+        // GPS reports heading as null while stationary (or on some devices, always) — omit the
+        // field entirely rather than sending null, so the backend keeps whatever valid heading
+        // it last stored instead of it being overwritten with "unknown."
+        const hasHeading = heading != null && !Number.isNaN(heading);
+        const payload = hasHeading ? { lat, lng, heading } : { lat, lng };
+
+        api.patch("/api/vehicles/drivers/me/location", payload, getToken()).catch((err) => {
           console.error("Failed to push location update:", err);
         });
 
         const tripId = activeTripIdRef.current;
         if (tripId) {
-          api.patch(`/api/trips/${tripId}/location`, { lat, lng }, getToken()).catch((err) => {
+          api.patch(`/api/trips/${tripId}/location`, payload, getToken()).catch((err) => {
             console.error("Failed to push trip location update:", err);
           });
         }
