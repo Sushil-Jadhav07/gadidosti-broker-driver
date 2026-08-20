@@ -41,13 +41,18 @@ function AuthImage({ src, alt, className }) {
   return <img src={blobUrl} alt={alt} className={className} />;
 }
 
+// Money is still owed in either state — 'partial' means the client already paid a 20% advance
+// up front (see ADVANCE_PAYMENT_THRESHOLD in gadidosti-backend's booking.controller.js) but the
+// remaining balance still needs collecting here; only 'paid' has nothing left to do.
+const PAYMENT_DUE_STATUSES = ["pending", "partial"];
+
 // Where to resume the flow if the driver closes the app mid-completion and comes back —
 // derives the step purely from server state (trip status / podPhotos / paymentStatus)
 // rather than any local flag, so a fresh page load always lands in the right place.
 const resolveInitialStep = (trip) => {
   if (trip.rawStatus === "delivered") {
     if (!trip.podPhotos?.length) return "upload";
-    if (trip.paymentStatus === "pending") return "payments";
+    if (PAYMENT_DUE_STATUSES.includes(trip.paymentStatus)) return "payments";
     return "complete";
   }
   return "arrived";
@@ -206,10 +211,16 @@ function PaymentsStep({ trip, onCollect, collecting, uploadingQr, onUploadQr, ca
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-bold text-slate-900 mb-1">Collect Payment</h2>
-      <p className="text-sm text-slate-400 mb-5">Payment for this delivery is still pending</p>
+      <p className="text-sm text-slate-400 mb-5">
+        {trip.paymentStatus === "partial"
+          ? "The client already paid a 20% advance online — collect the remaining balance below."
+          : "Payment for this delivery is still pending"}
+      </p>
 
       <div className="bg-slate-50 rounded-xl p-5 text-center mb-4">
-        <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">Amount to Collect</p>
+        <p className="text-xs text-slate-400 font-semibold uppercase tracking-wide">
+          {trip.paymentStatus === "partial" ? "Remaining Balance to Collect" : "Amount to Collect"}
+        </p>
         <p className="text-3xl font-bold text-slate-900 mt-1">{formatCurrency(trip.amountToCollect)}</p>
       </div>
 
@@ -319,7 +330,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
   // Fixed once at mount so the step count in the progress bar never jumps mid-flow —
   // paymentStatus flips to "paid" partway through once collected, but by then the driver
   // has already moved past that step.
-  const [includePayments] = useState(() => initialTrip.paymentStatus === "pending");
+  const [includePayments] = useState(() => PAYMENT_DUE_STATUSES.includes(initialTrip.paymentStatus));
   const [confirmingArrival, setConfirmingArrival] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [uploadingQr, setUploadingQr] = useState(false);
@@ -344,7 +355,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
 
   const handleSubmitPhotos = async (files) => {
     if (!files.length) {
-      setStep(trip.paymentStatus === "pending" ? "payments" : "complete");
+      setStep(PAYMENT_DUE_STATUSES.includes(trip.paymentStatus) ? "payments" : "complete");
       return;
     }
     setUploadingPhotos(true);
@@ -355,7 +366,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
       if (!response.success) throw new Error(response.message || "Failed to upload photos");
       setTrip((prev) => ({ ...prev, podPhotos: response.data?.podPhotos || prev.podPhotos }));
       addToast("Photos uploaded.", "success");
-      setStep(trip.paymentStatus === "pending" ? "payments" : "complete");
+      setStep(PAYMENT_DUE_STATUSES.includes(trip.paymentStatus) ? "payments" : "complete");
     } catch (err) {
       addToast(err.message || "Failed to upload photos.", "error");
     } finally {
