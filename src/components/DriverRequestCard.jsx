@@ -17,6 +17,9 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
   // committed and is waiting on the client).
   const isYourTurnToConfirm = req.status === "Awaiting Confirmation" && req.pendingConfirmationBy === "client";
   const isWaitingOnClient = req.status === "Awaiting Confirmation" && req.pendingConfirmationBy === "respondent";
+  // Each side gets at most maxCountersPerSide counter-offers (server-enforced too — see
+  // driverRequest.controller.js/job.controller.js) — once used up, only Accept/Decline remain.
+  const respondentCounterLimitReached = (req.respondentCountersUsed ?? 0) >= (req.maxCountersPerSide ?? Infinity);
 
   return (
     <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex flex-col">
@@ -84,11 +87,16 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
           <>
             <div className="flex items-center gap-2">
               <button onClick={() => onAccept(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all flex items-center justify-center gap-1.5"><CheckCircle2 size={14} /> Accept</button>
-              <button onClick={() => onCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
+              {!respondentCounterLimitReached && (
+                <button onClick={() => onCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
+              )}
               <button onClick={() => onDecline(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
             </div>
             {role === "broker" && (
               <p className="text-[11px] text-amber-600 text-center mt-2">Driver timed out — you&apos;re responding on their behalf.</p>
+            )}
+            {respondentCounterLimitReached && (
+              <p className="text-[11px] text-slate-400 text-center mt-2">You've used both your counter-offers — accept or decline instead.</p>
             )}
           </>
         )}

@@ -335,11 +335,15 @@ export default function JobRequests() {
                   <>
                     <div className="flex items-center gap-2">
                       <button onClick={() => handleAccept(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all flex items-center justify-center gap-1.5"><CheckCircle size={14} /> Accept</button>
-                      <button onClick={() => openCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
+                      {(req.respondentCountersUsed ?? 0) < (req.maxCountersPerSide ?? Infinity) && (
+                        <button onClick={() => openCounter(req)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-primary/30 text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"><IndianRupee size={14} /> Counter</button>
+                      )}
                       <button onClick={() => setRejectId(req.id)} className="flex-1 py-2 text-xs rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all flex items-center justify-center gap-1.5"><XCircle size={14} /> Decline</button>
                     </div>
                     <p className="text-[11px] text-slate-400 text-center mt-2">
-                      Your offer of {formatCurrency(req.amount)} is live — accept to lock it in (client must also confirm), or counter/decline.
+                      {(req.respondentCountersUsed ?? 0) >= (req.maxCountersPerSide ?? Infinity)
+                        ? "You've used both your counter-offers — accept or decline instead."
+                        : `Your offer of ${formatCurrency(req.amount)} is live — accept to lock it in (client must also confirm), or counter/decline.`}
                     </p>
                   </>
                 )}
