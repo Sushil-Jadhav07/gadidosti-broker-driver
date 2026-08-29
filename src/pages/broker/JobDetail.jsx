@@ -14,7 +14,7 @@ import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, format
 const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
 
 const STATUS_BADGE = { Completed: "success", Cancelled: "danger" };
-const PAYMENT_BADGE = { paid: "success", pending: "warning", refunded: "default" };
+const PAYMENT_BADGE = { paid: "success", pending: "warning", partial: "warning", refunded: "default" };
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 function DetailRow({ icon: Icon, label, value }) {
@@ -47,6 +47,7 @@ export default function JobDetail() {
   // fetched on demand (not on every load) since it's only relevant once status is Delivered.
   const [completingTrip, setCompletingTrip] = useState(null);
   const [loadingCompletion, setLoadingCompletion] = useState(false);
+  const [collectingPayment, setCollectingPayment] = useState(false);
 
   const load = async ({ silent } = {}) => {
     if (!silent) {
@@ -133,6 +134,28 @@ export default function JobDetail() {
     } finally {
       setDeleting(false);
       setDeleteOpen(false);
+    }
+  };
+
+  // Covers a real gap: "Complete Delivery" above (which leads into DeliveryCompletionFlow's own
+  // payment step) only shows while booking.status === "Delivered" — once a trip moves on to
+  // "Completed" (nothing stops that from happening with payment still due, e.g. an advance-only
+  // booking, or a driver who completed without collecting), that button disappears, leaving no
+  // way here to finish it either. This is a lighter direct path, not routed through the full
+  // completion flow, since there's no delivery step left to walk through at this point.
+  const handleCollectPayment = async (mode) => {
+    setCollectingPayment(true);
+    try {
+      const tripRes = await api.get(`/api/trips/booking/${id}`, getToken());
+      if (!tripRes?.success || !tripRes.data?.trip) throw new Error(tripRes?.message || "Trip not found");
+      const res = await api.patch(`/api/trips/${tripRes.data.trip.id}/collect-payment`, { mode }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to record payment");
+      setBooking((prev) => (prev ? { ...prev, paymentStatus: "paid" } : prev));
+      addToast("Payment recorded.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to record payment.", "error");
+    } finally {
+      setCollectingPayment(false);
     }
   };
 
@@ -308,6 +331,24 @@ export default function JobDetail() {
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Status</p>
                   <p className="mt-0.5"><Badge variant={PAYMENT_BADGE[booking.paymentStatus] || "default"} size="sm">{booking.paymentStatus || "pending"}</Badge></p>
+                  {["pending", "partial"].includes(booking.paymentStatus) && !["Requested", "Confirmed", "Cancelled"].includes(booking.status) && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => handleCollectPayment("upi")}
+                        disabled={collectingPayment}
+                        className="flex-1 py-1.5 text-[11px] font-semibold rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all disabled:opacity-60"
+                      >
+                        UPI
+                      </button>
+                      <button
+                        onClick={() => handleCollectPayment("cash")}
+                        disabled={collectingPayment}
+                        className="flex-1 py-1.5 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 transition-all disabled:opacity-60"
+                      >
+                        Cash
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Mode</p>

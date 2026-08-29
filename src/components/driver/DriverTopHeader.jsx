@@ -67,17 +67,29 @@ export default function DriverTopHeader({ currentPath, onMenuClick, online, onTo
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={onToggleOnline}
-          disabled={onlineToggleLocked}
-          title={onlineToggleLocked ? "Can't go offline while you have an active trip" : undefined}
-          className={`flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-            online ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-          } ${onlineToggleLocked ? "opacity-70 cursor-not-allowed hover:bg-emerald-50" : ""}`}
-        >
-          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-          {online ? "Online" : "Offline"}
-        </button>
+        {onlineToggleLocked ? (
+          // Not just disabled — the Online/Offline toggle disappears entirely during an active
+          // trip and is replaced with a plain, non-interactive "On Trip" badge. Nothing to
+          // click either way here (tracking is already forced on by the trip itself), and a
+          // still-clickable-looking pill invited drivers to try to turn it off mid-delivery.
+          <span
+            title="You're online for the duration of your active trip"
+            className="flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"
+          >
+            <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse" />
+            On Trip
+          </span>
+        ) : (
+          <button
+            onClick={onToggleOnline}
+            className={`flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+              online ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
+            {online ? "Online" : "Offline"}
+          </button>
+        )}
 
         <ChatBell />
         <NotificationBell />

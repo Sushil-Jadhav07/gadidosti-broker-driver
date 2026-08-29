@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, getToken } from "../services/api";
 
-const STORAGE_KEY = "ssk_driver_online";
+// Exported so useAuth.jsx's persistSession can force this on right after a driver logs in,
+// without duplicating the key string (and risking it drifting out of sync between the two).
+export const DRIVER_ONLINE_STORAGE_KEY = "ssk_driver_online";
+const STORAGE_KEY = DRIVER_ONLINE_STORAGE_KEY;
 // 3s floor — matches MapView.jsx's ANIM_MS tween duration on the client (kept in sync
 // intentionally: a fix arrives right as the previous fix's eased tween finishes, instead of the
 // marker sitting still for several seconds between each smooth hop). The backend's dedicated

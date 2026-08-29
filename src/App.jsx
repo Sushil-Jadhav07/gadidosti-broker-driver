@@ -41,6 +41,7 @@ import DriverProfile    from "./pages/driver/Profile";
 // Shared
 import Login    from "./pages/Login";
 import Register from "./pages/Register";
+import NotificationsPage from "./pages/NotificationsPage";
 
 // ────── Broker Layout ──────
 function BrokerAppLayout({ children }) {
@@ -168,6 +169,7 @@ export default function App() {
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/profile"      element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerProfile /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Settings /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/notifications" element={<PrivateRoute role="broker"><BrokerAppLayout><NotificationsPage /></BrokerAppLayout></PrivateRoute>} />
 
             {/* Driver routes — all under /driver/* */}
             <Route element={<PrivateRoute role="driver"><DriverAppLayout /></PrivateRoute>}>
@@ -179,6 +181,7 @@ export default function App() {
               <Route path="/driver/kyc"      element={<DriverKYC />} />
               <Route path="/driver/earnings"         element={<DriverEarnings />} />
               <Route path="/driver/profile"          element={<DriverProfile />} />
+              <Route path="/driver/notifications"    element={<NotificationsPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

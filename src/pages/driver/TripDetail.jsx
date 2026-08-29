@@ -34,6 +34,7 @@ export default function TripDetail() {
   const [emailOpen, setEmailOpen] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [notifying, setNotifying] = useState(false);
+  const [collectingPayment, setCollectingPayment] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -83,6 +84,25 @@ export default function TripDetail() {
       if (err?.name !== "AbortError") addToast(err.message || "Failed to share invoice.", "error");
     } finally {
       setSharing(false);
+    }
+  };
+
+  // Covers a real gap: a trip can end up marked 'completed' while its booking's payment is
+  // still 'pending' or 'partial' (e.g. an advance-only payment, or a driver who completed the
+  // trip without ever running the in-flow Payments step) — DeliveryCompletionFlow's payment
+  // step only exists while actively completing a trip, so once you're back here looking at a
+  // finished one, this was the only place with no way left to actually finish collecting it.
+  const handleCollectPayment = async (mode) => {
+    setCollectingPayment(true);
+    try {
+      const res = await api.patch(`/api/trips/${trip.id}/collect-payment`, { mode }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to record payment");
+      setTrip((prev) => (prev ? { ...prev, paymentStatus: "paid" } : prev));
+      addToast("Payment recorded.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to record payment.", "error");
+    } finally {
+      setCollectingPayment(false);
     }
   };
 
@@ -193,6 +213,24 @@ export default function TripDetail() {
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Status</p>
                   <p className="text-sm font-bold text-slate-800 mt-0.5 capitalize">{trip.paymentStatus || "—"}</p>
+                  {["pending", "partial"].includes(trip.paymentStatus) && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => handleCollectPayment("upi")}
+                        disabled={collectingPayment}
+                        className="flex-1 py-1.5 text-[11px] font-semibold rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50 transition-all disabled:opacity-60"
+                      >
+                        UPI
+                      </button>
+                      <button
+                        onClick={() => handleCollectPayment("cash")}
+                        disabled={collectingPayment}
+                        className="flex-1 py-1.5 text-[11px] font-semibold rounded-md border border-slate-200 text-slate-600 hover:bg-slate-100 transition-all disabled:opacity-60"
+                      >
+                        Cash
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Started</p>

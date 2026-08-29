@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
 import { api } from "../services/api";
 import { unregisterFcmToken } from "../lib/fcm";
+import { DRIVER_ONLINE_STORAGE_KEY } from "./useDriverLocationTracking";
 
 const AuthContext = createContext(null);
 
@@ -36,6 +37,16 @@ export function AuthProvider({ children }) {
     setUser({ ...userData, tokens });
   }, []);
 
+  // Called only from actual login actions below (loginDriver/googleLogin), NOT from
+  // persistSession itself — persistSession is also called by refreshTokens' silent background
+  // token renewal, and forcing online there would undo a driver's deliberate "go offline at
+  // end of shift" toggle every time their access token quietly refreshes while still logged in.
+  // A driver should show online the moment they actually log in, not only once they've found
+  // and tapped the toggle themselves — see useDriverLocationTracking.js's "online" meaning.
+  const forceDriverOnline = () => {
+    try { localStorage.setItem(DRIVER_ONLINE_STORAGE_KEY, "1"); } catch { /* ignore */ }
+  };
+
   const clearSession = useCallback((role) => {
     if (role) {
       localStorage.removeItem(STORAGE_KEY[role]);
@@ -59,6 +70,7 @@ export function AuthProvider({ children }) {
     if (!data.success) throw new Error(data.message || "Login failed");
     if (data.data.user.role !== "driver") throw new Error("Not a driver account");
     persistSession(data.data.user, data.data.tokens);
+    forceDriverOnline();
     return data.data.user;
   }, [persistSession]);
 
@@ -70,6 +82,7 @@ export function AuthProvider({ children }) {
       throw new Error("This Google account is registered under a different portal. Please use the correct portal.");
     }
     persistSession(data.data.user, data.data.tokens);
+    if (data.data.user.role === "driver") forceDriverOnline();
     return { user: data.data.user, needs_phone: !!data.data.needs_phone };
   }, [persistSession]);
 
