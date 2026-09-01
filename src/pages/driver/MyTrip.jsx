@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2 } from "lucide-react";
+import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2, KeyRound } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
@@ -52,6 +52,14 @@ export default function MyTrip() {
   // handleStatusChange's 'delivered' special-case below. Auto-resumes true on load if the
   // trip is already past that point (e.g. the driver closed the app mid-flow).
   const [deliveryFlowActive, setDeliveryFlowActive] = useState(false);
+  // "I've Reached Pickup" doesn't PATCH straight to picked_up — it opens this prompt first,
+  // same interception pattern as the delivered/DeliveryCompletionFlow handoff above. The client
+  // has the code shown persistently in their own app (see gadidosti-client's TrackShipment.jsx)
+  // and reads it out to the driver in person.
+  const [showPickupOtpPrompt, setShowPickupOtpPrompt] = useState(false);
+  const [pickupOtpInput, setPickupOtpInput] = useState("");
+  const [submittingPickupOtp, setSubmittingPickupOtp] = useState(false);
+  const [pickupOtpError, setPickupOtpError] = useState("");
 
   const loadTrip = async () => {
     setLoading(true);
@@ -112,12 +120,42 @@ export default function MyTrip() {
       setDeliveryFlowActive(true);
       return;
     }
+    // Same interception for picked_up — ask for the client's pickup code first instead of
+    // PATCHing immediately; handleConfirmPickupOtp below is what actually sends the request.
+    if (nextStatus === "picked_up") {
+      setPickupOtpInput("");
+      setPickupOtpError("");
+      setShowPickupOtpPrompt(true);
+      return;
+    }
     try {
       const response = await api.patch(`/api/trips/${trip.id}/status`, { status: nextStatus }, getToken());
       if (!response.success) throw new Error(response.message || "Failed to update trip status");
       setTrip(adaptTrip(response.data?.trip));
     } catch (err) {
       addToast(err.message || "Failed to update trip status.", "error");
+    }
+  };
+
+  const handleConfirmPickupOtp = async () => {
+    if (!trip) return;
+    setPickupOtpError("");
+    setSubmittingPickupOtp(true);
+    try {
+      const response = await api.patch(
+        `/api/trips/${trip.id}/status`,
+        { status: "picked_up", pickup_otp: pickupOtpInput.trim() },
+        getToken()
+      );
+      if (!response.success) throw new Error(response.message || "Failed to confirm pickup");
+      setTrip(adaptTrip(response.data?.trip));
+      setShowPickupOtpPrompt(false);
+    } catch (err) {
+      // Stays open on a wrong code — the driver's meant to ask the client again and retry,
+      // not get bounced back to the main trip view and have to tap "I've Reached Pickup" again.
+      setPickupOtpError(err.message || "Failed to confirm pickup");
+    } finally {
+      setSubmittingPickupOtp(false);
     }
   };
 
@@ -434,6 +472,32 @@ export default function MyTrip() {
         confirmText={declining ? "Declining..." : "Decline Trip"}
         variant="danger"
       />
+
+      <Modal isOpen={showPickupOtpPrompt} onClose={() => setShowPickupOtpPrompt(false)} title="Confirm Pickup" size="sm">
+        <div className="flex flex-col items-center text-center gap-3">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <KeyRound size={20} className="text-primary" />
+          </div>
+          <p className="text-sm text-slate-500">Ask the customer for their pickup code and enter it below.</p>
+          <input
+            type="text"
+            inputMode="numeric"
+            autoFocus
+            value={pickupOtpInput}
+            onChange={(e) => setPickupOtpInput(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            placeholder="0000"
+            className="w-32 text-center text-2xl font-bold tracking-[0.4em] rounded-xl border-2 border-slate-100 focus:border-primary py-3 outline-none transition-colors"
+          />
+          {pickupOtpError && <p className="text-xs text-danger">{pickupOtpError}</p>}
+          <button
+            onClick={handleConfirmPickupOtp}
+            disabled={submittingPickupOtp || pickupOtpInput.length !== 4}
+            className="w-full mt-2 py-3 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
+          >
+            {submittingPickupOtp ? "Confirming..." : "Confirm Pickup"}
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }
