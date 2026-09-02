@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle, Lock } from "lucide-react";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverRequestCard from "../../components/DriverRequestCard";
-import CounterOfferModal from "../../components/CounterOfferModal";
 import KycGate from "../../components/kyc/KycGate";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -25,10 +24,6 @@ export default function DriverRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [declineId, setDeclineId] = useState(null);
-  const [counterRequest, setCounterRequest] = useState(null);
-  const [counterAmount, setCounterAmount] = useState("");
-  const [counterNote, setCounterNote] = useState("");
-  const [countering, setCountering] = useState(false);
   const pageRef = useRef(page);
   pageRef.current = page;
 
@@ -113,35 +108,12 @@ export default function DriverRequests() {
     }
   };
 
-  const openCounter = (req) => {
-    setCounterAmount(String(req.amount || ""));
-    setCounterNote("");
-    setCounterRequest(req);
-  };
-
-  const submitCounter = async () => {
-    if (!counterRequest) return;
-    const amount = Number(counterAmount);
-    if (!amount || amount <= 0) {
-      addToast("Enter a valid counter amount.", "error");
-      return;
-    }
-    setCountering(true);
-    try {
-      const res = await api.patch(`/api/driver-requests/${counterRequest.id}/counter`, {
-        amount,
-        note: counterNote.trim() || undefined,
-      }, getToken());
-      if (!res?.success) throw new Error(res?.message || "Failed to send counter-offer");
-      applyUpdate(counterRequest.id, res);
-      addToast("Counter-offer sent to the client.", "success");
-      setCounterRequest(null);
-    } catch (err) {
-      addToast(err.message || "Failed to send counter-offer.", "error");
-      refresh();
-    } finally {
-      setCountering(false);
-    }
+  // The card itself owns the counter-offer UI (inline stepper, no modal) — this just does the
+  // PATCH and applies the response; the card handles its own toast/reset on success or failure.
+  const handleCounter = async (id, amount, note) => {
+    const res = await api.patch(`/api/driver-requests/${id}/counter`, { amount, note }, getToken());
+    if (!res?.success) throw new Error(res?.message || "Failed to send counter-offer");
+    applyUpdate(id, res);
   };
 
   if (user?.kyc_status !== "verified") {
@@ -182,7 +154,7 @@ export default function DriverRequests() {
               role="broker"
               onAccept={handleAccept}
               onDecline={setDeclineId}
-              onCounter={openCounter}
+              onCounter={handleCounter}
             />
           ))}
         </div>
@@ -217,17 +189,6 @@ export default function DriverRequests() {
         message="The client will need to pick a different truck. This action cannot be undone."
         confirmText="Decline"
         variant="danger"
-      />
-
-      <CounterOfferModal
-        request={counterRequest}
-        amount={counterAmount}
-        onAmountChange={setCounterAmount}
-        note={counterNote}
-        onNoteChange={setCounterNote}
-        onClose={() => setCounterRequest(null)}
-        onSubmit={submitCounter}
-        submitting={countering}
       />
     </div>
   );

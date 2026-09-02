@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle } from "lucide-react";
+import { CheckCircle, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverRequestCard from "../../components/DriverRequestCard";
-import CounterOfferModal from "../../components/CounterOfferModal";
 import KycGate from "../../components/kyc/KycGate";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -26,10 +25,6 @@ export default function DriverRequests() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [declineId, setDeclineId] = useState(null);
-  const [counterRequest, setCounterRequest] = useState(null);
-  const [counterAmount, setCounterAmount] = useState("");
-  const [counterNote, setCounterNote] = useState("");
-  const [countering, setCountering] = useState(false);
   const pageRef = useRef(page);
   pageRef.current = page;
 
@@ -112,35 +107,12 @@ export default function DriverRequests() {
     }
   };
 
-  const openCounter = (req) => {
-    setCounterAmount(String(req.amount || ""));
-    setCounterNote("");
-    setCounterRequest(req);
-  };
-
-  const submitCounter = async () => {
-    if (!counterRequest) return;
-    const amount = Number(counterAmount);
-    if (!amount || amount <= 0) {
-      addToast("Enter a valid counter amount.", "error");
-      return;
-    }
-    setCountering(true);
-    try {
-      const res = await api.patch(`/api/driver-requests/${counterRequest.id}/counter`, {
-        amount,
-        note: counterNote.trim() || undefined,
-      }, getToken());
-      if (!res?.success) throw new Error(res?.message || "Failed to send counter-offer");
-      applyUpdate(counterRequest.id, res);
-      addToast("Counter-offer sent to the client.", "success");
-      setCounterRequest(null);
-    } catch (err) {
-      addToast(err.message || "Failed to send counter-offer.", "error");
-      refresh();
-    } finally {
-      setCountering(false);
-    }
+  // The card itself owns the counter-offer UI (inline stepper, no modal) — this just does the
+  // PATCH and applies the response; the card handles its own toast/reset on success or failure.
+  const handleCounter = async (id, amount, note) => {
+    const res = await api.patch(`/api/driver-requests/${id}/counter`, { amount, note }, getToken());
+    if (!res?.success) throw new Error(res?.message || "Failed to send counter-offer");
+    applyUpdate(id, res);
   };
 
   if (user?.kyc_status !== "verified") {
@@ -153,21 +125,30 @@ export default function DriverRequests() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Requests</h1>
-        <p className="text-sm text-slate-500 mt-1">Respond within 2 minutes — after that your broker can act on your behalf.</p>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <Inbox size={19} className="text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Requests</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Respond within 2 minutes — after that your broker can act on your behalf.</p>
+        </div>
       </div>
 
       {loading && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading requests...</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 flex justify-center">
+          <div className="w-7 h-7 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
       )}
       {!loading && error && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
       )}
       {!loading && !error && requests.length === 0 && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center">
-          <CheckCircle size={40} className="mx-auto mb-3 text-emerald-400" />
-          <p className="font-semibold text-slate-800">All caught up!</p>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+            <CheckCircle size={30} className="text-emerald-500" />
+          </div>
+          <p className="font-bold text-slate-800 text-[15px]">All caught up!</p>
           <p className="text-sm text-slate-400 mt-1">No requests waiting on you right now.</p>
         </div>
       )}
@@ -181,7 +162,7 @@ export default function DriverRequests() {
               role="driver"
               onAccept={handleAccept}
               onDecline={setDeclineId}
-              onCounter={openCounter}
+              onCounter={handleCounter}
             />
           ))}
         </div>
@@ -189,21 +170,21 @@ export default function DriverRequests() {
 
       {!loading && !error && (page > 1 || hasMore) && (
         <div className="flex items-center justify-between px-1 pt-2 text-xs text-slate-500">
-          <span>Page {page}</span>
+          <span className="font-medium">Page {page}</span>
           <div className="flex gap-2">
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
             >
-              Prev
+              <ChevronLeft size={14} /> Prev
             </button>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={!hasMore}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
             >
-              Next
+              Next <ChevronRight size={14} />
             </button>
           </div>
         </div>
@@ -216,17 +197,6 @@ export default function DriverRequests() {
         message="The client will need to pick a different truck. This action cannot be undone."
         confirmText="Decline"
         variant="danger"
-      />
-
-      <CounterOfferModal
-        request={counterRequest}
-        amount={counterAmount}
-        onAmountChange={setCounterAmount}
-        note={counterNote}
-        onNoteChange={setCounterNote}
-        onClose={() => setCounterRequest(null)}
-        onSubmit={submitCounter}
-        submitting={countering}
       />
     </div>
   );

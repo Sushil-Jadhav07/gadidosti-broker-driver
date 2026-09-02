@@ -4,10 +4,23 @@ import { ChevronsRight, Check } from "lucide-react";
 const HANDLE_SIZE = 52;
 const CONFIRM_THRESHOLD = 0.75;
 
-// Slide-to-confirm control — used for the "Arrived" step of the delivery-completion flow
-// so confirming arrival (which immediately PATCHes the trip to 'delivered') takes a
-// deliberate drag rather than a single accidental tap.
-export default function SwipeToConfirm({ label, confirmedLabel = "Confirmed!", onConfirm, loading = false, disabled = false }) {
+// Full Tailwind class names, not string-interpolated — Tailwind's build-time scanner only
+// picks up classes that appear literally in the source, so `bg-${color}/10` would silently
+// produce no CSS at all.
+const COLOR_STYLES = {
+  primary:   { track: "bg-primary/10",   fill: "bg-primary/20",   handle: "bg-primary",   text: "text-primary" },
+  warning:   { track: "bg-warning/10",   fill: "bg-warning/20",   handle: "bg-warning",   text: "text-warning" },
+  success:   { track: "bg-success/10",   fill: "bg-success/20",   handle: "bg-success",   text: "text-success" },
+  secondary: { track: "bg-secondary/10", fill: "bg-secondary/20", handle: "bg-secondary", text: "text-secondary" },
+};
+
+// Slide-to-confirm control — originally just the "Arrived" step of the delivery-completion
+// flow, now reused for every trip status advance (see TripStatusButton) so a deliberate drag
+// is required everywhere instead of a single accidental tap. `color` picks the track/handle
+// theme per status; `icon` overrides the default chevron (e.g. to match the action, Navigation
+// for "start trip" vs CheckCheck for "mark delivered").
+export default function SwipeToConfirm({ label, confirmedLabel = "Confirmed!", onConfirm, loading = false, disabled = false, color = "primary", icon: HandleIcon }) {
+  const styles = COLOR_STYLES[color] || COLOR_STYLES.primary;
   const trackRef = useRef(null);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -58,26 +71,28 @@ export default function SwipeToConfirm({ label, confirmedLabel = "Confirmed!", o
   return (
     <div
       ref={trackRef}
-      className={`relative w-full h-14 bg-primary/10 rounded-full overflow-hidden select-none ${isLocked && !loading ? "opacity-60" : ""}`}
+      className={`relative w-full h-14 ${styles.track} rounded-full overflow-hidden select-none ${isLocked && !loading ? "opacity-60" : ""}`}
     >
       <div
-        className="absolute inset-y-0 left-0 bg-primary/20"
+        className={`absolute inset-y-0 left-0 ${styles.fill}`}
         style={{ width: `${dragX + HANDLE_SIZE / 2}px` }}
       />
-      <p className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-primary pointer-events-none">
+      <p className={`absolute inset-0 flex items-center justify-center text-sm font-semibold ${styles.text} pointer-events-none px-16 truncate`}>
         {confirmed || loading ? confirmedLabel : label}
       </p>
       <div
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        className={`absolute top-1 left-1 rounded-full bg-primary shadow-md flex items-center justify-center text-white ${dragging ? "" : "transition-transform duration-300"}`}
+        className={`absolute top-1 left-1 rounded-full ${styles.handle} shadow-md flex items-center justify-center text-white ${dragging ? "" : "transition-transform duration-300"}`}
         style={{ width: HANDLE_SIZE, height: HANDLE_SIZE, transform: `translateX(${dragX}px)`, cursor: isLocked ? "default" : "grab" }}
       >
         {loading ? (
           <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
         ) : confirmed ? (
           <Check className="w-5 h-5" />
+        ) : HandleIcon ? (
+          <HandleIcon className="w-5 h-5" />
         ) : (
           <ChevronsRight className="w-5 h-5" />
         )}

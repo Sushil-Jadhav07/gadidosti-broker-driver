@@ -140,8 +140,8 @@ export function useDriverLocationTracking() {
   // Fully locked while a trip is active — not just "can't turn off", nothing to toggle at all,
   // since the effective state (`tracking` above) is already forced to "online" by the trip
   // regardless of what's clicked. Going offline mid-delivery is exactly the state a client/
-  // broker tracking screen can't afford. DriverTopHeader also disables the button outright in
-  // this state (via `hasActiveTrip` below) — this guard is defense in depth in case anything
+  // broker tracking screen can't afford. Home.jsx also disables the button outright in this
+  // state (via `hasActiveTrip` below) — this guard is defense in depth in case anything
   // else ever calls toggleOnline directly. Once the trip ends, the toggle goes back to
   // reflecting/controlling the raw preference normally.
   const toggleOnline = useCallback(() => {

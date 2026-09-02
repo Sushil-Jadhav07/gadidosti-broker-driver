@@ -12,7 +12,7 @@ const PAGE = {
   "/driver/profile": { title: "Profile",     sub: "Your account and KYC documents" },
 };
 
-export default function DriverTopHeader({ currentPath, onMenuClick, online, onToggleOnline, onlineToggleLocked }) {
+export default function DriverTopHeader({ currentPath, onMenuClick }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
@@ -23,10 +23,6 @@ export default function DriverTopHeader({ currentPath, onMenuClick, online, onTo
   const initials = user?.name
     ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "RD";
-  const isHome = currentPath === "/driver";
-  const today = new Date().toLocaleDateString("en-IN", {
-    weekday: "long", day: "numeric", month: "long", year: "numeric",
-  });
 
   useEffect(() => {
     const handler = (e) => {
@@ -56,41 +52,13 @@ export default function DriverTopHeader({ currentPath, onMenuClick, online, onTo
           <Menu size={20} />
         </button>
         <div>
-          <h2 className="text-[15px] font-semibold text-slate-900 leading-none">
-            {isHome ? `Good morning, ${firstName}` : info.title}
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">
-            {isHome ? today : info.sub}
-          </p>
+          <h2 className="text-[15px] font-semibold text-slate-900 leading-none">{info.title}</h2>
+          <p className="text-xs text-slate-400 mt-0.5 hidden sm:block">{info.sub}</p>
         </div>
       </div>
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        {onlineToggleLocked ? (
-          // Not just disabled — the Online/Offline toggle disappears entirely during an active
-          // trip and is replaced with a plain, non-interactive "On Trip" badge. Nothing to
-          // click either way here (tracking is already forced on by the trip itself), and a
-          // still-clickable-looking pill invited drivers to try to turn it off mid-delivery.
-          <span
-            title="You're online for the duration of your active trip"
-            className="flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700"
-          >
-            <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse" />
-            On Trip
-          </span>
-        ) : (
-          <button
-            onClick={onToggleOnline}
-            className={`flex items-center gap-2 pl-2.5 pr-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-              online ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-            {online ? "Online" : "Offline"}
-          </button>
-        )}
-
         <ChatBell />
         <NotificationBell />
 

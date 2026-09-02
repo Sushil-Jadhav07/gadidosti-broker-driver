@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2, KeyRound } from "lucide-react";
+import { Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2, KeyRound, ChevronDown } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
@@ -17,7 +17,7 @@ import { useToast } from "../../hooks/useToast";
 import { useBookingPaymentSocket } from "../../hooks/useBookingPaymentSocket";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
-import { DRIVER_STATUS_STEPS, adaptTrip, formatCurrency, formatDateTime, bookingRef } from "../../utils";
+import { DRIVER_STATUS_STEPS, adaptTrip, formatCurrency, formatDateTime, bookingRef, splitLocationName } from "../../utils";
 
 // Declining is only allowed before the driver has started the trip — trips are created
 // with raw status "confirmed" and move to "en_route_pickup" once "Start Trip to Pickup" is
@@ -47,6 +47,10 @@ export default function MyTrip() {
   const [declining, setDeclining] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [completingStop, setCompletingStop] = useState(null);
+  // Cargo/Contact are check-occasionally info, not something a driver needs mid-drive — folded
+  // behind one tap so the default view (map + swipe control) fits on a phone screen with far
+  // less scrolling to reach the action that actually matters.
+  const [showDetails, setShowDetails] = useState(false);
   // Once the driver commits to wrapping up delivery (in_transit -> delivered), the page
   // hands off entirely to DeliveryCompletionFlow instead of the normal trip view — see
   // handleStatusChange's 'delivered' special-case below. Auto-resumes true on load if the
@@ -273,56 +277,52 @@ export default function MyTrip() {
     statusButtonDisabledReason = `Complete ${pendingUnloading.length} more unloading stop${pendingUnloading.length === 1 ? "" : "s"} first`;
   }
 
+  const pickupPlace = splitLocationName(trip.pickup?.location);
+  const dropPlace = splitLocationName(trip.drop?.location);
+
   return (
     <div className="space-y-5">
       <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div>
-            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">{bookingRef(trip)}</p>
-            <h2 className="text-[16px] font-bold text-slate-900 mt-0.5">{trip.pickup?.location} {"->"} {trip.drop?.location}</h2>
-            <div className="flex items-center flex-wrap gap-1.5 mt-2">
-              <Badge status={trip.status} />
-              {trip.paymentStatus === "paid" && (
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-emerald-700 border border-emerald-200">
-                  <CheckCircle2 size={12} /> Paid
-                </span>
-              )}
-              {activeIncident && (
-                <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
-                  activeIncident.reason === "breakdown" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-600 border border-red-200"
-                }`}>
-                  {activeIncident.reason === "breakdown" ? <Wrench size={12} /> : <ShieldAlert size={12} />}
-                  {activeIncident.reason === "breakdown" ? "Breakdown Reported" : "Issue Reported"}
-                </span>
-              )}
+        <div className="mb-4">
+          <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-2.5">{bookingRef(trip)}</p>
+          {/* Two separate rows, each with its own dot+line — not one shared dot column
+              spanning both (that collapses to the top: with items-start, the column can't
+              stretch to the height of the wrapping address text next to it, so the line has
+              nothing to grow into and both dots end up bunched together). */}
+          <div className="space-y-2.5">
+            <div className="flex gap-2.5">
+              <div className="flex flex-col items-center pt-1 flex-shrink-0">
+                <span className="w-2 h-2 rounded-full bg-slate-800" />
+                <span className="w-px flex-1 bg-slate-200 mt-1" />
+              </div>
+              <div className="min-w-0 flex-1 pb-0.5">
+                <p className="text-sm font-bold text-slate-900 truncate">{pickupPlace.name || "-"}</p>
+                {pickupPlace.address && <p className="text-xs text-slate-400 truncate">{pickupPlace.address}</p>}
+              </div>
+            </div>
+            <div className="flex gap-2.5">
+              <span className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1.5" />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold text-slate-900 truncate">{dropPlace.name || "-"}</p>
+                {dropPlace.address && <p className="text-xs text-slate-400 truncate">{dropPlace.address}</p>}
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={openInMaps}
-              disabled={nextDestination?.lat == null || nextDestination?.lng == null}
-              title="Open directions in Google Maps"
-              className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-xs hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <Navigation size={16} />
-              Directions
-            </button>
-            <button
-              onClick={() => setShowChat(true)}
-              title="Chat"
-              className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-semibold text-xs hover:bg-primary/20 active:scale-95 transition-all"
-            >
-              <MessageCircle size={16} />
-              Chat
-            </button>
-            <button
-              onClick={() => setShowSOS(true)}
-              title="Emergency Assistance"
-              className="flex items-center gap-1.5 pl-2.5 pr-3 py-1.5 rounded-full bg-red-50 text-red-600 border border-red-200 font-semibold text-xs hover:bg-red-100 active:scale-95 transition-all"
-            >
-              <ShieldAlert size={16} />
-              SOS
-            </button>
+          <div className="flex items-center flex-wrap gap-1.5 mt-3">
+            <Badge status={trip.status} />
+            {trip.paymentStatus === "paid" && (
+              <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-emerald-700 border border-emerald-200">
+                <CheckCircle2 size={12} /> Paid
+              </span>
+            )}
+            {activeIncident && (
+              <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
+                activeIncident.reason === "breakdown" ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-red-50 text-red-600 border border-red-200"
+              }`}>
+                {activeIncident.reason === "breakdown" ? <Wrench size={12} /> : <ShieldAlert size={12} />}
+                {activeIncident.reason === "breakdown" ? "Breakdown Reported" : "Issue Reported"}
+              </span>
+            )}
           </div>
         </div>
 
@@ -344,38 +344,83 @@ export default function MyTrip() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="grid grid-cols-3 gap-3 content-start">
-            {[{ label: "Distance", value: `${trip.distance} km`, icon: Navigation }, { label: "Est. Time", value: trip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(trip.earnings), icon: IndianRupee }].map((item) => (
-              <div key={item.label} className="bg-slate-50 rounded-lg p-3 text-center">
-                <item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" />
-                <p className="text-[10px] text-slate-400">{item.label}</p>
-                <p className="text-sm font-bold text-slate-800">{item.value}</p>
-              </div>
-            ))}
-          </div>
+        {/* Big enough to actually navigate by, not just glance at — the driver-facing action
+            buttons live as floating icons over it (Google-Maps-app style) instead of a
+            separate labeled row, so the map itself gets almost all the space. */}
+        <div className="relative h-[360px] sm:h-[440px] lg:h-[520px]">
           <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} stops={stops} />
+          <div className="absolute top-3 right-3 z-10 flex flex-col gap-2.5">
+            <button
+              onClick={openInMaps}
+              disabled={nextDestination?.lat == null || nextDestination?.lng == null}
+              title="Open directions in Google Maps"
+              className="w-11 h-11 rounded-full bg-white shadow-modal border border-slate-100 flex items-center justify-center text-primary hover:bg-primary/5 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Navigation size={19} />
+            </button>
+            <button
+              onClick={() => setShowChat(true)}
+              title="Chat"
+              className="w-11 h-11 rounded-full bg-white shadow-modal border border-slate-100 flex items-center justify-center text-primary hover:bg-primary/5 active:scale-95 transition-all"
+            >
+              <MessageCircle size={19} />
+            </button>
+            <button
+              onClick={() => setShowSOS(true)}
+              title="Emergency Assistance"
+              className="w-11 h-11 rounded-full bg-red-500 shadow-modal flex items-center justify-center text-white hover:bg-red-600 active:scale-95 transition-all"
+            >
+              <ShieldAlert size={19} />
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-        <h3 className="font-bold text-slate-900 text-[15px] mb-4">Cargo Details</h3>
-        <div className="grid grid-cols-2 gap-3">
-          {[["Material", trip.cargo?.material], ["Weight", trip.cargo?.weight], ["Quantity", trip.cargo?.quantity], ["Declared Value", trip.cargo?.value]].map(([label, value]) => <div key={label} className="bg-slate-50 rounded-lg p-3"><p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{value || "-"}</p></div>)}
-        </div>
-        {trip.cargo?.specialInstructions && <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3"><div className="flex items-center gap-2 mb-1"><Package className="w-4 h-4 text-amber-600" /><p className="text-xs font-bold text-amber-800">Special Instructions</p></div><p className="text-xs text-amber-700">{trip.cargo.specialInstructions}</p></div>}
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-        <h3 className="font-bold text-slate-900 text-[15px] mb-4">Contact</h3>
-        <div className="space-y-3">
-          {[["Broker", trip.broker, trip.brokerPhone], ["Pickup Contact", trip.pickup?.contactPerson, trip.pickup?.contactPhone], ["Drop Contact", trip.drop?.contactPerson, trip.drop?.contactPhone]].map(([label, name, phone]) => (
-            <div key={label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-              <div><p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p><p className="text-sm font-semibold text-slate-800">{name || "-"}</p></div>
-              {phone ? <a href={`tel:${phone}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold"><Phone className="w-3.5 h-3.5" />{phone}</a> : <span className="text-xs text-slate-400">-</span>}
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          {[{ label: "Distance", value: `${trip.distance} km`, icon: Navigation }, { label: "Est. Time", value: trip.estimatedTime, icon: Clock }, { label: "Earnings", value: formatCurrency(trip.earnings), icon: IndianRupee }].map((item) => (
+            <div key={item.label} className="bg-slate-50 rounded-lg p-3 text-center">
+              <item.icon className="w-4 h-4 text-slate-400 mx-auto mb-1" />
+              <p className="text-[10px] text-slate-400">{item.label}</p>
+              <p className="text-sm font-bold text-slate-800">{item.value}</p>
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+        <button
+          onClick={() => setShowDetails((v) => !v)}
+          className="w-full flex items-center justify-between p-5 text-left"
+        >
+          <h3 className="font-bold text-slate-900 text-[15px]">Trip Details</h3>
+          <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400">
+            {showDetails ? "Hide" : "Cargo & Contact"}
+            <ChevronDown className={`w-4 h-4 transition-transform ${showDetails ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+
+        {showDetails && (
+          <div className="px-5 pb-5 pt-1 border-t border-slate-50 space-y-5">
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3">Cargo</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[["Material", trip.cargo?.material], ["Weight", trip.cargo?.weight], ["Quantity", trip.cargo?.quantity], ["Declared Value", trip.cargo?.value]].map(([label, value]) => <div key={label} className="bg-slate-50 rounded-lg p-3"><p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{value || "-"}</p></div>)}
+              </div>
+              {trip.cargo?.specialInstructions && <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg p-3"><div className="flex items-center gap-2 mb-1"><Package className="w-4 h-4 text-amber-600" /><p className="text-xs font-bold text-amber-800">Special Instructions</p></div><p className="text-xs text-amber-700">{trip.cargo.specialInstructions}</p></div>}
+            </div>
+
+            <div>
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3">Contact</p>
+              <div className="space-y-3">
+                {[["Broker", trip.broker, trip.brokerPhone], ["Pickup Contact", trip.pickup?.contactPerson, trip.pickup?.contactPhone], ["Drop Contact", trip.drop?.contactPerson, trip.drop?.contactPhone]].map(([label, name, phone]) => (
+                  <div key={label} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
+                    <div><p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide">{label}</p><p className="text-sm font-semibold text-slate-800">{name || "-"}</p></div>
+                    {phone ? <a href={`tel:${phone}`} className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 text-primary rounded-lg text-xs font-semibold"><Phone className="w-3.5 h-3.5" />{phone}</a> : <span className="text-xs text-slate-400">-</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {hasExtraStops && (
@@ -415,17 +460,22 @@ export default function MyTrip() {
         <StatusTimeline steps={DRIVER_STATUS_STEPS} currentStatus={statusKey} completedTimes={completedTimes} />
       </div>
 
-      <div className="h-20 lg:h-0" />
-      <div className="sticky bottom-[68px] lg:bottom-0 z-20 bg-white border-t border-slate-100 p-4 -mx-4 sm:-mx-6 flex items-center gap-3">
+      {/* Decline is rare/destructive next to a swipe gesture that needs its full width to
+          actually work well — demoted to a small text link above the swipe track instead of
+          squeezed in beside it (which used to leave barely any room to drag). */}
+      {/* bottom-14 (56px) matches BottomNav's real rendered height (py-2.5 + a 20px icon + its
+          label) exactly — the previous bottom-[68px] guess sat 12px too high, leaving a visible
+          white gap between this bar and the nav underneath it. */}
+      <div className="sticky bottom-14 lg:bottom-[-14px] z-20 bg-white border-t border-slate-100 p-4 -mx-4 sm:-mx-6 space-y-2.5">
         {canDecline && (
           <button
             onClick={() => setShowDeclineConfirm(true)}
-            className="px-4 py-4 rounded-xl font-semibold text-[15px] text-red-600 border border-red-200 flex items-center gap-2 hover:bg-red-50 transition-all flex-shrink-0"
+            className="w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-red-500 hover:text-red-600 transition-colors"
           >
-            <XCircle className="w-4 h-4" /> Decline Trip
+            <XCircle className="w-3.5 h-3.5" /> Decline Trip
           </button>
         )}
-        <div className="flex-1">
+        <div>
           <TripStatusButton
             status={statusKey}
             onStatusChange={handleStatusChange}

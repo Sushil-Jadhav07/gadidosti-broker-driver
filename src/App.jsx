@@ -45,7 +45,6 @@ import NotificationsPage from "./pages/NotificationsPage";
 
 // ────── Broker Layout ──────
 function BrokerAppLayout({ children }) {
-  const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
@@ -55,14 +54,8 @@ function BrokerAppLayout({ children }) {
       {mobileOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
-      <BrokerSidebar
-        isExpanded={expanded}
-        onExpand={() => setExpanded(true)}
-        onCollapse={() => setExpanded(false)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
-      <div className={`min-h-screen flex flex-col transition-all duration-300 ${expanded ? "lg:ml-[260px]" : "lg:ml-[72px]"}`}>
+      <BrokerSidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <div className="min-h-screen flex flex-col lg:ml-[260px]">
         <BrokerTopBar currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 p-4 lg:p-6">
           <div key={location.pathname} className="page-content">{children}</div>
@@ -74,7 +67,6 @@ function BrokerAppLayout({ children }) {
 
 // ────── Driver Layout ──────
 function DriverAppLayout() {
-  const [expanded, setExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   useEffect(() => { window.scrollTo(0, 0); setMobileOpen(false); }, [location.pathname]);
@@ -88,15 +80,9 @@ function DriverAppLayout() {
       {mobileOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
       )}
-      <DriverSidebar
-        isExpanded={expanded}
-        onExpand={() => setExpanded(true)}
-        onCollapse={() => setExpanded(false)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
-      <div className={`min-h-screen flex flex-col transition-all duration-300 ${expanded ? "lg:ml-[260px]" : "lg:ml-[72px]"}`}>
-        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} online={online} onToggleOnline={toggleOnline} onlineToggleLocked={hasActiveTrip} />
+      <DriverSidebar mobileOpen={mobileOpen} onMobileClose={() => setMobileOpen(false)} />
+      <div className="min-h-screen flex flex-col lg:ml-[260px]">
+        <DriverTopHeader currentPath={location.pathname} onMenuClick={() => setMobileOpen(true)} />
         {(online || locationError) && (
           <div className={`px-4 lg:px-6 py-1.5 text-xs font-semibold flex items-center gap-2 ${
             locationError ? "bg-amber-50 text-amber-700 border-b border-amber-100" : "bg-emerald-50 text-emerald-700 border-b border-emerald-100"
@@ -105,9 +91,9 @@ function DriverAppLayout() {
             {locationError || "You're online — keep this tab open to keep sharing your location."}
           </div>
         )}
-        <main className="flex-1 p-4 lg:p-6 pb-24 lg:pb-6">
+        <main className="flex-1 p-4 lg:p-6 pb-10 lg:pb-3">
           <div className="animate-fade-in">
-            <Outlet />
+            <Outlet context={{ online, toggleOnline, onlineToggleLocked: hasActiveTrip }} />
           </div>
         </main>
         <div className="lg:hidden">

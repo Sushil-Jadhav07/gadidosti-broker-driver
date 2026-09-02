@@ -65,6 +65,18 @@ export const shareInvoicePdf = async ({ blob, filename, text }) => {
   }
 };
 
+// Trip/booking addresses come back from the API as one freeform string (no separate "place
+// name" field) — a leading comma-separated segment reads as a place name in practice (e.g.
+// "Warehouse Alpha, 124 Industrial Pkwy, Sector 4"), so split on the first comma rather than
+// inventing data that isn't there. Used anywhere a long address needs a bold name + gray
+// address line instead of one unbroken run of text.
+export const splitLocationName = (value) => {
+  if (!value) return { name: null, address: null };
+  const idx = value.indexOf(",");
+  if (idx === -1) return { name: value, address: null };
+  return { name: value.slice(0, idx).trim(), address: value.slice(idx + 1).trim() };
+};
+
 export const formatBookingStatus = (status) => BOOKING_STATUS[status] || status || "Requested";
 export const formatKycStatus = (status) => status ? `${status.charAt(0).toUpperCase()}${status.slice(1)}` : "Pending";
 
