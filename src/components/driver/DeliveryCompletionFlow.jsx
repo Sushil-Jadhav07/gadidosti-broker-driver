@@ -5,6 +5,7 @@ import SwipeToConfirm from "./SwipeToConfirm";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency } from "../../utils";
+import { compressImage } from "../../lib/imageCompression";
 
 const MAX_PHOTOS = 6;
 
@@ -360,8 +361,11 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
     }
     setUploadingPhotos(true);
     try {
+      // Raw camera photos are compressed before upload — see imageCompression.js for why
+      // ("request entity too large" on a full batch of uncompressed photos).
+      const compressed = await Promise.all(files.map((file) => compressImage(file)));
       const formData = new FormData();
-      files.forEach((file) => formData.append("files", file));
+      compressed.forEach((file) => formData.append("files", file));
       const response = await api.upload(`/api/trips/${trip.id}/pod`, formData, getToken());
       if (!response.success) throw new Error(response.message || "Failed to upload photos");
       setTrip((prev) => ({ ...prev, podPhotos: response.data?.podPhotos || prev.podPhotos }));

@@ -10,6 +10,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptBooking, formatCurrency, DRIVER_STATUS_STEPS } from "../../utils";
+import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 
 const STATUS_VARIANT = { "In Transit": "primary", "Picked Up": "warning", Assigned: "default", Accepted: "success" };
 
@@ -64,8 +65,8 @@ export default function ActiveJobs() {
   const [disputeDescription, setDisputeDescription] = useState("");
   const [submittingDispute, setSubmittingDispute] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const token = getToken();
@@ -108,13 +109,19 @@ export default function ActiveJobs() {
       setIncidentsByBooking(Object.fromEntries(incidentEntries));
       setDrivers(driversRes.data?.drivers || []);
     } catch {
-      setError("Failed to load active jobs. Please try again.");
+      if (!silent) setError("Failed to load active jobs. Please try again.");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => { load(); }, []);
+
+  // Live push — silently refreshes the active-jobs list whenever any trip's status changes, so
+  // this list reflects driver progress instantly instead of needing a manual reload.
+  useTripStatusSocket(() => {
+    load({ silent: true });
+  });
 
   const openIncident = (job) => {
     setSelectedJob(job);
