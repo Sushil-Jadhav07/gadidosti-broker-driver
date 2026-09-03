@@ -8,8 +8,7 @@ const POLL_INTERVAL_MS = 20000;
 
 // Lives in the sidebar (see DriverSidebar/BrokerSidebar) as a full nav-style row, styled the
 // same as every other sidebar item, rather than a standalone icon button in the top bar.
-// Clicking goes to the role's "in progress" list (Active Jobs for a broker, My Trip for a
-// driver) since chat is per-booking/trip and there's no standalone inbox screen.
+// Clicking goes to the standalone chat list (ChatList.jsx) rather than a specific trip/job page.
 export default function ChatBell({ onNavigate }) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -30,9 +29,23 @@ export default function ChatBell({ onNavigate }) {
     return () => { cancelled = true; clearInterval(interval); };
   }, [token]);
 
+  // ChatNotifications.jsx fires this on every 'chat-message'/'chat-escalated' toast, so the
+  // badge updates immediately instead of waiting for the next poll tick.
+  useEffect(() => {
+    if (!token) return;
+    const handler = async () => {
+      try {
+        const res = await api.get("/api/chat/unread-count", token);
+        if (res?.success) setUnreadCount(res.data?.unreadCount || 0);
+      } catch { /* next poll retries */ }
+    };
+    window.addEventListener("chats:refresh", handler);
+    return () => window.removeEventListener("chats:refresh", handler);
+  }, [token]);
+
   return (
     <button
-      onClick={() => { navigate(user?.role === "driver" ? "/driver/my-trip" : "/active-jobs"); onNavigate?.(); }}
+      onClick={() => { navigate(user?.role === "driver" ? "/driver/chats" : "/chats"); onNavigate?.(); }}
       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/50 hover:bg-white/10 hover:text-white"
     >
       <MessageCircle size={18} strokeWidth={1.8} className="flex-shrink-0" />

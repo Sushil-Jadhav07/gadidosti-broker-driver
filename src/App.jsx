@@ -5,6 +5,7 @@ import { ToastProvider } from "./hooks/useToast";
 import { useDriverLocationTracking } from "./hooks/useDriverLocationTracking";
 import FcmBridge from "./components/FcmBridge";
 import SessionGuard from "./components/SessionGuard";
+import ChatNotifications from "./components/ChatNotifications";
 
 // Broker
 import BrokerSidebar  from "./components/broker/BrokerSidebar";
@@ -42,6 +43,8 @@ import DriverProfile    from "./pages/driver/Profile";
 import Login    from "./pages/Login";
 import Register from "./pages/Register";
 import NotificationsPage from "./pages/NotificationsPage";
+import ChatList   from "./pages/ChatList";
+import ChatDetail from "./pages/ChatDetail";
 
 // ────── Broker Layout ──────
 function BrokerAppLayout({ children }) {
@@ -132,6 +135,7 @@ export default function App() {
         <ToastProvider>
           <FcmBridge />
           <SessionGuard />
+          <ChatNotifications />
           <Routes>
             {/* Public */}
             <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
@@ -152,6 +156,8 @@ export default function App() {
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings/history" element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerEarningsHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settlements"  element={<PrivateRoute role="broker"><BrokerAppLayout><Settlements /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/chats"        element={<PrivateRoute role="broker"><BrokerAppLayout><ChatList /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/chats/:bookingId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/profile"      element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerProfile /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Settings /></BrokerAppLayout></PrivateRoute>} />
@@ -164,6 +170,8 @@ export default function App() {
               <Route path="/driver/my-trip"  element={<MyTrip />} />
               <Route path="/driver/history"  element={<TripHistory />} />
               <Route path="/driver/history/:id" element={<TripDetail />} />
+              <Route path="/driver/chats"    element={<ChatList />} />
+              <Route path="/driver/chats/:bookingId" element={<ChatDetail />} />
               <Route path="/driver/kyc"      element={<DriverKYC />} />
               <Route path="/driver/earnings"         element={<DriverEarnings />} />
               <Route path="/driver/profile"          element={<DriverProfile />} />

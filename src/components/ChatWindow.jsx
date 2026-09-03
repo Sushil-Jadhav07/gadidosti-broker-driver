@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { Send, MessageCircle } from "lucide-react";
+import { Send, MessageCircle, Bot, Lock } from "lucide-react";
 import { api, getToken } from "../services/api";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -16,6 +16,10 @@ export default function ChatWindow({ bookingId, currentUserId }) {
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [typingUsers, setTypingUsers] = useState({});
+  // Once the trip is delivered/completed the backend locks the thread — history stays viewable
+  // but nobody can send. Comes straight off the thread payload rather than a separate flag, so
+  // it can't drift from what the server actually enforces on POST/send-message.
+  const isLocked = !!thread?.isLocked;
   const socketRef = useRef(null);
   const bottomRef = useRef(null);
   const typingTimeoutRef = useRef(null);
@@ -124,12 +128,26 @@ export default function ChatWindow({ bookingId, currentUserId }) {
         ) : (
           messages.map((m) => {
             const isMine = m.senderId === currentUserId;
+            // Bot messages only ever show up as PAST history here (the client's earlier bot
+            // conversation, before this driver/broker was pulled in) — never sent by, or
+            // addressed to, this user, so they're never "mine" and never get quick-reply pills,
+            // just a visually distinct bubble marking them as automated.
+            const isBot = m.senderRole === "bot";
             return (
-              <div key={m.id} className={`flex ${isMine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${isMine ? "bg-primary text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"}`}>
-                  {!isMine && <p className="text-[10px] font-semibold opacity-70 mb-0.5">{m.senderName}</p>}
+              <div key={m.id} className={`flex ${isBot ? "justify-start" : isMine ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                  isBot ? "bg-indigo-50 text-indigo-900 border border-indigo-100 rounded-bl-sm" :
+                  isMine ? "bg-primary text-white rounded-br-sm" : "bg-slate-100 text-slate-800 rounded-bl-sm"
+                }`}>
+                  {isBot ? (
+                    <p className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 mb-0.5">
+                      <Bot className="w-3 h-3" /> SSK Assistant
+                    </p>
+                  ) : !isMine && (
+                    <p className="text-[10px] font-semibold opacity-70 mb-0.5">{m.senderName}</p>
+                  )}
                   <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                  <p className={`text-[10px] mt-0.5 text-right ${isMine ? "text-white/70" : "text-slate-400"}`}>
+                  <p className={`text-[10px] mt-0.5 text-right ${isBot ? "text-indigo-400" : isMine ? "text-white/70" : "text-slate-400"}`}>
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     {isMine && m.readAt ? " · Read" : ""}
                   </p>
@@ -142,23 +160,32 @@ export default function ChatWindow({ bookingId, currentUserId }) {
         <div ref={bottomRef} />
       </div>
 
-      <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
-        <input
-          value={input}
-          onChange={(e) => handleTyping(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
-          placeholder="Type a message..."
-          disabled={loading || !thread}
-          className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors disabled:opacity-50 min-w-0"
-        />
-        <button
-          onClick={handleSend}
-          disabled={sending || !input.trim() || !thread}
-          className="w-10 h-10 flex-shrink-0 rounded-full bg-primary text-white flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-40"
-        >
-          <Send className="w-4 h-4" />
-        </button>
-      </div>
+      {isLocked ? (
+        <div className="flex items-center justify-center gap-2 pt-3 border-t border-slate-100 mt-2">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-slate-400 text-center py-2.5">
+            <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+            This trip is complete — the chat has closed.
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2">
+          <input
+            value={input}
+            onChange={(e) => handleTyping(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleSend(); } }}
+            placeholder="Type a message..."
+            disabled={loading || !thread}
+            className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-4 py-2.5 text-sm outline-none focus:border-primary transition-colors disabled:opacity-50 min-w-0"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending || !input.trim() || !thread}
+            className="w-10 h-10 flex-shrink-0 rounded-full bg-primary text-white flex items-center justify-center hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
