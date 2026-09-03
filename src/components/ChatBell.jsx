@@ -6,10 +6,11 @@ import { api } from "../services/api";
 
 const POLL_INTERVAL_MS = 20000;
 
-// Unread chat badge for the header — same visual pattern as NotificationBell. Clicking it
-// goes to the role's "in progress" list (Active Jobs for a broker, My Trip for a driver)
-// since chat is per-booking/trip and there's no standalone inbox screen.
-export default function ChatBell() {
+// Lives in the sidebar (see DriverSidebar/BrokerSidebar) as a full nav-style row, styled the
+// same as every other sidebar item, rather than a standalone icon button in the top bar.
+// Clicking goes to the role's "in progress" list (Active Jobs for a broker, My Trip for a
+// driver) since chat is per-booking/trip and there's no standalone inbox screen.
+export default function ChatBell({ onNavigate }) {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -31,13 +32,13 @@ export default function ChatBell() {
 
   return (
     <button
-      onClick={() => navigate(user?.role === "driver" ? "/driver/my-trip" : "/active-jobs")}
-      className="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
-      title="Chat"
+      onClick={() => { navigate(user?.role === "driver" ? "/driver/my-trip" : "/active-jobs"); onNavigate?.(); }}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/50 hover:bg-white/10 hover:text-white"
     >
-      <MessageCircle size={18} />
+      <MessageCircle size={18} strokeWidth={1.8} className="flex-shrink-0" />
+      <span className="text-sm font-medium flex-1">Chat</span>
       {unreadCount > 0 && (
-        <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+        <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-amber-400 text-white text-[11px] font-bold rounded-full flex-shrink-0">
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       )}

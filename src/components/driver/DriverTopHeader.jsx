@@ -2,8 +2,6 @@ import { useState, useRef, useEffect } from "react";
 import { Menu, User, LogOut, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import NotificationBell from "../NotificationBell";
-import ChatBell from "../ChatBell";
 
 const PAGE = {
   "/driver":         { title: null,          sub: null },
@@ -59,11 +57,6 @@ export default function DriverTopHeader({ currentPath, onMenuClick }) {
 
       {/* Right */}
       <div className="flex items-center gap-2">
-        <ChatBell />
-        <NotificationBell />
-
-        <div className="w-px h-6 bg-slate-100 mx-1 hidden sm:block" />
-
         {/* Avatar + dropdown */}
         <div className="relative" ref={dropRef}>
           <button

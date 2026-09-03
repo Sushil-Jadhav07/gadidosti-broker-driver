@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useDriverSidebarCounts } from "../../hooks/useDriverSidebarCounts";
+import NotificationBell from "../NotificationBell";
+import ChatBell from "../ChatBell";
 import {
   LayoutDashboard, Inbox, Navigation, History, User, ShieldCheck, IndianRupee,
   LogOut, X,
@@ -19,7 +21,7 @@ const NAV = [
   {
     label: "ACCOUNT", items: [
       { label: "KYC", icon: ShieldCheck, path: "/driver/kyc" },
-      { label: "Profile", icon: User, path: "/driver/profile" },
+      // { label: "Profile", icon: User, path: "/driver/profile" },
     ],
   },
 ];
@@ -31,6 +33,9 @@ const KYC_DOT = {
   verified: null,
 };
 
+// Dark-navy theme (bg-secondary), matching the client portal's sidebar — same white chip
+// logo, white/50 muted nav text, solid-primary active pill, and a full-width Logout row
+// instead of an icon-only sign-out button, so all three GadiDost apps read as one product.
 export default function DriverSidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -43,79 +48,92 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen z-50 w-[260px] flex flex-col overflow-hidden bg-white border-r border-neutral-100 transition-transform duration-300
+      className={`fixed left-0 top-0 h-screen z-50 w-[260px] flex flex-col bg-secondary transition-transform duration-300
         ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
     >
-      <div className="flex items-center gap-3 px-4 pt-5 pb-4 flex-shrink-0">
-        <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
-          <img src="/gadidost-logo.png" alt="GadiDost" className="w-5 h-5 object-contain" style={{ filter: "brightness(0) invert(1)" }} />
+      {/* Logo — the wordmark itself is dark text, unreadable straight on this dark sidebar
+          (only the blue/green "GD" icon would show); a small white chip behind it keeps the
+          real logo colors intact instead of forcing the whole thing white via a filter. */}
+      <div className="flex items-center gap-2 px-4 py-4 border-b border-white/10 flex-shrink-0">
+        <div className="bg-white rounded-md px-2 py-1 flex-shrink-0">
+          <img src="/gadidost-logo.png" alt="GadiDost" className="h-6 w-auto" />
         </div>
-        <div className="min-w-0">
-          <div className="font-bold text-neutral-900 text-[15px] leading-tight truncate">GadiDost</div>
-          <div className="text-[11px] text-neutral-400 truncate">Driver Portal</div>
-        </div>
-        <button onClick={onMobileClose} className="lg:hidden ml-auto p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 flex-shrink-0">
+        <p className="text-[11px] text-white/40 truncate">Driver Portal</p>
+        <button onClick={onMobileClose} className="lg:hidden ml-auto p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 flex-shrink-0">
           <X size={16} />
         </button>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-2 scrollbar-none px-3">
+      <nav className="flex-1 overflow-y-auto py-5 scrollbar-none px-3 space-y-5">
         {NAV.map((section) => (
-          <div key={section.label} className="mb-6">
-            <div className="px-3 mb-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">{section.label}</span>
-            </div>
-            <div className="space-y-1">
+          <div key={section.label}>
+            <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-3 mb-3">{section.label}</p>
+            <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 const badge = badges[item.path];
                 return (
-                  <div key={item.path} className="relative">
-                    {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-1 rounded-r-full bg-primary z-10" />
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => onMobileClose?.()}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group ${
+                      isActive ? "bg-primary text-white shadow-md shadow-primary/20" : "text-white/50 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    <Icon
+                      size={18}
+                      strokeWidth={isActive ? 2.5 : 1.8}
+                      className={`flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-white/50 group-hover:text-white"}`}
+                    />
+                    <span className="text-sm font-medium flex-1">{item.label}</span>
+                    {!!badge && (
+                      <span className="text-[10px] font-bold bg-white text-primary px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none flex-shrink-0">
+                        {badge > 9 ? "9+" : badge}
+                      </span>
                     )}
-                    <NavLink
-                      to={item.path}
-                      onClick={() => onMobileClose?.()}
-                      className={`flex items-center gap-3 pl-4 pr-3 py-2.5 rounded-xl transition-all ${
-                        isActive ? "bg-primary-50 text-primary font-semibold" : "text-neutral-500 hover:bg-neutral-50 hover:text-neutral-800"
-                      }`}
-                    >
-                      <Icon size={18} className={`flex-shrink-0 ${isActive ? "text-primary" : "text-neutral-400"}`} />
-                      <span className="text-[13px] whitespace-nowrap flex-1">{item.label}</span>
-                      {!!badge && (
-                        <span className="text-[10px] font-bold bg-primary text-white px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none">
-                          {badge > 9 ? "9+" : badge}
-                        </span>
-                      )}
-                      {item.path === "/driver/kyc" && kycDot && (
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${kycDot}`} />
-                      )}
-                    </NavLink>
-                  </div>
+                    {item.path === "/driver/kyc" && kycDot && (
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${kycDot}`} />
+                    )}
+                    {isActive && !badge && !(item.path === "/driver/kyc" && kycDot) && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0" />
+                    )}
+                  </NavLink>
                 );
               })}
             </div>
           </div>
         ))}
+
+        {/* Chat/Notifications moved down here from the top bar — same full-width row style
+            as the rest of the nav, unread badges included. */}
+        <div className="space-y-0.5">
+          <NotificationBell onNavigate={onMobileClose} />
+          <ChatBell onNavigate={onMobileClose} />
+        </div>
       </nav>
 
-      <div className="flex-shrink-0 px-3 pb-3 pt-2 border-t border-neutral-100">
-        <div className="flex items-center gap-3 rounded-xl bg-neutral-50 px-3 py-2.5 mb-1">
-          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-            <span className="text-primary font-bold text-sm">{(user?.name || "R")[0]}</span>
+      {/* User + Logout */}
+      {/* <div className="px-3 pb-4 border-t border-white/10 pt-3 flex-shrink-0 space-y-0.5">
+        <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg">
+          <div className="w-8 h-8 rounded-full bg-primary/25 border border-primary/40 flex items-center justify-center flex-shrink-0">
+            <span className="text-[11px] font-bold text-white">{(user?.name || "R")[0]}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-neutral-800 text-[13px] font-medium truncate">{user?.name || "Ramesh Singh"}</div>
-            <div className="text-[11px] text-neutral-400 truncate">Driver</div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white truncate leading-tight">{user?.name || "Ramesh Singh"}</p>
+            <p className="text-[10px] text-white/40 truncate">Driver</p>
           </div>
-          <button onClick={logout} className="p-1.5 rounded-lg transition-colors text-neutral-400 hover:text-danger hover:bg-red-50 flex-shrink-0" title="Sign out">
-            <LogOut size={15} />
-          </button>
         </div>
-      </div>
+        <button
+          onClick={logout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-white/50 hover:bg-red-500/10 hover:text-red-400 transition-all duration-150"
+        >
+          <LogOut size={16} className="flex-shrink-0" />
+          <span className="text-sm font-medium">Logout</span>
+        </button>
+      </div> */}
     </aside>
   );
 }

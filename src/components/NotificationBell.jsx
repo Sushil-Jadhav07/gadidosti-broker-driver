@@ -4,12 +4,11 @@ import { Bell } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 
-// Just an unread-count badge that navigates straight to the full Notifications page (see
-// pages/NotificationsPage.jsx) — this used to also open its own preview-list dropdown, but
-// keeping both a live preview AND the full page was redundant, and navigating away from the
-// dropdown without it fully unmounting first could briefly show both stacked on top of each
-// other. One place to actually read notifications now, this button just points at it.
-export default function NotificationBell() {
+// Lives in the sidebar (see DriverSidebar/BrokerSidebar) as a full nav-style row, styled the
+// same as every other sidebar item, rather than a standalone icon button in the top bar —
+// just an unread-count badge that navigates straight to the full Notifications page (see
+// pages/NotificationsPage.jsx); there's no preview dropdown, one place to actually read them.
+export default function NotificationBell({ onNavigate }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -35,12 +34,13 @@ export default function NotificationBell() {
 
   return (
     <button
-      onClick={() => navigate(user?.role === "driver" ? "/driver/notifications" : "/notifications")}
-      className="relative w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all"
+      onClick={() => { navigate(user?.role === "driver" ? "/driver/notifications" : "/notifications"); onNavigate?.(); }}
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/50 hover:bg-white/10 hover:text-white"
     >
-      <Bell size={18} />
+      <Bell size={18} strokeWidth={1.8} className="flex-shrink-0" />
+      <span className="text-sm font-medium flex-1">Notifications</span>
       {unreadCount > 0 && (
-        <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center bg-red-500 text-white text-[10px] font-bold rounded-full ring-2 ring-white">
+        <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-primary text-white text-[11px] font-bold rounded-full flex-shrink-0">
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       )}

@@ -44,10 +44,12 @@ export default function KycStatusCard({ status, rejectionReason }) {
   const Icon = cfg.icon;
 
   return (
-    <div className={`rounded-xl p-5 border ${cfg.bg}`}>
+    <div className={`rounded-2xl p-5 border ${cfg.bg}`}>
       <div className="flex items-start gap-4">
-        <Icon size={28} className={`${cfg.iconColor} flex-shrink-0`} />
-        <div>
+        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center flex-shrink-0">
+          <Icon size={22} className={cfg.iconColor} />
+        </div>
+        <div className="min-w-0">
           <h3 className={`font-bold text-[15px] ${cfg.titleColor}`}>{cfg.title}</h3>
           <p className={`text-sm mt-0.5 ${cfg.textColor}`}>{cfg.text}</p>
           {status === "rejected" && rejectionReason && (

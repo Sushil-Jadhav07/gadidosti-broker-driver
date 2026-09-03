@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navigation, Route, IndianRupee, Search } from "lucide-react";
+import { History, Search } from "lucide-react";
 import TripCard from "../../components/driver/TripCard";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptTrip, formatCurrency, formatDate } from "../../utils";
+import { adaptTrip, formatDate } from "../../utils";
 
 export default function TripHistory() {
   const navigate = useNavigate();
@@ -59,12 +59,6 @@ export default function TripHistory() {
     }
   };
 
-  const totals = useMemo(() => ({
-    trips: trips.length,
-    kms: trips.reduce((sum, trip) => sum + Number(trip.distance || 0), 0),
-    earned: trips.reduce((sum, trip) => sum + Number(trip.earnings || 0), 0),
-  }), [trips]);
-
   const cards = useMemo(() => trips.map((trip) => ({
     id: trip.id,
     bookingId: trip.bookingId,
@@ -91,9 +85,14 @@ export default function TripHistory() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">Trip History</h1>
-        <p className="text-sm text-slate-500 mt-1">Completed and past trips.</p>
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <History size={19} className="text-primary" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Trip History</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Completed and past trips.</p>
+        </div>
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -104,36 +103,38 @@ export default function TripHistory() {
             placeholder="Search by booking ID, route, broker..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="input-field pl-9 pr-3 py-2 w-full"
+            className="input-field pl-9 pr-3 py-2 w-full rounded-full"
           />
         </div>
-        <div className="flex gap-2">{["All", "Delivered", "Completed", "In Transit"].map((value) => <button key={value} onClick={() => setFilter(value)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${filter === value ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600"}`}>{value}</button>)}</div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-primary">
-          <Navigation className="w-5 h-5 text-primary mb-3" />
-          <p className="text-sm text-slate-500">Total Trips</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{totals.trips}</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-emerald-500">
-          <Route className="w-5 h-5 text-emerald-500 mb-3" />
-          <p className="text-sm text-slate-500">Total KMs</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{totals.kms} km</p>
-        </div>
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 border-l-4 border-l-amber-500">
-          <IndianRupee className="w-5 h-5 text-amber-500 mb-3" />
-          <p className="text-sm text-slate-500">Total Earned</p>
-          <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(totals.earned)}</p>
+        <div className="flex gap-2 flex-wrap">
+          {["All", "Delivered", "Completed", "In Transit"].map((value) => (
+            <button
+              key={value}
+              onClick={() => setFilter(value)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                filter === value ? "bg-primary text-white shadow-sm shadow-primary/20" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              {value}
+            </button>
+          ))}
         </div>
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading trip history...</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 flex justify-center">
+          <div className="w-7 h-7 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+        </div>
       ) : error ? (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
       ) : !filteredCards.length ? (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">No trips found.</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+            <History size={28} className="text-slate-300" />
+          </div>
+          <p className="font-bold text-slate-800 text-[15px]">No trips found</p>
+          <p className="text-sm text-slate-400 mt-1">Try a different search or filter.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {filteredCards.map((trip) => <TripCard key={trip.id} trip={trip} onDelete={setDeleteTarget} onViewDetails={() => navigate(`/driver/history/${trip.id}`)} />)}
