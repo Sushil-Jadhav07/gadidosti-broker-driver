@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Clock, Download, Mail, Share2, Send } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Clock, Download, Mail, Share2, Send, MessageCircle } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
+import Modal from "../../components/broker/Modal";
+import ChatWindow from "../../components/ChatWindow";
 import { api, getToken } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
+import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -26,6 +29,7 @@ function DetailRow({ icon: Icon, label, value }) {
 export default function TripDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [trip, setTrip] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -35,6 +39,7 @@ export default function TripDetail() {
   const [sharing, setSharing] = useState(false);
   const [notifying, setNotifying] = useState(false);
   const [collectingPayment, setCollectingPayment] = useState(false);
+  const [showChat, setShowChat] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -142,39 +147,48 @@ export default function TripDetail() {
               </div>
               <h1 className="text-xl font-bold text-slate-900">{trip.pickup?.location} <span className="text-slate-300">→</span> {trip.drop?.location}</h1>
             </div>
-            {INVOICE_READY_STATUSES.includes(trip.status) ? (
-              <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0">
-                <button
-                  onClick={handleDownloadInvoice}
-                  disabled={downloading}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
-                >
-                  <Download size={14} /> {downloading ? "Downloading..." : "Download Invoice"}
-                </button>
-                <button
-                  onClick={() => setEmailOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
-                >
-                  <Mail size={14} /> Send by Email
-                </button>
-                <button
-                  onClick={handleShareInvoice}
-                  disabled={sharing}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
-                >
-                  <Share2 size={14} /> {sharing ? "Preparing..." : "Share via WhatsApp"}
-                </button>
-                <button
-                  onClick={handleNotifyClient}
-                  disabled={notifying}
-                  className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
-                >
-                  <Send size={14} /> {notifying ? "Sending..." : "Notify Client"}
-                </button>
-              </div>
-            ) : (
-              <span className="text-xs text-slate-400 italic px-1 flex-shrink-0">Invoice available once delivery is complete</span>
-            )}
+            <div className="flex items-center gap-2 flex-wrap justify-end flex-shrink-0">
+              <button
+                onClick={() => setShowChat(true)}
+                title="Chat"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-primary border border-primary/30 hover:bg-primary/5 transition-colors flex-shrink-0"
+              >
+                <MessageCircle size={16} />
+              </button>
+              {INVOICE_READY_STATUSES.includes(trip.status) ? (
+                <>
+                  <button
+                    onClick={handleDownloadInvoice}
+                    disabled={downloading}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60"
+                  >
+                    <Download size={14} /> {downloading ? "Downloading..." : "Download Invoice"}
+                  </button>
+                  <button
+                    onClick={() => setEmailOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+                  >
+                    <Mail size={14} /> Send by Email
+                  </button>
+                  <button
+                    onClick={handleShareInvoice}
+                    disabled={sharing}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
+                  >
+                    <Share2 size={14} /> {sharing ? "Preparing..." : "Share via WhatsApp"}
+                  </button>
+                  <button
+                    onClick={handleNotifyClient}
+                    disabled={notifying}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors disabled:opacity-60"
+                  >
+                    <Send size={14} /> {notifying ? "Sending..." : "Notify Client"}
+                  </button>
+                </>
+              ) : (
+                <span className="text-xs text-slate-400 italic px-1 flex-shrink-0">Invoice available once delivery is complete</span>
+              )}
+            </div>
           </div>
 
           <InvoiceEmailModal
@@ -184,6 +198,10 @@ export default function TripDetail() {
             defaultTo=""
             bookingRef={bookingRef(trip)}
           />
+
+          <Modal isOpen={showChat} onClose={() => setShowChat(false)} title="Chat" size="sm">
+            <ChatWindow bookingId={trip.bookingId} currentUserId={user?.id} />
+          </Modal>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-100 shadow-card p-2 overflow-hidden">

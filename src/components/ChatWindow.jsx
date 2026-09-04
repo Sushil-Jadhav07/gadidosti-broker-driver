@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { io } from "socket.io-client";
-import { Send, MessageCircle, Bot, Lock } from "lucide-react";
+import { Send, MessageCircle, Bot, Lock, CheckCheck } from "lucide-react";
 import { api, getToken } from "../services/api";
 
 const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
@@ -8,7 +8,9 @@ const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // Live chat for a single booking — shared by the broker and driver sides of this app. REST
 // loads history + does the initial mark-as-read; the socket connection (auth'd with the same
 // access token as every REST call) delivers new messages/typing/read-receipts in real time.
-export default function ChatWindow({ bookingId, currentUserId }) {
+// className overrides the thread's own height — defaults to the size used inline on
+// MyTrip/ActiveJobs, but ChatLauncher passes "h-full" to fill its own panel instead.
+export default function ChatWindow({ bookingId, currentUserId, className = "h-[60vh] md:h-[480px]" }) {
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +111,7 @@ export default function ChatWindow({ bookingId, currentUserId }) {
   const someoneTyping = Object.values(typingUsers).some(Boolean);
 
   return (
-    <div className="flex flex-col h-[60vh] md:h-[480px]">
+    <div className={`flex flex-col ${className}`}>
       <div className="flex-1 overflow-y-auto space-y-2.5 p-1">
         {loading ? (
           <div className="h-full flex items-center justify-center">
@@ -141,22 +143,36 @@ export default function ChatWindow({ bookingId, currentUserId }) {
                 }`}>
                   {isBot ? (
                     <p className="flex items-center gap-1 text-[10px] font-semibold text-indigo-500 mb-0.5">
-                      <Bot className="w-3 h-3" /> SSK Assistant
+                      <Bot className="w-3 h-3" /> Gadidosti Assistant
                     </p>
                   ) : !isMine && (
                     <p className="text-[10px] font-semibold opacity-70 mb-0.5">{m.senderName}</p>
                   )}
                   <p className="whitespace-pre-wrap break-words">{m.message}</p>
-                  <p className={`text-[10px] mt-0.5 text-right ${isBot ? "text-indigo-400" : isMine ? "text-white/70" : "text-slate-400"}`}>
+                  <p className={`text-[10px] mt-0.5 flex items-center justify-end gap-0.5 ${isBot ? "text-indigo-400" : isMine ? "text-white/70" : "text-slate-400"}`}>
                     {new Date(m.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                    {isMine && m.readAt ? " · Read" : ""}
+                    {isMine && !isBot && (
+                      <CheckCheck className={`w-3.5 h-3.5 flex-shrink-0 ${m.readAt ? "text-primary-50" : "text-white/50"}`} />
+                    )}
                   </p>
                 </div>
               </div>
             );
           })
         )}
-        {someoneTyping && <p className="text-xs text-slate-400 italic pl-1">Typing...</p>}
+        {someoneTyping && (
+          <div className="flex justify-start">
+            <div className="bg-slate-100 rounded-2xl rounded-bl-sm px-3.5 py-3 flex items-center gap-1">
+              {[0, 150, 300].map((delay) => (
+                <span
+                  key={delay}
+                  className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-typing-bounce"
+                  style={{ animationDelay: `${delay}ms` }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
         <div ref={bottomRef} />
       </div>
 

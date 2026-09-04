@@ -8,6 +8,14 @@ export const shortId = (id) => (id ? `#${String(id).replace(/-/g, "").slice(-8).
 // shortened UUID for any older record that doesn't have one yet.
 export const bookingRef = (obj) => (obj && (obj.bookingNumber || shortId(obj.bookingId || obj.id))) || "-";
 
+// Shared by every chat surface that shows a counterpart avatar (ChatList, ChatDetail,
+// ChatThreadList, ChatLauncher) so the initials logic isn't hand-copied into each one.
+export const initials = (name) => {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+};
+
 export const formatDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);

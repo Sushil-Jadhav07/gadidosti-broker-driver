@@ -132,6 +132,10 @@ module.exports = {
           from: { opacity: "0", transform: "translateY(20px)" },
           to: { opacity: "1", transform: "translateY(0)" },
         },
+        "typing-bounce": {
+          "0%, 60%, 100%": { transform: "translateY(0)", opacity: "0.4" },
+          "30%": { transform: "translateY(-4px)", opacity: "1" },
+        },
       },
       animation: {
         "fade-up": "fade-up 0.4s ease-out forwards",
@@ -141,6 +145,7 @@ module.exports = {
         "pulse-dot": "pulse-dot 2s ease-in-out infinite",
         "spin-slow": "spin-slow 1s linear infinite",
         "slide-up": "slide-up 0.4s ease-out",
+        "typing-bounce": "typing-bounce 1.2s ease-in-out infinite",
       },
     },
   },

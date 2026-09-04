@@ -6,6 +6,8 @@ import { useDriverLocationTracking } from "./hooks/useDriverLocationTracking";
 import FcmBridge from "./components/FcmBridge";
 import SessionGuard from "./components/SessionGuard";
 import ChatNotifications from "./components/ChatNotifications";
+import ChatLauncher from "./components/ChatLauncher";
+import { UnreadChatProvider } from "./hooks/useUnreadChatCount";
 
 // Broker
 import BrokerSidebar  from "./components/broker/BrokerSidebar";
@@ -133,9 +135,11 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <ToastProvider>
+          <UnreadChatProvider>
           <FcmBridge />
           <SessionGuard />
           <ChatNotifications />
+          <ChatLauncher />
           <Routes>
             {/* Public */}
             <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
@@ -180,6 +184,7 @@ export default function App() {
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+        </UnreadChatProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
