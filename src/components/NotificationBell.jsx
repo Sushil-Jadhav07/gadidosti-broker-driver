@@ -35,12 +35,12 @@ export default function NotificationBell({ onNavigate }) {
   return (
     <button
       onClick={() => { navigate(user?.role === "driver" ? "/driver/notifications" : "/notifications"); onNavigate?.(); }}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/50 hover:bg-white/10 hover:text-white"
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 group text-white/85 hover:bg-white hover:text-primary"
     >
       <Bell size={18} strokeWidth={1.8} className="flex-shrink-0" />
       <span className="text-sm font-medium flex-1">Notifications</span>
       {unreadCount > 0 && (
-        <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-primary text-white text-[11px] font-bold rounded-full flex-shrink-0">
+        <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-white text-primary group-hover:bg-primary group-hover:text-white text-[11px] font-bold rounded-full flex-shrink-0 transition-colors">
           {unreadCount > 9 ? "9+" : unreadCount}
         </span>
       )}

@@ -37,7 +37,7 @@ export function ToastProvider({ children }) {
             <div className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
               toast.type === "success" ? "bg-green-100 text-success" :
               toast.type === "error" ? "bg-red-100 text-danger" :
-              toast.type === "warning" ? "bg-amber-100 text-warning" : "bg-blue-100 text-primary"
+              toast.type === "warning" ? "bg-amber-100 text-warning" : "bg-primary-50 text-primary"
             }`}>
               {toast.type === "success" && (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>

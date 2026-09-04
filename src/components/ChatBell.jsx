@@ -16,7 +16,7 @@ export default function ChatBell({ onNavigate }) {
   return (
     <button
       onClick={() => { navigate(user?.role === "driver" ? "/driver/chats" : "/chats"); onNavigate?.(); }}
-      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/50 hover:bg-white/10 hover:text-white"
+      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all duration-150 text-white/85 hover:bg-white hover:text-primary"
     >
       <MessageCircle size={18} strokeWidth={1.8} className="flex-shrink-0" />
       <span className="text-sm font-medium flex-1">Chat</span>

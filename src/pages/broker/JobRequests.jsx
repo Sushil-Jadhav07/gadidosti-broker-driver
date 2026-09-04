@@ -296,7 +296,7 @@ export default function JobRequests() {
 
               <div className="mt-auto">
                 {pendingAssignments[req.id] ? (
-                  <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
+                  <div className="w-full bg-teal-50 border border-teal-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-teal-700 flex items-center justify-center gap-2">
                     <Clock size={13} />
                     {pendingAssignments[req.id].status === "countered"
                       ? `${pendingAssignments[req.id].driverName || "Driver"} countered — respond from Driver Requests`
@@ -328,7 +328,7 @@ export default function JobRequests() {
                   </>
                 ) : req.status === "Awaiting Confirmation" ? (
                   /* You already accepted (pendingConfirmationBy === 'broker') — waiting on the client. */
-                  <div className="w-full bg-sky-50 border border-sky-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-sky-700 flex items-center justify-center gap-2">
+                  <div className="w-full bg-teal-50 border border-teal-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-teal-700 flex items-center justify-center gap-2">
                     <Clock size={13} /> You accepted — waiting for the client to confirm
                   </div>
                 ) : (

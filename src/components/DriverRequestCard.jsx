@@ -12,8 +12,8 @@ const COUNTER_STEP = 50;
 // do here right now" in a cooler, quieter color.
 const ACCENT = {
   actionable: "bg-amber-400",
-  confirm: "bg-sky-400",
-  waiting: "bg-sky-300",
+  confirm: "bg-teal-400",
+  waiting: "bg-teal-300",
   accepted: "bg-emerald-400",
   declined: "bg-red-300",
   neutral: "bg-slate-200",
@@ -22,8 +22,8 @@ const ACCENT = {
 const BANNER_STYLES = {
   locked: "bg-slate-50 text-slate-500",
   countered: "bg-amber-50 text-amber-700",
-  confirm: "bg-sky-50 text-sky-700",
-  waiting: "bg-sky-50 text-sky-700",
+  confirm: "bg-teal-50 text-teal-700",
+  waiting: "bg-teal-50 text-teal-700",
   accepted: "bg-emerald-50 text-emerald-700",
   declined: "bg-red-50 text-red-600",
 };

@@ -64,7 +64,7 @@ export default function Dashboard() {
 
   const fleetStatus = useMemo(() => ([
     { name: "Available", value: availableTrucks, color: "#17D86B" },
-    { name: "On Trip", value: onTripTrucks, color: "#1976FF" },
+    { name: "On Trip", value: onTripTrucks, color: "#166534" },
     { name: "Maintenance", value: trucks.filter((truck) => truck.status === "maintenance").length, color: "#F59E0B" },
   ]), [availableTrucks, onTripTrucks, trucks]);
 
@@ -84,10 +84,10 @@ export default function Dashboard() {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={Truck} iconBg="#EBF3FF" iconColor="#1976FF" label="Total Fleet" value={trucks.length} subtext={`${availableTrucks} available`} trend={8} />
+        <StatCard icon={Truck} iconBg="#F0FDF4" iconColor="#166534" label="Total Fleet" value={trucks.length} subtext={`${availableTrucks} available`} trend={8} />
         <StatCard icon={Users} iconBg="#F0FDF4" iconColor="#17D86B" label="Active Drivers" value={activeDrivers} subtext={`Out of ${drivers.length} total`} trend={0} />
         <StatCard icon={Inbox} iconBg="#FFFBEB" iconColor="#F59E0B" label="Pending Requests" value={jobRequests.length} subtext="Need attention" />
-        <StatCard icon={ClipboardList} iconBg="#EBF3FF" iconColor="#1976FF" label="Active Jobs" value={activeJobs.length} subtext={`${onTripTrucks} trucks on road`} trend={12} />
+        <StatCard icon={ClipboardList} iconBg="#F0FDF4" iconColor="#166534" label="Active Jobs" value={activeJobs.length} subtext={`${onTripTrucks} trucks on road`} trend={12} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -101,7 +101,7 @@ export default function Dashboard() {
                 formatter={(value) => [formatCurrency(value), ""]}
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #E2E8F0" }}
               />
-              <Bar dataKey="revenue" fill="#1976FF" radius={[6, 6, 0, 0]} name="Revenue" />
+              <Bar dataKey="revenue" fill="#166534" radius={[6, 6, 0, 0]} name="Revenue" />
               <Bar dataKey="expenses" fill="#E2E8F0" radius={[6, 6, 0, 0]} name="Expenses" />
             </BarChart>
           </ResponsiveContainer>

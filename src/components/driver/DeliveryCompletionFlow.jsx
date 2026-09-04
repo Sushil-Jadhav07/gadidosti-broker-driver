@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Phone, MapPin, Check, X, Plus, QrCode, CheckCheck, AlertTriangle } from "lucide-react";
+import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle } from "lucide-react";
 import Badge from "./Badge";
 import SwipeToConfirm from "./SwipeToConfirm";
 import { useToast } from "../../hooks/useToast";
@@ -202,13 +202,9 @@ function UploadPhotosStep({ existingPhotos, onSubmit, loading }) {
 }
 
 // ─── Step 3: Payments (conditional — only when paymentStatus is 'pending') ─────
-// canUploadQr is false when this flow is being run by a broker completing on a driver's
-// behalf — the QR-upload endpoint (POST /api/vehicles/drivers/me/payment-qr) is scoped to
-// "my own" driver profile, so it doesn't make sense (and would fail) for a broker to call. The
-// broker can still see whichever QR the driver already saved, just can't add/replace it.
-function PaymentsStep({ trip, onCollect, collecting, uploadingQr, onUploadQr, canUploadQr = true }) {
-  const qrInputRef = useRef(null);
-
+// No QR upload/display here — the driver just tells the client to pay via whatever UPI means
+// they already use (or takes cash) and taps the matching button below once received.
+function PaymentsStep({ trip, onCollect, collecting }) {
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-bold text-slate-900 mb-1">Collect Payment</h2>
@@ -225,48 +221,10 @@ function PaymentsStep({ trip, onCollect, collecting, uploadingQr, onUploadQr, ca
         <p className="text-3xl font-bold text-slate-900 mt-1">{formatCurrency(trip.amountToCollect)}</p>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-xl p-5 mb-4 text-center">
-        {trip.driverQrUrl ? (
-          <>
-            <AuthImage src={trip.driverQrUrl} alt="Driver's UPI QR" className="w-40 h-40 mx-auto rounded-lg object-contain border border-slate-100" />
-            <p className="text-xs text-slate-400 mt-3">Show this QR to the customer to scan &amp; pay</p>
-            {canUploadQr && (
-              <button onClick={() => qrInputRef.current?.click()} disabled={uploadingQr} className="text-xs font-semibold text-primary mt-2">
-                {uploadingQr ? "Uploading..." : "Replace QR"}
-              </button>
-            )}
-          </>
-        ) : canUploadQr ? (
-          <button
-            onClick={() => qrInputRef.current?.click()}
-            disabled={uploadingQr}
-            className="w-full py-6 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary transition-colors flex flex-col items-center gap-2"
-          >
-            <QrCode className="w-6 h-6" />
-            <span className="text-xs font-semibold">{uploadingQr ? "Uploading..." : "+ Add your QR"}</span>
-          </button>
-        ) : (
-          <p className="text-xs text-slate-400 py-4">No UPI QR on file for this driver — collect cash instead.</p>
-        )}
-        {canUploadQr && (
-          <input
-            ref={qrInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              e.target.value = "";
-              if (file) onUploadQr(file);
-            }}
-          />
-        )}
-      </div>
-
       <div className="mt-auto space-y-3">
         <button
           onClick={() => onCollect("upi")}
-          disabled={!trip.driverQrUrl || collecting}
+          disabled={collecting}
           className="w-full py-4 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
         >
           {collecting ? "Confirming..." : "Payment Received via UPI"}
@@ -324,7 +282,7 @@ function CompleteStep({ trip, completing, error, onRetry, onBack }) {
 // (Arrived -> Upload picture -> Payments (conditional) -> Complete) instead of the old
 // single "Mark as Delivered" -> "Upload Proof of Delivery" button pair. MyTrip.jsx renders
 // this in place of the normal trip page once the driver commits to completing delivery.
-export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canUploadQr = true }) {
+export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
   const { addToast } = useToast();
   const [trip, setTrip] = useState(initialTrip);
   const [step, setStep] = useState(() => resolveInitialStep(initialTrip));
@@ -334,7 +292,6 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
   const [includePayments] = useState(() => PAYMENT_DUE_STATUSES.includes(initialTrip.paymentStatus));
   const [confirmingArrival, setConfirmingArrival] = useState(false);
   const [uploadingPhotos, setUploadingPhotos] = useState(false);
-  const [uploadingQr, setUploadingQr] = useState(false);
   const [collectingPayment, setCollectingPayment] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completeError, setCompleteError] = useState(null);
@@ -375,22 +332,6 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
       addToast(err.message || "Failed to upload photos.", "error");
     } finally {
       setUploadingPhotos(false);
-    }
-  };
-
-  const handleUploadQr = async (file) => {
-    setUploadingQr(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await api.upload("/api/vehicles/drivers/me/payment-qr", formData, getToken());
-      if (!response.success) throw new Error(response.message || "Failed to upload QR");
-      setTrip((prev) => ({ ...prev, driverQrUrl: response.data?.paymentQrUrl }));
-      addToast("QR uploaded.", "success");
-    } catch (err) {
-      addToast(err.message || "Failed to upload QR.", "error");
-    } finally {
-      setUploadingQr(false);
     }
   };
 
@@ -444,9 +385,6 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit, canU
             trip={trip}
             onCollect={handleCollectPayment}
             collecting={collectingPayment}
-            uploadingQr={uploadingQr}
-            onUploadQr={handleUploadQr}
-            canUploadQr={canUploadQr}
           />
         )}
         {step === "complete" && (

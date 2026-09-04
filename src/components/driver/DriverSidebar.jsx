@@ -33,9 +33,9 @@ const KYC_DOT = {
   verified: null,
 };
 
-// Dark-navy theme (bg-secondary), matching the client portal's sidebar — same white chip
-// logo, white/50 muted nav text, solid-primary active pill, and a full-width Logout row
-// instead of an icon-only sign-out button, so all three GadiDost apps read as one product.
+// Solid brand-green sidebar (bg-primary) — muted white nav text by default, and every
+// interactive row (hover or active) flips to a solid white pill with green text/icon instead
+// of a subtle tint, so the hover/active state reads clearly against the colored background.
 export default function DriverSidebar({ mobileOpen, onMobileClose }) {
   const location = useLocation();
   const { user, logout } = useAuth();
@@ -48,19 +48,18 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
 
   return (
     <aside
-      className={`fixed left-0 top-0 h-screen z-50 w-[260px] flex flex-col bg-secondary transition-transform duration-300
+      className={`fixed left-0 top-0 h-screen z-50 w-[260px] flex flex-col bg-primary transition-transform duration-300
         ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
       `}
     >
-      {/* Logo — the wordmark itself is dark text, unreadable straight on this dark sidebar
-          (only the blue/green "GD" icon would show); a small white chip behind it keeps the
-          real logo colors intact instead of forcing the whole thing white via a filter. */}
-      <div className="flex items-center gap-2 px-4 py-4 border-b border-white/10 flex-shrink-0">
+      {/* Logo — a small white chip behind it keeps the real logo colors intact instead of
+          forcing the whole thing white via a filter. */}
+      <div className="flex items-center gap-2 px-4 py-4 border-b border-white/15 flex-shrink-0">
         <div className="bg-white rounded-md px-2 py-1 flex-shrink-0">
           <img src="/gadidost-logo.png" alt="GadiDost" className="h-6 w-auto" />
         </div>
-        <p className="text-[11px] text-white/40 truncate">Driver Portal</p>
-        <button onClick={onMobileClose} className="lg:hidden ml-auto p-1.5 rounded-lg text-white/40 hover:text-white hover:bg-white/10 flex-shrink-0">
+        <p className="text-[11px] text-white/70 truncate">Driver Portal</p>
+        <button onClick={onMobileClose} className="lg:hidden ml-auto p-1.5 rounded-lg text-white/70 hover:text-primary hover:bg-white flex-shrink-0">
           <X size={16} />
         </button>
       </div>
@@ -68,7 +67,7 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
       <nav className="flex-1 overflow-y-auto py-5 scrollbar-none px-3 space-y-5">
         {NAV.map((section) => (
           <div key={section.label}>
-            <p className="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-3 mb-3">{section.label}</p>
+            <p className="text-[10px] font-semibold text-white/60 uppercase tracking-widest px-3 mb-3">{section.label}</p>
             <div className="space-y-0.5">
               {section.items.map((item) => {
                 const Icon = item.icon;
@@ -80,25 +79,24 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
                     to={item.path}
                     onClick={() => onMobileClose?.()}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 group ${
-                      isActive ? "bg-primary text-white shadow-md shadow-primary/20" : "text-white/50 hover:bg-white/10 hover:text-white"
+                      isActive ? "bg-white text-primary font-semibold shadow-md shadow-black/10" : "text-white/85 hover:bg-white hover:text-primary"
                     }`}
                   >
                     <Icon
                       size={18}
                       strokeWidth={isActive ? 2.5 : 1.8}
-                      className={`flex-shrink-0 transition-colors ${isActive ? "text-white" : "text-white/50 group-hover:text-white"}`}
+                      className={`flex-shrink-0 transition-colors ${isActive ? "text-primary" : "text-white/85 group-hover:text-primary"}`}
                     />
                     <span className="text-sm font-medium flex-1">{item.label}</span>
                     {!!badge && (
-                      <span className="text-[10px] font-bold bg-white text-primary px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none flex-shrink-0">
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-none flex-shrink-0 transition-colors ${
+                        isActive ? "bg-primary text-white" : "bg-white text-primary group-hover:bg-primary group-hover:text-white"
+                      }`}>
                         {badge > 9 ? "9+" : badge}
                       </span>
                     )}
                     {item.path === "/driver/kyc" && kycDot && (
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${kycDot}`} />
-                    )}
-                    {isActive && !badge && !(item.path === "/driver/kyc" && kycDot) && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-white/50 flex-shrink-0" />
                     )}
                   </NavLink>
                 );

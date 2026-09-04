@@ -60,7 +60,7 @@ function RouteRenderer({ route, onResolved }) {
           options={{
             suppressMarkers: true,
             preserveViewport: true,
-            polylineOptions: { strokeColor: route.color || "#1976FF", strokeWeight: 4, strokeOpacity: 0.85 },
+            polylineOptions: { strokeColor: route.color || "#166534", strokeWeight: 4, strokeOpacity: 0.85 },
           }}
         />
       )}

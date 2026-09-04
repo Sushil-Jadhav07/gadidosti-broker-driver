@@ -188,7 +188,6 @@ export default function JobDetail() {
         </button>
         <DeliveryCompletionFlow
           trip={completingTrip}
-          canUploadQr={false}
           onExit={() => {
             setCompletingTrip(null);
             load();

@@ -2,8 +2,8 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
-  Truck, User, Eye, EyeOff, AlertCircle, Mail,
-  Zap, ShieldCheck, IndianRupee, BarChart3, ArrowRight, CheckCircle,
+  Truck, User, Eye, EyeOff, AlertCircle, Mail, Lock,
+  ShieldCheck, IndianRupee, BarChart3, ArrowRight, CheckCircle,
 } from "lucide-react";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -126,19 +126,24 @@ export default function Login() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
 
-      {/* ── Left Panel (desktop only) ── */}
-      <div className="hidden lg:flex w-[52%] bg-secondary flex-col justify-between p-12 relative overflow-hidden">
-        {/* Glow blobs */}
-        <div className="absolute top-0 left-0 w-96 h-96 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #1976FF 0%, transparent 70%)", transform: "translate(-30%,-30%)" }} />
-        <div className="absolute bottom-0 right-0 w-96 h-96 rounded-full opacity-10"
-          style={{ background: "radial-gradient(circle, #17D86B 0%, transparent 70%)", transform: "translate(30%,30%)" }} />
+      {/* ── Left Panel (desktop only) — solid green gradient, same treatment as the
+          client portal's login/register screens, so all three GadiDost apps match. ── */}
+      <div
+        className="hidden lg:flex w-[52%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{ background: "linear-gradient(160deg, #14532D 0%, #166534 55%, #16A34A 100%)" }}
+      >
+        {/* Light highlight, not green-on-green — a colored glow would barely show against a
+            background that's already this same green. */}
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: "radial-gradient(ellipse at 75% 15%, rgba(255,255,255,0.16) 0%, transparent 55%)" }} />
 
-        {/* Logo */}
+        {/* Logo — a white chip keeps the real logo colors intact instead of forcing it all
+            white via a filter. */}
         <div className="relative z-10">
-          <img src="/gadidost-logo.png" alt="GadiDost" className="h-10"
-            style={{ filter: "brightness(0) invert(1)" }} />
-          <p className="text-blue-400 text-sm mt-2 font-inter">Logistics Management Platform</p>
+          <div className="bg-white rounded-lg px-3 py-2 inline-block">
+            <img src="/gadidost-logo.png" alt="GadiDost" className="h-10 w-auto" />
+          </div>
+          <p className="text-white/70 text-sm mt-2 font-inter">Logistics Management Platform</p>
         </div>
 
         {/* Hero text + features */}
@@ -146,18 +151,18 @@ export default function Login() {
           <h1 className="text-4xl font-bold text-white font-poppins leading-tight mb-4">
             India&apos;s Smartest<br />Logistics Platform
           </h1>
-          <p className="text-slate-400 font-inter text-[15px] mb-10 leading-relaxed">
+          <p className="text-white/70 font-inter text-[15px] mb-10 leading-relaxed">
             Connect brokers and drivers seamlessly. Manage fleets, track jobs,<br />and grow your business — all in one place.
           </p>
           <div className="space-y-4">
             {FEATURES.map(({ icon: Icon, label, sub }) => (
               <div key={label} className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center flex-shrink-0">
-                  <Icon size={17} className="text-primary" />
+                <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
+                  <Icon size={17} className="text-white" />
                 </div>
                 <div>
                   <p className="text-white text-sm font-semibold font-poppins">{label}</p>
-                  <p className="text-slate-400 text-xs font-inter mt-0.5">{sub}</p>
+                  <p className="text-white/60 text-xs font-inter mt-0.5">{sub}</p>
                 </div>
               </div>
             ))}
@@ -167,8 +172,8 @@ export default function Login() {
         {/* Stats strip */}
         <div className="relative z-10 flex items-center gap-3 flex-wrap">
           {STATS.map((s) => (
-            <div key={s} className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-full px-3 py-1.5">
-              <CheckCircle size={11} className="text-emerald-400 flex-shrink-0" />
+            <div key={s} className="flex items-center gap-1.5 bg-white/10 border border-white/20 rounded-full px-3 py-1.5">
+              <CheckCircle size={11} className="text-white flex-shrink-0" />
               <span className="text-white text-[11px] font-inter font-medium">{s}</span>
             </div>
           ))}
@@ -180,14 +185,14 @@ export default function Login() {
         <div className="w-full max-w-[420px]">
 
           {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-8">
+          <div className="lg:hidden text-center mb-5">
             <img src="/gadidost-logo.png" alt="GadiDost" className="h-10 mx-auto mb-2" />
             <p className="text-slate-400 text-sm font-inter">Logistics Management Platform</p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-modal p-6 sm:p-8">
+          <div className="">
             {/* Heading */}
-            <div className="mb-6">
+            <div className="mb-5 text-center">
               <h2 className="text-2xl font-bold text-slate-900 font-poppins">Welcome back</h2>
               <p className="text-slate-500 text-sm font-inter mt-1">Sign in to your {role} account</p>
             </div>
@@ -210,31 +215,10 @@ export default function Login() {
               ))}
             </div>
 
-            {/* Auto-fill card */}
-            <button type="button" onClick={autofill}
-              className="w-full mb-5 bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border border-blue-200 rounded-xl p-3.5 transition-all group text-left">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-2">
-                    <Zap size={12} className="text-blue-500" />
-                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Demo Account — Click to Auto Fill</span>
-                  </div>
-                  <p className="text-xs text-blue-600 font-mono leading-relaxed">
-                    Email: {CREDS[role].email}<br />
-                    Password: {CREDS[role].password}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1.5 bg-blue-600 group-hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-colors flex-shrink-0 ml-3">
-                  Auto Fill
-                  <ArrowRight size={12} />
-                </div>
-              </div>
-            </button>
-
             {/* Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-2">Email Address</label>
                 <div className="relative">
                   <Mail size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
@@ -249,14 +233,15 @@ export default function Login() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Password</label>
+                <label className="block text-[11px] font-bold text-slate-600 uppercase tracking-wide mb-2">Password</label>
                 <div className="relative">
+                  <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="input-field px-3 py-2.5 pr-10"
+                    className="input-field pl-9 pr-10 py-2.5"
                     required
                   />
                   <button type="button" onClick={() => setShowPassword((v) => !v)}
@@ -288,7 +273,7 @@ export default function Login() {
 
             {showGoogleBtn && (
               <>
-                <div className="relative mt-5">
+                <div className="relative mt-4">
                   <div className="absolute inset-0 flex items-center">
                     <div className="w-full border-t border-slate-100" />
                   </div>
@@ -308,7 +293,17 @@ export default function Login() {
               </>
             )}
 
-            <div className="mt-5 pt-5 border-t border-slate-100 text-center">
+            {/* Demo credentials — same centered, plain look and position (below Google
+                sign-in) as the client portal's login; still tappable to auto-fill above. */}
+            <button type="button" onClick={autofill}
+              className="w-full mt-4 bg-primary-50 hover:bg-primary-100 active:bg-primary/20 border border-primary-100 rounded-xl p-3 transition-all text-center">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Demo Credentials</p>
+              <p className="text-xs font-mono text-primary">
+                {CREDS[role].email} <span className="text-primary/40 mx-1.5">|</span> {CREDS[role].password}
+              </p>
+            </button>
+
+            <div className="mt-4 pt-4 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500 font-inter">
                 Don&apos;t have an account?{" "}
                 <Link to="/register" className="text-primary font-semibold hover:underline">
@@ -318,7 +313,7 @@ export default function Login() {
             </div>
           </div>
 
-          <p className="text-center text-[11px] text-slate-400 mt-5 font-inter">
+          <p className="text-center text-[11px] text-slate-400 mt-4 font-inter">
             By signing in, you agree to our Terms of Service and Privacy Policy.
           </p>
         </div>

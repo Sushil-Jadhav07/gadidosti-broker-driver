@@ -1,9 +1,9 @@
 import { formatBookingStatus } from "../../utils";
 
 const STYLES = {
-  "In Transit": "bg-blue-50 text-blue-600 border-blue-200",
+  "In Transit": "bg-primary-50 text-primary border-primary-100",
   Assigned: "bg-amber-50 text-amber-700 border-amber-200",
-  "En Route Pickup": "bg-blue-50 text-blue-700 border-blue-200",
+  "En Route Pickup": "bg-teal-50 text-teal-700 border-teal-200",
   "Picked Up": "bg-purple-50 text-purple-700 border-purple-200",
   Delivered: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
@@ -17,7 +17,7 @@ const STYLES = {
   Verified: "bg-emerald-50 text-emerald-700 border-emerald-200",
   Pending: "bg-amber-50 text-amber-700 border-amber-200",
   Expired: "bg-red-50 text-red-600 border-red-200",
-  Upcoming: "bg-indigo-50 text-indigo-700 border-indigo-200",
+  Upcoming: "bg-violet-50 text-violet-700 border-violet-200",
 };
 
 export default function Badge({ status, children, className = "" }) {
