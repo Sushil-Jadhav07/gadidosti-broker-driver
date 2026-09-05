@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   User, Mail, Phone, Lock, Save, ShieldCheck, Truck, FileCheck,
-  CalendarDays, ChevronDown, LogOut,
+  CalendarDays, ChevronDown, LogOut, IndianRupee,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -67,6 +67,8 @@ export default function Profile() {
   const [form, setForm] = useState({ name: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
+  const [upiId, setUpiId] = useState("");
+  const [savingUpi, setSavingUpi] = useState(false);
 
   const toggleSection = (id) => setOpenSection((current) => (current === id ? null : id));
 
@@ -76,17 +78,19 @@ export default function Profile() {
       setError(null);
       try {
         const token = getToken();
-        const [profileRes, kycRes, truckRes, analyticsRes] = await Promise.all([
+        const [profileRes, kycRes, truckRes, analyticsRes, upiRes] = await Promise.all([
           api.get("/api/users/profile", token),
           api.get("/api/kyc/status", token),
           api.get("/api/vehicles/drivers/me/truck", token),
           api.get("/api/analytics/broker", token),
+          api.get("/api/vehicles/drivers/me/upi-id", token),
         ]);
         const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
         setForm({ name: data.name || "", email: data.email || "" });
         setKyc(kycRes.data || null);
         setAssignedTruck(truckRes.data?.truck || null);
+        setUpiId(upiRes.data?.upiId || "");
         const history = analyticsRes.data?.tripHistory || [];
         setStats({
           trips: history.length,
@@ -138,6 +142,20 @@ export default function Profile() {
       addToast(err.message || "Failed to change password.", "error");
     } finally {
       setChangingPw(false);
+    }
+  };
+
+  const handleSaveUpi = async () => {
+    setSavingUpi(true);
+    try {
+      const res = await api.patch("/api/vehicles/drivers/me/upi-id", { upi_id: upiId.trim() }, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to save UPI ID");
+      setUpiId(res.data?.upiId || "");
+      addToast("UPI ID saved.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to save UPI ID.", "error");
+    } finally {
+      setSavingUpi(false);
     }
   };
 
@@ -260,6 +278,28 @@ export default function Profile() {
                 <Field label="New Password" icon={Lock} type="password" value={passwordForm.next} onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))} />
                 <button onClick={handleChangePassword} disabled={changingPw} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <ShieldCheck size={14} /> {changingPw ? "Updating..." : "Change Password"}
+                </button>
+              </div>
+            </AccordionRow>
+
+            <AccordionRow
+              id="upi" icon={IndianRupee} title="UPI Payment ID"
+              badge={upiId ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border mr-1 bg-emerald-50 text-emerald-700 border-emerald-200">Set</span> : null}
+              isOpen={openSection === "upi"} onToggle={toggleSection}
+            >
+              <div className="space-y-3 pt-3">
+                <p className="text-xs text-slate-400">
+                  Saved once, then used to generate a fresh UPI QR — with the exact amount already filled in — on every trip's payment collection step.
+                </p>
+                <Field
+                  label="UPI ID"
+                  icon={IndianRupee}
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="yourname@okhdfcbank"
+                />
+                <button onClick={handleSaveUpi} disabled={savingUpi || !upiId.trim()} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
+                  <Save size={14} /> {savingUpi ? "Saving..." : "Save UPI ID"}
                 </button>
               </div>
             </AccordionRow>

@@ -205,7 +205,12 @@ export default function TripDetail() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-100 shadow-card p-2 overflow-hidden">
-              <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} />
+              <RouteMapPanel
+                pickup={trip.pickup}
+                drop={trip.drop}
+                currentLocation={trip.currentLocation}
+                isPrePickup={["confirmed", "en_route_pickup"].includes(trip.rawStatus)}
+              />
             </div>
 
             <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4">

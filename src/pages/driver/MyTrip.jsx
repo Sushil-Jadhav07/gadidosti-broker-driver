@@ -348,7 +348,13 @@ export default function MyTrip() {
             buttons live as floating icons over it (Google-Maps-app style) instead of a
             separate labeled row, so the map itself gets almost all the space. */}
         <div className="relative h-[360px] sm:h-[440px] lg:h-[520px]">
-          <RouteMapPanel pickup={trip.pickup} drop={trip.drop} currentLocation={trip.currentLocation} stops={stops} />
+          <RouteMapPanel
+            pickup={trip.pickup}
+            drop={trip.drop}
+            currentLocation={trip.currentLocation}
+            stops={stops}
+            isPrePickup={["confirmed", "en_route_pickup"].includes(trip.rawStatus)}
+          />
           <div className="absolute top-3 right-3 z-10 flex flex-col gap-2.5">
             <button
               onClick={openInMaps}

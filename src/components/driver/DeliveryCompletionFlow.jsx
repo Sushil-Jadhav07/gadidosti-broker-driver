@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle } from "lucide-react";
 import Badge from "./Badge";
 import SwipeToConfirm from "./SwipeToConfirm";
@@ -204,7 +205,38 @@ function UploadPhotosStep({ existingPhotos, onSubmit, loading }) {
 // ─── Step 3: Payments (conditional — only when paymentStatus is 'pending') ─────
 // No QR upload/display here — the driver just tells the client to pay via whatever UPI means
 // they already use (or takes cash) and taps the matching button below once received.
+// UPI deep-link intent — every UPI app (GPay, PhonePe, Paytm, ...) understands this exact URI
+// scheme when scanned as a QR. Baking `am` (amount) in directly is the whole point versus the
+// old static uploaded-QR-image approach: the customer never has to type an amount by hand, and
+// the driver never has to keep re-uploading a new QR per trip — one saved UPI ID (Profile ->
+// UPI Payment ID) regenerates correctly for every trip's own amount.
+const buildUpiIntent = ({ upiId, payeeName, amount, note }) => (
+  `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}` +
+  `&am=${Number(amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`
+);
+
 function PaymentsStep({ trip, onCollect, collecting }) {
+  const [qrDataUrl, setQrDataUrl] = useState(null);
+  const [qrError, setQrError] = useState(false);
+
+  useEffect(() => {
+    if (!trip.driverUpiId || !trip.amountToCollect) {
+      setQrDataUrl(null);
+      return undefined;
+    }
+    let cancelled = false;
+    const upiUrl = buildUpiIntent({
+      upiId: trip.driverUpiId,
+      payeeName: trip.driverName || "Driver",
+      amount: trip.amountToCollect,
+      note: `Payment for ${bookingRef(trip)}`,
+    });
+    QRCode.toDataURL(upiUrl, { width: 220, margin: 1 })
+      .then((url) => { if (!cancelled) { setQrDataUrl(url); setQrError(false); } })
+      .catch(() => { if (!cancelled) setQrError(true); });
+    return () => { cancelled = true; };
+  }, [trip.driverUpiId, trip.amountToCollect, trip.driverName, trip.id]);
+
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-bold text-slate-900 mb-1">Collect Payment</h2>
@@ -220,6 +252,25 @@ function PaymentsStep({ trip, onCollect, collecting }) {
         </p>
         <p className="text-3xl font-bold text-slate-900 mt-1">{formatCurrency(trip.amountToCollect)}</p>
       </div>
+
+      {trip.driverUpiId ? (
+        <div className="bg-white border border-slate-100 rounded-xl p-5 mb-4 text-center">
+          {qrDataUrl ? (
+            <>
+              <img src={qrDataUrl} alt="UPI payment QR" className="w-44 h-44 mx-auto rounded-lg" />
+              <p className="text-xs text-slate-400 mt-3">Ask the customer to scan &amp; pay {formatCurrency(trip.amountToCollect)} via any UPI app</p>
+            </>
+          ) : qrError ? (
+            <p className="text-xs text-danger">Couldn't generate the QR code — collect via UPI ID or cash instead.</p>
+          ) : (
+            <div className="w-44 h-44 mx-auto rounded-lg bg-slate-100 animate-pulse" />
+          )}
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-4 text-center">
+          <p className="text-xs text-amber-700">Add your UPI ID in Profile to show a scannable payment QR here next time.</p>
+        </div>
+      )}
 
       <div className="mt-auto space-y-3">
         <button

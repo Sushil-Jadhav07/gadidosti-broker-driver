@@ -288,6 +288,7 @@ export default function JobDetail() {
                 drop={{ location: booking.drop, lat: booking.dropLat, lng: booking.dropLng }}
                 currentLocation={booking.currentLat != null && booking.currentLng != null ? { lat: booking.currentLat, lng: booking.currentLng } : null}
                 stops={booking.stops || []}
+                isPrePickup={["Accepted", "Assigned", "En Route Pickup"].includes(booking.status)}
               />
             </div>
 
