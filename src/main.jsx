@@ -1,4 +1,4 @@
-﻿import { createRoot } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 
@@ -14,7 +14,8 @@ root.render(
   <App />
 );
 
-// Remove splash screen once React has painted
+// Remove splash screen once React has painted. loaderGif.gif loops infinitely on its own
+// (no artificial minimum hold needed) — it just keeps animating for as long as this is shown.
 requestAnimationFrame(() => {
   requestAnimationFrame(() => {
     const splash = document.getElementById("splash");

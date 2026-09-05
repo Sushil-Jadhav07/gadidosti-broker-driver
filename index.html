@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,32 +10,25 @@
     <style>
       #splash {
         position: fixed; inset: 0;
-        background: #041E42;
+        background: linear-gradient(160deg, #14532D 0%, #166534 55%, #16A34A 100%);
         display: flex; align-items: center; justify-content: center;
         z-index: 9999;
         transition: opacity 0.5s ease, visibility 0.5s ease;
         flex-direction: column; gap: 24px;
       }
       #splash.fade-out { opacity: 0; visibility: hidden; }
-      #splash img { height: 48px; filter: brightness(0) invert(1); animation: pulse-logo 1.5s ease-in-out infinite; }
-      #splash-spinner {
-        width: 36px; height: 36px;
-        border: 3px solid rgba(255,255,255,0.12);
-        border-top-color: #1976FF;
-        border-radius: 50%;
-        animation: spin 0.75s linear infinite;
-      }
-      #splash p { color: rgba(255,255,255,0.35); font-family: Inter, sans-serif; font-size: 13px; margin: 0; }
-      @keyframes spin { to { transform: rotate(360deg); } }
+      #splash-logo { height: 48px; filter: brightness(0) invert(1); animation: pulse-logo 1.5s ease-in-out infinite; }
+      /* loaderGif.gif is a wide 2304x720 banner, not a square icon — sized by height with
+         width auto so it keeps its real aspect ratio instead of being cropped into a circle. */
+      #splash-spinner { height: min(600px, 65vh); width: auto; max-width: 92vw; }
       @keyframes pulse-logo { 0%,100%{opacity:1} 50%{opacity:0.6} }
       body { margin: 0; background: #F1F5F9; }
     </style>
   </head>
   <body>
     <div id="splash">
-      <img src="/gadidost-logo.png" alt="GadiDost" />
-      <div id="splash-spinner"></div>
-      <p>Loading your dashboard...</p>
+      <img id="splash-logo" src="/gadidost-logo.png" alt="GadiDost" />
+      <img id="splash-spinner" src="/loaderGif.gif" alt="Loading" />
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

@@ -1,6 +1,7 @@
 ﻿import { useState, useRef, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import SplashLoader from "../components/SplashLoader";
 import {
   Truck, User, Eye, EyeOff, AlertCircle, Mail, Lock,
   ShieldCheck, IndianRupee, BarChart3, ArrowRight, CheckCircle,
@@ -30,6 +31,7 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
   const googleBtnRef = useRef(null);
 
   const { loginBroker, loginDriver, googleLogin } = useAuth();
@@ -55,14 +57,13 @@ export default function Login() {
     setGoogleLoading(true);
     try {
       const { user, needs_phone } = await googleLogin(credential, role);
-      navigate(user.role === "broker" ? "/broker" : "/driver");
       if (needs_phone) {
         // Phone is optional for Google users — they can add it in profile settings
         console.info("User signed in via Google without a phone number.");
       }
+      goToDashboard(user.role === "broker" ? "/broker" : "/driver");
     } catch (err) {
       setError(err.message || "Google Sign-In failed. Please try again.");
-    } finally {
       setGoogleLoading(false);
     }
   };
@@ -104,6 +105,13 @@ export default function Login() {
 
   const showGoogleBtn = GOOGLE_CLIENT_ID && !GOOGLE_CLIENT_ID.startsWith("your-");
 
+  // Shows the same full-screen loader as the app's boot splash for one full loop of
+  // loaderGif.gif before handing off to the dashboard, instead of jumping there instantly.
+  const goToDashboard = (path) => {
+    setTransitioning(true);
+    setTimeout(() => navigate(path), SPLASH_MIN_MS);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -111,17 +119,18 @@ export default function Login() {
     try {
       if (role === "broker") {
         await loginBroker(email, password);
-        navigate("/broker");
+        goToDashboard("/broker");
       } else {
         await loginDriver(email, password);
-        navigate("/driver");
+        goToDashboard("/driver");
       }
     } catch (err) {
       setError(err.message || "Login failed. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
+
+  if (transitioning) return <SplashLoader />;
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
