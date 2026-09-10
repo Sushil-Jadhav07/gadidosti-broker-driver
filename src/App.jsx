@@ -22,8 +22,6 @@ import JobHistory     from "./pages/broker/JobHistory";
 import JobDetail      from "./pages/broker/JobDetail";
 import TripHistoryPage from "./pages/broker/TripHistoryPage";
 import Earnings       from "./pages/broker/Earnings";
-import BrokerEarningsHistory from "./pages/broker/EarningsHistory";
-import Settlements    from "./pages/broker/Settlements";
 import KYCStatus      from "./pages/broker/KYCStatus";
 import BrokerProfile  from "./pages/broker/Profile";
 import Settings       from "./pages/broker/Settings";
@@ -158,8 +156,6 @@ export default function App() {
             <Route path="/job-history"  element={<PrivateRoute role="broker"><BrokerAppLayout><JobHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/job-history/:id" element={<PrivateRoute role="broker"><BrokerAppLayout><JobDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
-            <Route path="/earnings/history" element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerEarningsHistory /></BrokerAppLayout></PrivateRoute>} />
-            <Route path="/settlements"  element={<PrivateRoute role="broker"><BrokerAppLayout><Settlements /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats"        element={<PrivateRoute role="broker"><BrokerAppLayout><ChatList /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats/:bookingId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />

@@ -5,7 +5,7 @@ import NotificationBell from "../NotificationBell";
 import ChatBell from "../ChatBell";
 import {
   LayoutDashboard, Truck, Users, Inbox, UserCog, ClipboardList, History,
-  IndianRupee, Wallet, ShieldCheck, User, Settings,
+  IndianRupee, ShieldCheck, User, Settings,
   LogOut, X,
 } from "lucide-react";
 
@@ -23,8 +23,6 @@ const NAV = [
   {
     label: "FINANCE", items: [
       { label: "Earnings", icon: IndianRupee, path: "/earnings" },
-      { label: "Earnings History", icon: History, path: "/earnings/history" },
-      { label: "Settlements", icon: Wallet, path: "/settlements" },
     ],
   },
   {

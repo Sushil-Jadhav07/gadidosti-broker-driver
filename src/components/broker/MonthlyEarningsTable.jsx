@@ -1,5 +1,6 @@
 import { Fragment } from "react";
-import { Calendar, Route as RouteIcon, Wallet } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Calendar, Route as RouteIcon, Wallet, ChevronRight } from "lucide-react";
 import Badge from "./Badge";
 import { formatCurrency, formatDate, bookingRef } from "../../utils";
 
@@ -23,24 +24,30 @@ function groupByMonth(rows) {
 }
 
 export default function MonthlyEarningsTable({ rows = [] }) {
+  const navigate = useNavigate();
   const months = groupByMonth(rows);
 
   if (!rows.length) {
     return (
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-slate-400">
         <Wallet size={32} className="mx-auto mb-2 opacity-30" />
         No earnings found.
       </div>
     );
   }
 
+  const openBooking = (row) => {
+    const bookingId = row.booking_id || row.bookingId;
+    if (bookingId) navigate(`/job-history/${bookingId}`);
+  };
+
   return (
-    <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
+    <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
-              {["Booking", "Route", "Truck", "Driver", "Date", "Amount", "Platform Fee", "Net", "Status"].map((label) => (
+              {["Booking", "Route", "Truck", "Driver", "Date", "Amount", "Platform Fee", "Net", "Status", ""].map((label) => (
                 <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{label}</th>
               ))}
             </tr>
@@ -51,7 +58,7 @@ export default function MonthlyEarningsTable({ rows = [] }) {
               return (
                 <Fragment key={group.label}>
                   <tr className="bg-slate-50/80">
-                    <td colSpan={9} className="px-4 py-2.5">
+                    <td colSpan={10} className="px-4 py-2.5">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
@@ -63,16 +70,16 @@ export default function MonthlyEarningsTable({ rows = [] }) {
                     </td>
                   </tr>
                   {group.rows.map((row) => (
-                    <tr key={row.id} className="table-row">
+                    <tr key={row.id} onClick={() => openBooking(row)} className="table-row cursor-pointer">
                       <td className="px-4 py-3 font-mono text-xs text-slate-600 whitespace-nowrap">
                         {bookingRef({ bookingNumber: row.bookingNumber, bookingId: row.booking_id || row.bookingId })}
                       </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
+                      <td className="px-4 py-3 max-w-[260px]">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
                             <RouteIcon className="w-3.5 h-3.5 text-primary" />
                           </div>
-                          <span className="font-semibold text-slate-800">{row.route || "-"}</span>
+                          <span className="font-semibold text-slate-800 truncate" title={row.route || "-"}>{row.route || "-"}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{row.truck || "-"}</td>
@@ -83,6 +90,9 @@ export default function MonthlyEarningsTable({ rows = [] }) {
                       <td className="px-4 py-3 text-emerald-700 font-bold whitespace-nowrap">{formatCurrency(row.netEarnings)}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
                         <Badge variant={STATUS_BADGE[row.status] || "default"} size="sm">{row.status || "-"}</Badge>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-right">
+                        <ChevronRight size={15} className="text-slate-300" />
                       </td>
                     </tr>
                   ))}

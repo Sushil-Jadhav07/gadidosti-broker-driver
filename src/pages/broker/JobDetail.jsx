@@ -331,6 +331,11 @@ export default function JobDetail() {
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1"><IndianRupee size={11} /> Amount</p>
                   <p className="text-sm font-bold text-slate-800 mt-0.5">{formatCurrency(booking.amount)}</p>
+                  {booking.haltingCharge > 0 && (
+                    <p className="text-[10px] text-amber-600 font-medium mt-1">
+                      Incl. halting charge ({booking.haltingHours}h overage): {formatCurrency(booking.haltingCharge)}
+                    </p>
+                  )}
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Platform Fee</p>

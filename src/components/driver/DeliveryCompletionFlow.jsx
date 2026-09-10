@@ -251,6 +251,11 @@ function PaymentsStep({ trip, onCollect, collecting }) {
           {trip.paymentStatus === "partial" ? "Remaining Balance to Collect" : "Amount to Collect"}
         </p>
         <p className="text-3xl font-bold text-slate-900 mt-1">{formatCurrency(trip.amountToCollect)}</p>
+        {trip.haltingCharge > 0 && (
+          <p className="text-[11px] text-amber-600 font-medium mt-2">
+            Includes halting charge ({trip.haltingHours}h overage): {formatCurrency(trip.haltingCharge)} — already folded into the amount above
+          </p>
+        )}
       </div>
 
       {trip.driverUpiId ? (

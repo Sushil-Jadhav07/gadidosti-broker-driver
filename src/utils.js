@@ -112,6 +112,10 @@ export const adaptBooking = (booking) => ({
   amount: Number(booking.amount || 0),
   distance: Number(booking.distance || 0),
   createdAtLabel: formatDate(booking.createdAt || booking.date),
+  // Overage past the free halting window — already folded into `amount` above, kept as its
+  // own field so it can be shown as a breakdown line (see booking.controller.js).
+  haltingHours: Number(booking.haltingHours || 0),
+  haltingCharge: Number(booking.haltingCharge || 0),
 });
 
 // Keeps the raw backend status (e.g. "confirmed", "en_route_pickup") on rawStatus for
@@ -124,6 +128,10 @@ export const adaptTrip = (trip) => ({
   status: formatBookingStatus(trip.status),
   earnings: Number(trip.earnings || 0),
   distance: Number(trip.distance || 0),
+  // Overage past the free halting window, already folded into amountToCollect — kept as its
+  // own field so it can be shown as a breakdown line, not just a bigger total (see trip.controller.js).
+  haltingHours: Number(trip.haltingHours || 0),
+  haltingCharge: Number(trip.haltingCharge || 0),
 });
 
 export const adaptSettlement = (settlement) => ({

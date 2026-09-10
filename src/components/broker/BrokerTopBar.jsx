@@ -11,7 +11,6 @@ const PAGE = {
   "/active-jobs":  { title: "Active Jobs",       sub: "Jobs currently in progress" },
   "/job-history":  { title: "Job History",       sub: "Completed and cancelled bookings" },
   "/earnings":     { title: "Earnings",          sub: "Revenue breakdown and analytics" },
-  "/settlements":  { title: "Settlements",       sub: "Payouts and settlement history" },
   "/kyc":          { title: "KYC Status",        sub: "Document verification status" },
   "/profile":      { title: "Profile",           sub: "Your business and bank details" },
   "/settings":     { title: "Settings",          sub: "Account preferences" },

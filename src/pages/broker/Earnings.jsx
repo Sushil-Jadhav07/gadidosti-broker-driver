@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { IndianRupee, Wallet, TrendingUp, TrendingDown, Minus, ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { IndianRupee, Wallet, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import MonthlyEarningsTable from "../../components/broker/MonthlyEarningsTable";
 import { api, getToken } from "../../services/api";
 import { adaptSettlement, formatCurrency } from "../../utils";
 
 const STAT_CARDS = [
-  { key: "gross", label: "Gross Revenue", icon: IndianRupee, iconBg: "bg-primary/10", iconColor: "text-primary" },
-  { key: "fees", label: "Platform Fees", icon: Wallet, iconBg: "bg-red-50", iconColor: "text-red-500" },
-  { key: "net", label: "Net Earnings", icon: TrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600" },
+  { key: "gross", label: "Gross Revenue", icon: IndianRupee, iconBg: "bg-primary/10", iconColor: "text-primary", blob: "bg-primary" },
+  { key: "fees", label: "Platform Fees", icon: Wallet, iconBg: "bg-red-50", iconColor: "text-red-500", blob: "bg-red-500" },
+  { key: "net", label: "Net Earnings", icon: TrendingUp, iconBg: "bg-emerald-50", iconColor: "text-emerald-600", blob: "bg-emerald-500" },
 ];
 
 export default function Earnings() {
@@ -43,6 +42,8 @@ export default function Earnings() {
   const totalNet = useMemo(() => rows.reduce((sum, row) => sum + row.netEarnings, 0), [rows]);
   const values = { gross: totalGross, fees: totalFees, net: totalNet };
 
+  const comparisonMax = Math.max(analytics.thisMonth, analytics.lastMonth, 1);
+
   const monthChangePct = analytics.lastMonth > 0
     ? Math.round(((analytics.thisMonth - analytics.lastMonth) / analytics.lastMonth) * 100)
     : null;
@@ -51,45 +52,41 @@ export default function Earnings() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Earnings</h1>
-          <p className="text-sm text-slate-500 mt-1">Broker revenue and settlement performance.</p>
-        </div>
-        <Link to="/earnings/history" className="text-sm font-semibold text-primary hover:underline flex items-center gap-1">
-          View history <ArrowRight size={14} />
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900">Earnings</h1>
+        <p className="text-sm text-slate-500 mt-1">Broker revenue and settlement performance.</p>
       </div>
 
       {loading ? (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading earnings...</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading earnings...</div>
       ) : error ? (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
       ) : (
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {STAT_CARDS.map((card) => (
-              <div key={card.key} className="bg-white rounded-xl border border-slate-100 shadow-card p-5 hover:shadow-lg transition-shadow">
-                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center mb-3`}>
+              <div key={card.key} className="bg-white rounded-2xl border border-slate-100 shadow-card p-5 relative overflow-hidden hover:shadow-md transition-shadow">
+                <div className={`absolute -top-6 -right-6 w-20 h-20 rounded-full opacity-[0.06] ${card.blob}`} />
+                <div className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center mb-3 relative`}>
                   <card.icon className={`w-5 h-5 ${card.iconColor}`} />
                 </div>
-                <p className="text-sm text-slate-500">{card.label}</p>
-                <p className="text-2xl font-bold text-slate-900 mt-1">{formatCurrency(values[card.key])}</p>
+                <p className="text-[13px] text-slate-500 font-medium relative">{card.label}</p>
+                <p className="text-2xl font-bold text-slate-900 mt-0.5 font-mono tracking-tight relative">{formatCurrency(values[card.key])}</p>
               </div>
             ))}
           </div>
 
-          <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-3">Monthly Comparison</p>
-            <div className="flex items-center gap-6 flex-wrap">
+            <div className="flex items-center gap-6 flex-wrap mb-3">
               <div>
                 <p className="text-xs text-slate-400">This Month</p>
-                <p className="text-xl font-bold text-slate-900 mt-0.5">{formatCurrency(analytics.thisMonth)}</p>
+                <p className="text-xl font-bold text-slate-900 mt-0.5 font-mono">{formatCurrency(analytics.thisMonth)}</p>
               </div>
               <div className="h-10 w-px bg-slate-100 hidden sm:block" />
               <div>
                 <p className="text-xs text-slate-400">Last Month</p>
-                <p className="text-xl font-bold text-slate-500 mt-0.5">{formatCurrency(analytics.lastMonth)}</p>
+                <p className="text-xl font-bold text-slate-500 mt-0.5 font-mono">{formatCurrency(analytics.lastMonth)}</p>
               </div>
               {monthChangePct != null && (
                 <div className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${trendColor} ${
@@ -100,14 +97,17 @@ export default function Earnings() {
                 </div>
               )}
             </div>
+            <div className="space-y-1.5">
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${(analytics.thisMonth / comparisonMax) * 100}%` }} />
+              </div>
+              <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full rounded-full bg-slate-300" style={{ width: `${(analytics.lastMonth / comparisonMax) * 100}%` }} />
+              </div>
+            </div>
           </div>
 
-          <MonthlyEarningsTable rows={rows.slice(0, 10)} />
-          {rows.length > 10 && (
-            <div className="text-center">
-              <Link to="/earnings/history" className="text-sm font-semibold text-primary hover:underline">Show More</Link>
-            </div>
-          )}
+          <MonthlyEarningsTable rows={rows} />
         </>
       )}
     </div>

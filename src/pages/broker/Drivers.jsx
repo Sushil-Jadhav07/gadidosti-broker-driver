@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Eye, ShieldCheck, ShieldAlert, Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2, UserPlus, Copy, Edit2, ArrowUpRight } from "lucide-react";
+import {
+  Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2,
+  UserPlus, Copy, Edit2, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight,
+  Phone, Truck as TruckIcon,
+} from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
@@ -12,6 +16,9 @@ import { api, getToken } from "../../services/api";
 import { formatKycStatus, formatDate } from "../../utils";
 
 const KYC_VARIANT = { Verified: "success", Pending: "warning", Rejected: "danger", Submitted: "warning" };
+const AVAILABILITY_VARIANT = { available: "success", on_trip: "primary", offline: "default" };
+const AVAILABILITY_LABEL = { available: "Available", on_trip: "On Trip", offline: "Offline" };
+const ITEMS_PER_PAGE = 9;
 
 const EMPTY_FORM = {
   lookupPhone: "",
@@ -72,6 +79,21 @@ const ddMmYyyyToIso = (digits) => {
 
 const formatDateDigits = (digits) => [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter(Boolean).join("/");
 
+const isLicenseExpiring = (dateStr) => {
+  if (!dateStr) return false;
+  const daysLeft = (new Date(dateStr) - new Date()) / (1000 * 60 * 60 * 24);
+  return daysLeft < 60;
+};
+
+const DriverAvatar = ({ driver, size = "w-10 h-10" }) => {
+  const initials = (driver.name || "?").split(" ").filter(Boolean).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  return (
+    <div className={`${size} rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0`}>
+      <span className="text-primary font-bold text-xs">{initials || "D"}</span>
+    </div>
+  );
+};
+
 // Plain text input formatted as dd/mm/yyyy. The native <input type="date"> renders its display
 // format from the browser/OS locale rather than anything we control, so digits are captured
 // directly here and converted to/from the yyyy-mm-dd string the API expects. Modal unmounts its
@@ -102,12 +124,15 @@ export default function Drivers() {
   const navigate = useNavigate();
   const { addToast } = useToast();
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("All");
+  const [kycFilter, setKycFilter] = useState("All");
+  const [viewMode, setViewMode] = useState("grid");
+  const [currentPage, setCurrentPage] = useState(1);
   const [selected, setSelected] = useState(null);
   const [drivers, setDrivers] = useState([]);
   const [trucks, setTrucks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showMap, setShowMap] = useState(false);
 
   const [showAdd, setShowAdd] = useState(false);
   const [addMode, setAddMode] = useState("link"); // "link" | "register"
@@ -152,16 +177,33 @@ export default function Drivers() {
 
   useEffect(() => { loadAll(); }, []);
 
+  useEffect(() => {
+    if (!selected && drivers.length) setSelected(drivers[0]);
+  }, [drivers, selected]);
+
+  const kycCounts = useMemo(() => {
+    const counts = { Verified: 0, Pending: 0, Submitted: 0 };
+    drivers.forEach((driver) => {
+      const status = formatKycStatus(driver.kycStatus || driver.kyc_status);
+      if (counts[status] !== undefined) counts[status] += 1;
+    });
+    return counts;
+  }, [drivers]);
+
   const filtered = useMemo(() => drivers.filter((driver) => {
     const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
     const matchSearch = driver.name?.toLowerCase().includes(search.toLowerCase()) || driver.phone?.includes(search);
-    const matchFilter = filter === "All" || kycStatus === filter;
+    const matchFilter = kycFilter === "All" || kycStatus === kycFilter;
     return matchSearch && matchFilter;
-  }), [drivers, filter, search]);
+  }), [drivers, kycFilter, search]);
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   // Fleet map markers — only drivers with a known last-reported location (current_lat/lng,
   // kept fresh via PATCH /api/vehicles/drivers/me/location) show up on the map; the rest are
-  // still visible in the table below, just without a pin.
+  // still visible in the list below, just without a pin.
   const fleetMarkers = useMemo(() => drivers
     .filter((driver) => driver.currentLat != null && driver.currentLng != null)
     .map((driver) => ({
@@ -321,7 +363,6 @@ export default function Drivers() {
     });
     setEditAadhaarDigits("");
     setEditErrors({});
-    setSelected(null);
   };
 
   const validateEdit = () => {
@@ -371,6 +412,7 @@ export default function Drivers() {
       const res = await api.delete(`/api/vehicles/drivers/${id}`, null, getToken());
       if (!res.success) throw new Error(res.message || "Failed to remove driver");
       addToast("Driver removed from your fleet.", "success");
+      if (selected?.id === deleteTarget.id) setSelected(null);
       setDeleteTarget(null);
       loadAll();
     } catch (err) {
@@ -382,126 +424,221 @@ export default function Drivers() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <input type="text" placeholder="Search by name or phone..." value={search} onChange={(event) => setSearch(event.target.value)} className="input-field px-3 py-2 max-w-xs" />
-        <div className="flex items-center gap-2">
-          {["All", "Verified", "Pending", "Submitted"].map((value) => (
-            <button key={value} onClick={() => setFilter(value)} className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filter === value ? "bg-primary text-white" : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>{value}</button>
-          ))}
-          <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm flex items-center gap-2"><Plus size={15} /> Add Driver</button>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold text-slate-900">Drivers</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Manage drivers and monitor their availability</p>
         </div>
+        <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm flex items-center gap-2 flex-shrink-0"><Plus size={15} /> Add Driver</button>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
-        <h3 className="font-bold text-slate-900 text-[15px] mb-4">Fleet Map</h3>
-        {loading ? (
-          <div className="h-[320px] flex items-center justify-center text-slate-400 text-sm">Loading drivers...</div>
-        ) : error ? (
-          <div className="h-[320px] flex items-center justify-center text-red-500 text-sm">{error}</div>
-        ) : fleetMarkers.length ? (
-          <div className="relative h-[320px] rounded-xl overflow-hidden border border-slate-100">
-            <MapView markers={fleetMarkers} height="100%" className="absolute inset-0" />
-          </div>
-        ) : (
-          <div className="h-[320px] flex flex-col items-center justify-center text-slate-400 text-sm">
-            <Users size={28} className="mb-2 opacity-30" />
-            No drivers currently reporting a location
-          </div>
-        )}
-      </div>
-
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100">
-                {["Driver", "Phone", "License No.", "KYC", "Assigned Truck", "Trips", "License Expiry", ""].map((heading) => (
-                  <th key={heading} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{heading}</th>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
+        <div className="lg:col-span-2 space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap gap-1.5">
+                {["All", "Verified", "Pending", "Submitted"].map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => { setKycFilter(value); setCurrentPage(1); }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${kycFilter === value ? "bg-primary text-white" : "text-slate-500 border border-transparent hover:bg-slate-50"}`}
+                  >
+                    {value === "All" ? `All (${drivers.length})` : `${value} (${kycCounts[value] || 0})`}
+                  </button>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400">Loading drivers...</td></tr>
-              )}
-              {!loading && error && (
-                <tr><td colSpan={8} className="px-4 py-10 text-center text-red-500">{error}</td></tr>
-              )}
-              {!loading && !error && filtered.map((driver) => {
-                const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
-                return (
-                  <tr key={driver.id || driver.user_id} className="table-row">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0"><span className="text-primary font-bold text-xs">{driver.name?.[0] || "D"}</span></div>
-                        <span className="font-semibold text-slate-800">{driver.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-600">{driver.phone}</td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{driver.licenseNo || driver.license_no || "-"}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1.5">
-                        {kycStatus === "Verified" ? <ShieldCheck size={13} className="text-emerald-500" /> : <ShieldAlert size={13} className="text-amber-500" />}
-                        <Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-slate-600">{driver.truckReg || driver.truck_reg || "-"}</td>
-                    <td className="px-4 py-3 text-slate-600">{driver.totalTrips || driver.total_trips || 0}</td>
-                    <td className="px-4 py-3 text-slate-600">{formatDate(driver.licenseExpiry || driver.license_expiry)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setSelected(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Eye size={14} /></button>
-                        <button onClick={() => openEdit(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/5 transition-all"><Edit2 size={14} /></button>
-                        <button onClick={() => setDeleteTarget(driver)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-all"><Trash2 size={14} /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-              {!loading && !error && !filtered.length && <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <Modal isOpen={!!selected} onClose={() => setSelected(null)} title="Driver Details" size="sm">
-        {selected && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                ["Driver", selected.name],
-                ["Phone", selected.phone],
-                ["License No.", selected.licenseNo || selected.license_no],
-                ["Aadhaar", selected.aadhaar],
-                ["License Expiry", formatDate(selected.licenseExpiry || selected.license_expiry)],
-                ["Assigned Truck", selected.truckReg || selected.truck_reg],
-                ["Total Trips", selected.totalTrips || selected.total_trips],
-                ["Status", selected.status],
-              ].map(([label, value]) => (
-                <div key={label} className="bg-slate-50 rounded-xl p-3">
-                  <p className="text-[11px] text-slate-400 font-semibold mb-0.5">{label}</p>
-                  <p className="text-sm font-semibold text-slate-800">{value || "-"}</p>
-                </div>
-              ))}
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Trip History</p>
-                <button
-                  onClick={() => navigate(`/drivers/${selected.id || selected.user_id}/history`)}
-                  className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
-                >
-                  View full history <ArrowUpRight size={11} />
-                </button>
               </div>
-              <TripHistoryList driverId={selected.id || selected.user_id} />
-            </div>
-            <div className="flex justify-end">
-              <button onClick={() => openEdit(selected)} className="btn-primary px-4 py-2 text-sm flex items-center gap-2"><Edit2 size={14} /> Edit</button>
+              <div className="relative flex-1 min-w-[200px]">
+                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={search}
+                  onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }}
+                  className="input-field pl-9 pr-3 py-2 w-full"
+                />
+              </div>
+              <button
+                onClick={() => setShowMap((v) => !v)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${showMap ? "bg-primary/10 text-primary border-primary/20" : "text-slate-500 border-slate-200 hover:bg-slate-50"}`}
+              >
+                Fleet Map
+              </button>
+              <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-shrink-0">
+                <button onClick={() => setViewMode("grid")} aria-label="Grid view" className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}><LayoutGrid size={16} /></button>
+                <button onClick={() => setViewMode("list")} aria-label="List view" className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}><List size={16} /></button>
+              </div>
             </div>
           </div>
-        )}
-      </Modal>
+
+          {showMap && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-4">
+              {fleetMarkers.length ? (
+                <div className="relative h-[280px] rounded-xl overflow-hidden border border-slate-100">
+                  <MapView markers={fleetMarkers} height="100%" className="absolute inset-0" />
+                </div>
+              ) : (
+                <div className="h-[200px] flex flex-col items-center justify-center text-slate-400 text-sm">
+                  <Users size={28} className="mb-2 opacity-30" />
+                  No drivers currently reporting a location
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-4 text-sm text-red-500 flex items-center gap-2">
+              <span>{error}</span>
+              <button onClick={loadAll} className="underline">Retry</button>
+            </div>
+          )}
+
+          {loading ? (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-10 flex justify-center">
+              <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+            </div>
+          ) : (
+            <>
+              {viewMode === "grid" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {paginated.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-slate-400 sm:col-span-2 xl:col-span-3">
+                      <Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found
+                    </div>
+                  ) : paginated.map((driver) => {
+                    const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
+                    const isSelected = (selected?.id || selected?.user_id) === (driver.id || driver.user_id);
+                    return (
+                      <button
+                        key={driver.id || driver.user_id}
+                        onClick={() => setSelected(driver)}
+                        className={`bg-white rounded-2xl border shadow-card p-4 text-left transition-all duration-200 ${
+                          isSelected ? "border-primary/40 ring-2 ring-primary/20" : "border-slate-100 hover:shadow-md hover:-translate-y-0.5"
+                        }`}
+                      >
+                        <div className="flex flex-col items-center text-center">
+                          <DriverAvatar driver={driver} size="w-14 h-14" />
+                          <h3 className="font-bold text-slate-900 mt-2.5 truncate w-full">{driver.name}</h3>
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge>
+                            <Badge variant={AVAILABILITY_VARIANT[driver.status] || "default"} size="sm">{AVAILABILITY_LABEL[driver.status] || driver.status}</Badge>
+                          </div>
+                        </div>
+                        <div className="space-y-1.5 mt-3 text-xs text-slate-500">
+                          <div className="flex items-center gap-2"><Phone size={12} className="flex-shrink-0 text-slate-400" /><span className="truncate">{driver.phone || "-"}</span></div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3 bg-slate-50 rounded-lg px-3 py-2">
+                          <TruckIcon size={13} className="text-slate-400 flex-shrink-0" />
+                          <span className="text-xs text-slate-600 truncate">{driver.truckReg || driver.truck_reg || "No assigned vehicle"}</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          {["Driver", "Phone", "License No.", "KYC", "Status", "Assigned Truck", "Trips"].map((heading) => (
+                            <th key={heading} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{heading}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {paginated.length === 0 ? (
+                          <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found</td></tr>
+                        ) : paginated.map((driver) => {
+                          const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
+                          const isSelected = (selected?.id || selected?.user_id) === (driver.id || driver.user_id);
+                          return (
+                            <tr key={driver.id || driver.user_id} onClick={() => setSelected(driver)} className={`table-row cursor-pointer ${isSelected ? "bg-primary/[0.04]" : ""}`}>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-3">
+                                  <DriverAvatar driver={driver} size="w-8 h-8" />
+                                  <span className="font-semibold text-slate-800">{driver.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 text-slate-600">{driver.phone}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-slate-500">{driver.licenseNo || driver.license_no || "-"}</td>
+                              <td className="px-4 py-3"><Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge></td>
+                              <td className="px-4 py-3"><Badge variant={AVAILABILITY_VARIANT[driver.status] || "default"} size="sm">{AVAILABILITY_LABEL[driver.status] || driver.status}</Badge></td>
+                              <td className="px-4 py-3 font-mono text-xs text-slate-600">{driver.truckReg || driver.truck_reg || "-"}</td>
+                              <td className="px-4 py-3 text-slate-600">{driver.totalTrips || driver.total_trips || 0}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-1 py-1 flex-wrap gap-3">
+                  <p className="text-sm text-slate-500">Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filtered.length)} of {filtered.length} drivers</p>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"><ChevronLeft size={16} /></button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button key={page} onClick={() => setCurrentPage(page)} className={`w-8 h-8 rounded-lg text-sm font-medium transition-colors ${currentPage === page ? "bg-primary text-white" : "text-slate-600 hover:bg-slate-100"}`}>{page}</button>
+                    ))}
+                    <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"><ChevronRight size={16} /></button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-4 lg:sticky lg:top-4">
+          <h3 className="font-bold text-slate-900 text-[15px] mb-4">Driver Details</h3>
+          {!selected ? (
+            <p className="text-sm text-slate-400 text-center py-10">Select a driver to see their details.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <DriverAvatar driver={selected} size="w-14 h-14" />
+                <div className="min-w-0">
+                  <h4 className="font-bold text-slate-900 truncate">{selected.name}</h4>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <Badge variant={KYC_VARIANT[formatKycStatus(selected.kycStatus || selected.kyc_status)] || "default"} size="sm">{formatKycStatus(selected.kycStatus || selected.kyc_status)}</Badge>
+                    <Badge variant={AVAILABILITY_VARIANT[selected.status] || "default"} size="sm">{AVAILABILITY_LABEL[selected.status] || selected.status}</Badge>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 space-y-3 text-sm">
+                <div className="flex justify-between items-center"><span className="text-slate-500">Phone</span>{selected.phone ? <a href={`tel:${selected.phone}`} className="font-medium text-primary hover:underline flex items-center gap-1"><Phone size={12} />{selected.phone}</a> : <span className="font-medium">-</span>}</div>
+                <div className="flex justify-between"><span className="text-slate-500">License No.</span><span className="font-medium">{selected.licenseNo || selected.license_no || "-"}</span></div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500">License Expiry</span>
+                  <span className={`font-medium ${isLicenseExpiring(selected.licenseExpiry || selected.license_expiry) ? "text-red-500" : ""}`}>{formatDate(selected.licenseExpiry || selected.license_expiry)}</span>
+                </div>
+                <div className="flex justify-between"><span className="text-slate-500">Aadhaar</span><span className="font-medium">{selected.aadhaar || "-"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Assigned Truck</span><span className="font-medium">{selected.truckReg || selected.truck_reg || "-"}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Total Trips</span><span className="font-medium">{selected.totalTrips || selected.total_trips || 0}</span></div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Trip History</p>
+                  <button
+                    onClick={() => navigate(`/drivers/${selected.id || selected.user_id}/history`)}
+                    className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline"
+                  >
+                    View full history <ArrowUpRight size={11} />
+                  </button>
+                </div>
+                <TripHistoryList driverId={selected.id || selected.user_id} />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                <button onClick={() => openEdit(selected)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-semibold"><Edit2 size={13} /> Edit</button>
+                <button onClick={() => setDeleteTarget(selected)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-colors text-sm font-semibold"><Trash2 size={13} /> Remove</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
 
       <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Driver" size="md">
         {editTarget && (

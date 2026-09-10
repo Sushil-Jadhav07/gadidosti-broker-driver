@@ -168,10 +168,10 @@ export default function Profile() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
       {/* Left — profile card, same dark-navy treatment as the client app */}
       <div className="lg:col-span-1 space-y-5">
-        <div className="bg-secondary rounded-2xl overflow-hidden relative">
+        <div className="bg-gradient-to-br from-primary to-primary-dark rounded-2xl overflow-hidden relative">
           <div
-            className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-15"
-            style={{ background: "radial-gradient(circle, rgba(25,118,255,0.5) 0%, transparent 70%)" }}
+            className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-20"
+            style={{ background: "radial-gradient(circle, rgba(23,216,107,0.6) 0%, transparent 70%)" }}
           />
           <div className="relative z-10 p-6 text-center">
             <div className="w-20 h-20 rounded-full bg-primary/25 border-[3px] border-primary/40 flex items-center justify-center shadow-lg shadow-primary/30 mx-auto mb-4">
