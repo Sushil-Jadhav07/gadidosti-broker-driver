@@ -371,7 +371,19 @@ export default function JobRequests() {
             <p className="text-sm text-slate-500">Booking <span className="font-mono text-slate-700">{bookingRef(assignRequest)}</span> — pick an available driver and truck to create the trip.</p>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Driver</label>
-              <DriverDropdown drivers={drivers} value={assignForm.driverId} onChange={(id) => setAssignForm((f) => ({ ...f, driverId: id }))} placeholder="Select driver" />
+              <DriverDropdown
+                drivers={drivers}
+                value={assignForm.driverId}
+                onChange={(id) => {
+                  // Each driver already has (at most) one linked truck — auto-fill it instead
+                  // of making the broker separately hunt for the same truck in the second
+                  // dropdown right after picking its driver. Still overridable: this only sets
+                  // the default, the Truck dropdown itself is untouched otherwise.
+                  const driver = drivers.find((d) => (d.id || d.user_id) === id);
+                  setAssignForm((f) => ({ ...f, driverId: id, truckId: driver?.truckId || f.truckId }));
+                }}
+                placeholder="Select driver"
+              />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><Truck size={13} /> Truck</label>
