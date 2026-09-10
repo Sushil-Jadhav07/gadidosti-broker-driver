@@ -1,9 +1,19 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { registerFcmToken, subscribeToForegroundMessages } from "../lib/fcm";
 import { routeForNotification } from "../lib/notificationRoutes";
+import { api, getToken } from "../services/api";
+import { adaptDriverRequest } from "../utils";
+import NewRequestPopup from "./driver/NewRequestPopup";
+
+// The exact title gadidosti-backend's booking.controller.js sends for a brand-new
+// driver_requests row (both the single direct-pick flow and each row of a "Find Truck" radius
+// broadcast use this same literal string) — used below to pick this one push out of every other
+// 'booking'-type push a driver can receive (status updates, "driver not responding", etc., none
+// of which warrant a popup) without needing a dedicated push type of its own.
+const NEW_DRIVER_REQUEST_TITLE = "New Booking Request";
 
 // Mounted once near the root (inside the router, auth, and toast providers — see App.jsx) so
 // push notifications work regardless of which page is currently showing. Renders nothing;
@@ -21,6 +31,9 @@ export default function FcmBridge() {
   const { addToast } = useToast();
   const navigate = useNavigate();
   const registeredForUserRef = useRef(null);
+  // A brand-new driver_requests row — shown as a proper modal (see NewRequestPopup) instead of
+  // the generic corner toast below, since this is time-sensitive and easy to miss as a toast.
+  const [newRequest, setNewRequest] = useState(null);
 
   useEffect(() => {
     const accessToken = user?.tokens?.access_token;
@@ -35,9 +48,25 @@ export default function FcmBridge() {
     let unsubscribe = () => {};
     // Foreground pushes just surface as a toast + refresh the bell's unread count — the user
     // is already looking at the app, so nothing is force-navigated (unlike a background tap,
-    // which only happens because they deliberately clicked the tray notification).
+    // which only happens because they deliberately clicked the tray notification). Exception:
+    // a driver's brand-new booking request gets the popup below instead of a toast.
     subscribeToForegroundMessages((payload) => {
-      const { notification } = payload || {};
+      const { notification, data } = payload || {};
+
+      if (user.role === "driver" && notification?.title === NEW_DRIVER_REQUEST_TITLE && data?.driver_request_id) {
+        api.get(`/api/driver-requests/${data.driver_request_id}`, getToken())
+          .then((res) => {
+            if (res?.success && res.data?.request) setNewRequest(adaptDriverRequest(res.data.request));
+          })
+          .catch(() => {
+            // Fall back to the plain toast if the fetch fails (request already actioned/
+            // expired, network hiccup, etc.) rather than showing nothing at all.
+            addToast(`${notification.title}${notification.body ? ` — ${notification.body}` : ""}`, "info", 6000);
+          });
+        window.dispatchEvent(new CustomEvent("notifications:refresh"));
+        return;
+      }
+
       if (notification?.title) {
         addToast(`${notification.title}${notification.body ? ` — ${notification.body}` : ""}`, "info", 6000);
       }
@@ -81,5 +110,11 @@ export default function FcmBridge() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  return null;
+  return (
+    <NewRequestPopup
+      request={newRequest}
+      onClose={() => setNewRequest(null)}
+      onReview={() => { setNewRequest(null); navigate("/driver/requests"); }}
+    />
+  );
 }
