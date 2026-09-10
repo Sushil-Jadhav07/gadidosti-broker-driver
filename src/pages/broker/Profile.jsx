@@ -55,10 +55,11 @@ export default function Profile() {
 
   // Backend-modeled fields
   const [form, setForm] = useState({ name: "", email: "", address: "", company_name: "" });
-  // Local-only fields (not backend-modeled yet) — GST and bank details are NOT here since
-  // those are already modeled, under gst_number/bank_account_number, in the KYC submission
-  // (see kycDocs below) — showing a second, unsaved copy of the same data was the bug.
+  // city IS backend-modeled — broker_profiles.service_city, via GET/PATCH /api/broker/*
+  // below — it's what narrows which new bookings this broker gets broadcast (or shown to a
+  // client picking a broker) for. state/pincode still aren't modeled anywhere; local-only.
   const [extra, setExtra] = useState({ city: "", state: "", pincode: "" });
+  const [savingCity, setSavingCity] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
 
@@ -73,12 +74,13 @@ export default function Profile() {
       setLoading(true);
       setError(null);
       try {
-        const [profileRes, kycRes, truckRes, driverRes, analyticsRes] = await Promise.all([
+        const [profileRes, kycRes, truckRes, driverRes, analyticsRes, brokerProfileRes] = await Promise.all([
           api.get("/api/users/profile", getToken()),
           api.get("/api/kyc/status", getToken()),
           api.get("/api/vehicles/trucks?limit=100", getToken()),
           api.get("/api/vehicles/drivers?limit=100", getToken()),
           api.get("/api/analytics/broker", getToken()),
+          api.get("/api/broker/profile", getToken()),
         ]);
         const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
@@ -89,6 +91,9 @@ export default function Profile() {
           company_name: data.company_name || "",
         });
         if (kycRes.success) setKycDocs(kycRes.data?.submission?.documents || null);
+        if (brokerProfileRes.success) {
+          setExtra((x) => ({ ...x, city: brokerProfileRes.data?.profile?.serviceCity || "" }));
+        }
         const history = analyticsRes.data?.tripHistory || [];
         setStats({
           trucks: (truckRes.data?.trucks || []).length,
@@ -148,8 +153,21 @@ export default function Profile() {
     }
   };
 
-  const handleSaveExtra = () => {
-    addToast("Saved locally — address details aren't stored on the server yet.", "warning");
+  const handleSaveExtra = async () => {
+    if (!extra.city.trim()) {
+      addToast("Enter a service city first.", "error");
+      return;
+    }
+    setSavingCity(true);
+    try {
+      const res = await api.patch("/api/broker/service-city", { service_city: extra.city.trim() }, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to save service city");
+      addToast("Service city saved.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to save service city.", "error");
+    } finally {
+      setSavingCity(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -269,14 +287,16 @@ export default function Profile() {
               <div className="space-y-3 pt-3">
                 <Field label="Address" icon={MapPin} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
                 <div className="grid grid-cols-2 gap-3">
-                  <Field label="City" value={extra.city} onChange={(e) => setExtra((x) => ({ ...x, city: e.target.value }))} />
+                  <Field label="Service City" value={extra.city} onChange={(e) => setExtra((x) => ({ ...x, city: e.target.value }))} placeholder="e.g. Mumbai" />
                   <Field label="State" value={extra.state} onChange={(e) => setExtra((x) => ({ ...x, state: e.target.value }))} />
                 </div>
                 <Field label="Pincode" value={extra.pincode} onChange={(e) => setExtra((x) => ({ ...x, pincode: e.target.value }))} />
-                <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700">
-                  City/state/pincode aren't backend-modeled yet — saved locally only.
+                <div className="flex items-start gap-2 bg-primary-50 border border-primary/20 rounded-lg px-3 py-2 text-xs text-slate-600">
+                  Service City decides which new bookings you get notified about — set it to the city you operate in. State/pincode aren't backend-modeled yet, saved locally only.
                 </div>
-                <button onClick={handleSaveExtra} className="btn-ghost px-4 py-2.5 text-sm border border-slate-200">Save</button>
+                <button onClick={handleSaveExtra} disabled={savingCity} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
+                  <Save size={14} /> {savingCity ? "Saving..." : "Save"}
+                </button>
               </div>
             </AccordionRow>
 
