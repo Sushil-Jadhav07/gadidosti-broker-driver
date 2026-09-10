@@ -218,16 +218,28 @@ const buildUpiIntent = ({ upiId, payeeName, amount, note }) => (
 function PaymentsStep({ trip, onCollect, collecting }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(false);
+  // Which QR to show is the driver's own call, made fresh for every collection — not a saved
+  // preference. Defaults to "personal" (today's only behavior) and is only ever offered as a
+  // choice when both are configured; see hasPersonalUpi/hasCompanyUpi below.
+  const [qrSource, setQrSource] = useState("personal");
+
+  const hasPersonalUpi = !!trip.driverUpiId;
+  const hasCompanyUpi = !!trip.companyUpiId;
+  // If only one side is configured, use it regardless of qrSource — no toggle is rendered in
+  // that case, so there's nothing for the driver to have chosen.
+  const activeSource = hasPersonalUpi && hasCompanyUpi ? qrSource : hasCompanyUpi ? "company" : "personal";
+  const activeUpiId = activeSource === "company" ? trip.companyUpiId : trip.driverUpiId;
+  const activePayeeName = activeSource === "company" ? (trip.companyUpiName || "GadiDost Logistics") : (trip.driverName || "Driver");
 
   useEffect(() => {
-    if (!trip.driverUpiId || !trip.amountToCollect) {
+    if (!activeUpiId || !trip.amountToCollect) {
       setQrDataUrl(null);
       return undefined;
     }
     let cancelled = false;
     const upiUrl = buildUpiIntent({
-      upiId: trip.driverUpiId,
-      payeeName: trip.driverName || "Driver",
+      upiId: activeUpiId,
+      payeeName: activePayeeName,
       amount: trip.amountToCollect,
       note: `Payment for ${bookingRef(trip)}`,
     });
@@ -235,7 +247,7 @@ function PaymentsStep({ trip, onCollect, collecting }) {
       .then((url) => { if (!cancelled) { setQrDataUrl(url); setQrError(false); } })
       .catch(() => { if (!cancelled) setQrError(true); });
     return () => { cancelled = true; };
-  }, [trip.driverUpiId, trip.amountToCollect, trip.driverName, trip.id]);
+  }, [activeUpiId, activePayeeName, trip.amountToCollect, trip.id]);
 
   return (
     <div className="flex flex-col h-full">
@@ -258,8 +270,24 @@ function PaymentsStep({ trip, onCollect, collecting }) {
         )}
       </div>
 
-      {trip.driverUpiId ? (
+      {hasPersonalUpi || hasCompanyUpi ? (
         <div className="bg-white border border-slate-100 rounded-xl p-5 mb-4 text-center">
+          {hasPersonalUpi && hasCompanyUpi && (
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-4">
+              <button
+                onClick={() => setQrSource("personal")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${qrSource === "personal" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Personal QR
+              </button>
+              <button
+                onClick={() => setQrSource("company")}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${qrSource === "company" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+              >
+                Company QR
+              </button>
+            </div>
+          )}
           {qrDataUrl ? (
             <>
               <img src={qrDataUrl} alt="UPI payment QR" className="w-44 h-44 mx-auto rounded-lg" />
