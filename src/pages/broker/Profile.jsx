@@ -153,6 +153,11 @@ export default function Profile() {
     }
   };
 
+  // Saves everything shown in this "Address" section together — the Address field itself
+  // (via PATCH /api/users/profile, same endpoint handleSaveProfile above uses) previously had
+  // no save path of its own at all: this button only ever persisted service_city, so an edit to
+  // Address here silently did nothing and reverted on the next reload. State/pincode still
+  // aren't backend-modeled anywhere, so they stay local-only.
   const handleSaveExtra = async () => {
     if (!extra.city.trim()) {
       addToast("Enter a service city first.", "error");
@@ -160,11 +165,18 @@ export default function Profile() {
     }
     setSavingCity(true);
     try {
-      const res = await api.patch("/api/broker/service-city", { service_city: extra.city.trim() }, getToken());
-      if (!res.success) throw new Error(res.message || "Failed to save service city");
-      addToast("Service city saved.", "success");
+      const [addressRes, cityRes] = await Promise.all([
+        api.patch("/api/users/profile", { address: form.address }, getToken()),
+        api.patch("/api/broker/service-city", { service_city: extra.city.trim() }, getToken()),
+      ]);
+      if (!addressRes.success) throw new Error(addressRes.message || "Failed to save address");
+      if (!cityRes.success) throw new Error(cityRes.message || "Failed to save service city");
+      const updatedUser = addressRes.data?.user || addressRes.data || {};
+      setProfile((p) => ({ ...p, ...updatedUser }));
+      updateUser(updatedUser, user?.id);
+      addToast("Address saved.", "success");
     } catch (err) {
-      addToast(err.message || "Failed to save service city.", "error");
+      addToast(err.message || "Failed to save address.", "error");
     } finally {
       setSavingCity(false);
     }

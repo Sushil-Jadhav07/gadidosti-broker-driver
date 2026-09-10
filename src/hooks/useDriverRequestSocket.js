@@ -13,9 +13,16 @@ const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // just makes updates arrive immediately instead of waiting for the next poll tick. Same
 // connect/auth/cleanup shape as ChatWindow.jsx's inline socket, pulled out here since more
 // than one screen needs it.
-export function useDriverRequestSocket(onUpdate) {
+// onCreate (optional) fires for the distinct 'driver-request-created' event instead —
+// exactly once, the instant a brand-new row lands for this driver (single direct-pick, or one
+// row of a "Find Truck" radius broadcast), never on any later accept/counter/decline/timeout to
+// a request they already know about (those still go through onUpdate above). See
+// FcmBridge.jsx's popup, the reason this second event/callback exists at all.
+export function useDriverRequestSocket(onUpdate, onCreate) {
   const onUpdateRef = useRef(onUpdate);
+  const onCreateRef = useRef(onCreate);
   onUpdateRef.current = onUpdate;
+  onCreateRef.current = onCreate;
 
   useEffect(() => {
     const token = getToken();
@@ -23,6 +30,7 @@ export function useDriverRequestSocket(onUpdate) {
 
     const socket = io(BASE, { auth: { token }, transports: ["websocket", "polling"] });
     socket.on("driver-request-updated", (request) => onUpdateRef.current?.(request));
+    socket.on("driver-request-created", (request) => onCreateRef.current?.(request));
 
     return () => socket.disconnect();
   }, []);

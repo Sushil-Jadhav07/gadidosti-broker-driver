@@ -4,36 +4,36 @@ import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../hooks/useToast";
 import { registerFcmToken, subscribeToForegroundMessages } from "../lib/fcm";
 import { routeForNotification } from "../lib/notificationRoutes";
-import { api, getToken } from "../services/api";
-import { adaptDriverRequest } from "../utils";
+import { adaptDriverRequest, adaptJobRequest } from "../utils";
+import { useDriverRequestSocket } from "../hooks/useDriverRequestSocket";
+import { useJobRequestSocket } from "../hooks/useJobRequestSocket";
 import NewRequestPopup from "./driver/NewRequestPopup";
-
-// The exact title gadidosti-backend's booking.controller.js sends for a brand-new
-// driver_requests row (both the single direct-pick flow and each row of a "Find Truck" radius
-// broadcast use this same literal string) — used below to pick this one push out of every other
-// 'booking'-type push a driver can receive (status updates, "driver not responding", etc., none
-// of which warrant a popup) without needing a dedicated push type of its own.
-const NEW_DRIVER_REQUEST_TITLE = "New Booking Request";
+import NewJobRequestPopup from "./broker/NewJobRequestPopup";
 
 // Mounted once near the root (inside the router, auth, and toast providers — see App.jsx) so
-// push notifications work regardless of which page is currently showing. Renders nothing;
-// this is pure side-effect wiring for the 3 push-notification cases:
-//   1. Registers/refreshes the FCM token with the backend on every login (and app load while
-//      already logged in) — see registerFcmToken.
-//   2. Foreground pushes (app open, tab focused): Firebase's onMessage fires here directly —
-//      shown as an in-app toast since the OS won't show its own tray notification for these.
-//   3. Background/killed-app pushes: the OS handles showing the tray notification (see
-//      public/firebase-messaging-sw.js), but tapping it needs the app to deep-link — handled
-//      below via both the postMessage the service worker sends to an already-open tab, and
-//      the ?ntype=... query params it puts on the URL when it has to open a fresh one.
+// this works regardless of which page is currently showing. Renders nothing itself but the two
+// popups below; this is pure side-effect wiring for:
+//   1. FCM token registration on every login (and app load while already logged in).
+//   2. Foreground push -> toast + bell-refresh, for every notification EXCEPT a brand-new
+//      request (see below).
+//   3. Background/killed-app push taps -> deep-link navigation.
+//   4. A brand-new driver_requests/job_requests row -> a proper modal popup instead of a toast.
+//      Driven by a socket event ('driver-request-created'/'job-request-created'), not the FCM
+//      push above — a push depends on the user having granted notification permission (which
+//      may never have been asked, or may have been denied), while the socket connection these
+//      pages already use for live negotiation updates has no such dependency and fires
+//      instantly regardless. The FCM push for the same event still arrives and would otherwise
+//      also show a plain toast; dedupe via seenRequestIdsRef stops it from double-showing once
+//      the socket has already popped up the modal for that same request id.
 export default function FcmBridge() {
   const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
   const registeredForUserRef = useRef(null);
-  // A brand-new driver_requests row — shown as a proper modal (see NewRequestPopup) instead of
-  // the generic corner toast below, since this is time-sensitive and easy to miss as a toast.
-  const [newRequest, setNewRequest] = useState(null);
+  const seenRequestIdsRef = useRef(new Set());
+
+  const [newDriverRequest, setNewDriverRequest] = useState(null);
+  const [newJobRequest, setNewJobRequest] = useState(null);
 
   useEffect(() => {
     const accessToken = user?.tokens?.access_token;
@@ -43,31 +43,37 @@ export default function FcmBridge() {
     registerFcmToken(accessToken, "web");
   }, [user]);
 
+  // Sockets are always connected here regardless of role (both hooks are cheap, auth-scoped
+  // connections) — but only the callback matching the signed-in user's actual role ever does
+  // anything, since the backend only ever emits driver-request-created to a driver_id and
+  // job-request-created to a broker_id, never the other way round.
+  useDriverRequestSocket(undefined, (request) => {
+    if (user?.role !== "driver" || !request?.id) return;
+    if (seenRequestIdsRef.current.has(request.id)) return;
+    seenRequestIdsRef.current.add(request.id);
+    setNewDriverRequest(adaptDriverRequest(request));
+  });
+  useJobRequestSocket(undefined, (request) => {
+    if (user?.role !== "broker" || !request?.id) return;
+    if (seenRequestIdsRef.current.has(request.id)) return;
+    seenRequestIdsRef.current.add(request.id);
+    setNewJobRequest(adaptJobRequest(request));
+  });
+
   useEffect(() => {
     if (!user) return;
     let unsubscribe = () => {};
-    // Foreground pushes just surface as a toast + refresh the bell's unread count — the user
-    // is already looking at the app, so nothing is force-navigated (unlike a background tap,
-    // which only happens because they deliberately clicked the tray notification). Exception:
-    // a driver's brand-new booking request gets the popup below instead of a toast.
+    // Foreground pushes surface as a toast + refresh the bell's unread count — the user is
+    // already looking at the app, so nothing is force-navigated (unlike a background tap,
+    // which only happens because they deliberately clicked the tray notification). A brand-new
+    // request's push is suppressed here once the socket above has already shown the modal for
+    // it (see seenRequestIdsRef) — otherwise both would fire for the same event.
     subscribeToForegroundMessages((payload) => {
       const { notification, data } = payload || {};
+      const alreadyShownAsPopup = (data?.driver_request_id && seenRequestIdsRef.current.has(data.driver_request_id))
+        || (data?.job_request_id && seenRequestIdsRef.current.has(data.job_request_id));
 
-      if (user.role === "driver" && notification?.title === NEW_DRIVER_REQUEST_TITLE && data?.driver_request_id) {
-        api.get(`/api/driver-requests/${data.driver_request_id}`, getToken())
-          .then((res) => {
-            if (res?.success && res.data?.request) setNewRequest(adaptDriverRequest(res.data.request));
-          })
-          .catch(() => {
-            // Fall back to the plain toast if the fetch fails (request already actioned/
-            // expired, network hiccup, etc.) rather than showing nothing at all.
-            addToast(`${notification.title}${notification.body ? ` — ${notification.body}` : ""}`, "info", 6000);
-          });
-        window.dispatchEvent(new CustomEvent("notifications:refresh"));
-        return;
-      }
-
-      if (notification?.title) {
+      if (notification?.title && !alreadyShownAsPopup) {
         addToast(`${notification.title}${notification.body ? ` — ${notification.body}` : ""}`, "info", 6000);
       }
       window.dispatchEvent(new CustomEvent("notifications:refresh"));
@@ -111,10 +117,17 @@ export default function FcmBridge() {
   }, [user]);
 
   return (
-    <NewRequestPopup
-      request={newRequest}
-      onClose={() => setNewRequest(null)}
-      onReview={() => { setNewRequest(null); navigate("/driver/requests"); }}
-    />
+    <>
+      <NewRequestPopup
+        request={newDriverRequest}
+        onClose={() => setNewDriverRequest(null)}
+        onReview={() => { setNewDriverRequest(null); navigate("/driver/requests"); }}
+      />
+      <NewJobRequestPopup
+        request={newJobRequest}
+        onClose={() => setNewJobRequest(null)}
+        onReview={() => { setNewJobRequest(null); navigate("/job-requests"); }}
+      />
+    </>
   );
 }
