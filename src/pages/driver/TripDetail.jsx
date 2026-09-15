@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Clock, Download, Mail, Share2, Send, MessageCircle } from "lucide-react";
 import Badge from "../../components/driver/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import Modal from "../../components/broker/Modal";
@@ -144,6 +145,7 @@ export default function TripDetail() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono text-slate-400">{bookingRef(trip)}</span>
                 <Badge status={trip.status} />
+                {trip.isExpress && <ExpressBadge size="md" />}
               </div>
               <h1 className="text-xl font-bold text-slate-900">{trip.pickup?.location} <span className="text-slate-300">→</span> {trip.drop?.location}</h1>
             </div>
@@ -232,6 +234,11 @@ export default function TripDetail() {
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1"><IndianRupee size={11} /> Earnings</p>
                   <p className="text-sm font-bold text-emerald-700 mt-0.5">{formatCurrency(trip.earnings)}</p>
+                  {trip.slaOverageCharge > 0 && (
+                    <p className="text-[10px] text-amber-600 font-medium mt-1">
+                      Incl. delay charge ({trip.slaOverageHours}h over SLA): {formatCurrency(trip.slaOverageCharge)}
+                    </p>
+                  )}
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Status</p>

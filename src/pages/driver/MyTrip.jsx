@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, Wrench, MessageCircle, PackagePlus, PackageMinus, CheckCircle2, KeyRound, ChevronDown } from "lucide-react";
 import Badge from "../../components/driver/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import TripStatusButton from "../../components/driver/TripStatusButton";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
@@ -310,6 +311,7 @@ export default function MyTrip() {
           </div>
           <div className="flex items-center flex-wrap gap-1.5 mt-3">
             <Badge status={trip.status} />
+            {trip.isExpress && <ExpressBadge size="md" />}
             {trip.paymentStatus === "paid" && (
               <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-green-50 text-emerald-700 border border-emerald-200">
                 <CheckCircle2 size={12} /> Paid
@@ -390,6 +392,11 @@ export default function MyTrip() {
             </div>
           ))}
         </div>
+        {trip.slaOverageCharge > 0 && (
+          <p className="text-[11px] text-amber-600 font-medium mt-2.5 text-center">
+            Includes delay charge ({trip.slaOverageHours}h over the expected delivery time): {formatCurrency(trip.slaOverageCharge)}
+          </p>
+        )}
       </div>
 
       <div className="bg-white rounded-xl border border-slate-100 shadow-card overflow-hidden">

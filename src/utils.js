@@ -116,6 +116,14 @@ export const adaptBooking = (booking) => ({
   // own field so it can be shown as a breakdown line (see booking.controller.js).
   haltingHours: Number(booking.haltingHours || 0),
   haltingCharge: Number(booking.haltingCharge || 0),
+  // Distinct from halting above — the whole door-to-door delivery SLA (distance-tiered, tighter
+  // when isExpress), sourced from the linked trip. slaOverageCharge is already folded into
+  // `amount` above, kept as its own field so it can be shown as a breakdown line, same idea as
+  // haltingCharge (see booking.controller.js).
+  isExpress: !!booking.isExpress,
+  expectedDeliveryHours: booking.expectedDeliveryHours != null ? Number(booking.expectedDeliveryHours) : null,
+  slaOverageHours: Number(booking.slaOverageHours || 0),
+  slaOverageCharge: Number(booking.slaOverageCharge || 0),
 });
 
 // Keeps the raw backend status (e.g. "confirmed", "en_route_pickup") on rawStatus for
@@ -132,6 +140,14 @@ export const adaptTrip = (trip) => ({
   // own field so it can be shown as a breakdown line, not just a bigger total (see trip.controller.js).
   haltingHours: Number(trip.haltingHours || 0),
   haltingCharge: Number(trip.haltingCharge || 0),
+  // Distinct from halting above — the whole door-to-door delivery SLA (distance-tiered,
+  // tighter when isExpress), fixed at trip creation so it stays stable even if the admin later
+  // retunes the tiers. slaOverageCharge is already folded into amountToCollect/earnings, kept
+  // as its own field so it can be shown as a breakdown line (see trip.controller.js).
+  isExpress: !!trip.isExpress,
+  expectedDeliveryHours: trip.expectedDeliveryHours != null ? Number(trip.expectedDeliveryHours) : null,
+  slaOverageHours: Number(trip.slaOverageHours || 0),
+  slaOverageCharge: Number(trip.slaOverageCharge || 0),
 });
 
 export const adaptSettlement = (settlement) => ({

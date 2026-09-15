@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle } from "lucide-react";
 import Badge from "../../components/broker/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
@@ -217,6 +218,7 @@ export default function JobDetail() {
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs font-mono text-slate-400">{bookingRef(booking)}</span>
                 <Badge variant={STATUS_BADGE[booking.status] || "default"} size="sm">{booking.status}</Badge>
+                {booking.isExpress && <ExpressBadge size="md" />}
               </div>
               <h1 className="text-xl font-bold text-slate-900">{booking.pickup} <span className="text-slate-300">→</span> {booking.drop}</h1>
             </div>
@@ -334,6 +336,11 @@ export default function JobDetail() {
                   {booking.haltingCharge > 0 && (
                     <p className="text-[10px] text-amber-600 font-medium mt-1">
                       Incl. halting charge ({booking.haltingHours}h overage): {formatCurrency(booking.haltingCharge)}
+                    </p>
+                  )}
+                  {booking.slaOverageCharge > 0 && (
+                    <p className="text-[10px] text-amber-600 font-medium mt-1">
+                      Incl. delay charge ({booking.slaOverageHours}h over SLA): {formatCurrency(booking.slaOverageCharge)}
                     </p>
                   )}
                 </div>

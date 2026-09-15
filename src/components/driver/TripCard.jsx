@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronUp, MapPin, Package, Phone, Trash2, ArrowUpRight, Clock } from "lucide-react";
 import Badge from "./Badge";
+import ExpressBadge from "../ExpressBadge";
 import { bookingRef, splitLocationName } from "../../utils";
 
 // Delete is only ever allowed while the underlying booking is pending/cancelled/completed —
@@ -39,6 +40,7 @@ export default function TripCard({ trip, onDelete, onViewDetails }) {
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-xs font-mono text-slate-400 flex-shrink-0">{bookingRef(trip)}</span>
             <Badge status={trip.status || "Unknown"} />
+            {trip.isExpress && <ExpressBadge />}
           </div>
           <div className="text-right flex-shrink-0">
             <p className={`text-base font-extrabold leading-none ${PRICE_COLOR[trip.status] || "text-slate-800"}`}>

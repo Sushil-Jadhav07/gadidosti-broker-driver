@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle, Navigation } from "lucide-react";
 import Badge from "../../components/broker/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import Modal from "../../components/broker/Modal";
 import DriverDropdown from "../../components/broker/DriverDropdown";
 import StatusTimeline from "../../components/driver/StatusTimeline";
@@ -268,6 +269,7 @@ export default function ActiveJobs() {
                 <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="text-xs font-mono text-slate-400">{job.id}</span>
                   <Badge variant={STATUS_VARIANT[job.status] || "default"}>{job.status}</Badge>
+                  {job.isExpress && <ExpressBadge />}
                   {incident && (
                     <button onClick={() => openIncident(job)} className="hover:opacity-80 transition-opacity">
                       <Badge variant={incident.reason === "breakdown" ? "warning" : "danger"}>
@@ -279,7 +281,14 @@ export default function ActiveJobs() {
                 <h3 className="font-bold text-slate-900 text-[15px]">{job.pickup} to {job.drop}</h3>
                 <p className="text-xs text-slate-400 mt-0.5">{job.distance} km route</p>
               </div>
-              <p className="text-xl font-bold text-slate-900 font-mono flex-shrink-0">{formatCurrency(job.amount)}</p>
+              <div className="text-right flex-shrink-0">
+                <p className="text-xl font-bold text-slate-900 font-mono">{formatCurrency(job.amount)}</p>
+                {job.slaOverageCharge > 0 && (
+                  <p className="text-[10px] text-amber-600 font-medium mt-0.5">
+                    Incl. delay charge: {formatCurrency(job.slaOverageCharge)}
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2 mb-4">

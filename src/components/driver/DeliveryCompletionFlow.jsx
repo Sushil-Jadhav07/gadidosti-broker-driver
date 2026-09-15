@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle } from "lucide-react";
 import Badge from "./Badge";
+import ExpressBadge from "../ExpressBadge";
 import SwipeToConfirm from "./SwipeToConfirm";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
@@ -107,7 +108,7 @@ function ArrivedStep({ trip, onConfirm, loading }) {
         <div>
           <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide">Delivery</p>
           <h2 className="text-lg font-bold text-slate-900 mt-0.5">{bookingRef(trip)}</h2>
-          <div className="mt-2"><Badge status={trip.status} /></div>
+          <div className="mt-2 flex items-center gap-1.5"><Badge status={trip.status} />{trip.isExpress && <ExpressBadge />}</div>
         </div>
         {contactPhone && (
           <a
@@ -266,6 +267,11 @@ function PaymentsStep({ trip, onCollect, collecting }) {
         {trip.haltingCharge > 0 && (
           <p className="text-[11px] text-amber-600 font-medium mt-2">
             Includes halting charge ({trip.haltingHours}h overage): {formatCurrency(trip.haltingCharge)} — already folded into the amount above
+          </p>
+        )}
+        {trip.slaOverageCharge > 0 && (
+          <p className="text-[11px] text-amber-600 font-medium mt-2">
+            Includes delay charge ({trip.slaOverageHours}h over the expected delivery time): {formatCurrency(trip.slaOverageCharge)} — already folded into the amount above
           </p>
         )}
       </div>

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Trash2, Eye, ArrowRight } from "lucide-react";
 import Badge from "../../components/broker/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
@@ -72,6 +73,7 @@ export default function JobHistory() {
     pickup: booking.pickup || "-",
     drop: booking.drop || "-",
     route: `${booking.pickup} -> ${booking.drop}`,
+    isExpress: booking.isExpress,
     truck: booking.truckReg || "-",
     driver: booking.driver?.name || "-",
     date: booking.createdAt,
@@ -176,6 +178,7 @@ export default function JobHistory() {
                         <span className="truncate" title={row.pickup}>{row.pickup}</span>
                         <ArrowRight size={12} className="text-slate-300 flex-shrink-0" />
                         <span className="truncate" title={row.drop}>{row.drop}</span>
+                        {row.isExpress && <ExpressBadge className="flex-shrink-0" />}
                       </div>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{row.truck}</td>

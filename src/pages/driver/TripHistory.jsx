@@ -64,6 +64,7 @@ export default function TripHistory() {
     bookingId: trip.bookingId,
     bookingNumber: trip.bookingNumber,
     status: trip.status,
+    isExpress: trip.isExpress,
     route: trip.pickup?.location && trip.drop?.location ? `${trip.pickup.location} -> ${trip.drop.location}` : trip.route,
     date: formatDate(trip.createdAt),
     earnings: trip.earnings,
