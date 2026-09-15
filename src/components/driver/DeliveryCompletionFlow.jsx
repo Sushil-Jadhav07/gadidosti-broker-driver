@@ -9,12 +9,17 @@ import { api, getToken } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency } from "../../utils";
 import { compressImage } from "../../lib/imageCompression";
 
-const MAX_PHOTOS = 6;
+const MAX_MEDIA = 6;
+// Mirrors the backend's own minRequired (POST /api/trips/:id/pod's minRequired, and the 409
+// PATCH /api/trips/:id/status now throws below this) — enforced client-side too so the driver
+// never gets to the "Submit" tap only to be told by the server that 1 wasn't enough.
+const MIN_MEDIA = 2;
 
-// POD photos and the driver's QR are served from routes behind `authenticate` (they carry
-// per-user access checks) — a plain <img src="..."> can't attach a Bearer token, so it 401s.
-// This fetches the bytes with the token and renders them as a blob URL instead.
-function AuthImage({ src, alt, className }) {
+// POD media (photos and now videos) and the driver's QR are served from routes behind
+// `authenticate` (they carry per-user access checks) — a plain <img src="..."> can't attach a
+// Bearer token, so it 401s. This fetches the bytes with the token and renders them as a blob
+// URL instead, as either an <img> or a <video> depending on the item's `type`.
+function AuthMedia({ src, type, alt, className }) {
   const [blobUrl, setBlobUrl] = useState(null);
 
   useEffect(() => {
@@ -41,6 +46,7 @@ function AuthImage({ src, alt, className }) {
   }, [src]);
 
   if (!blobUrl) return <div className={`${className} bg-slate-100 animate-pulse`} />;
+  if (type === "video") return <video src={blobUrl} className={className} controls />;
   return <img src={blobUrl} alt={alt} className={className} />;
 }
 
@@ -54,7 +60,8 @@ const PAYMENT_DUE_STATUSES = ["pending", "partial"];
 // rather than any local flag, so a fresh page load always lands in the right place.
 const resolveInitialStep = (trip) => {
   if (trip.rawStatus === "delivered") {
-    if (!trip.podPhotos?.length) return "upload";
+    const uploadedCount = trip.podPhotos?.length || 0;
+    if (uploadedCount < (trip.podMinRequired || MIN_MEDIA)) return "upload";
     if (PAYMENT_DUE_STATUSES.includes(trip.paymentStatus)) return "payments";
     return "complete";
   }
@@ -135,12 +142,12 @@ function ArrivedStep({ trip, onConfirm, loading }) {
   );
 }
 
-// ─── Step 2: Upload picture ────────────────────────────────────────────────────
-function UploadPhotosStep({ existingPhotos, onSubmit, loading }) {
+// ─── Step 2: Upload photo/video ────────────────────────────────────────────────
+function UploadPhotosStep({ existingMedia, onSubmit, loading }) {
   const [files, setFiles] = useState([]);
   const inputRef = useRef(null);
-  const totalCount = existingPhotos.length + files.length;
-  const remainingSlots = MAX_PHOTOS - totalCount;
+  const totalCount = existingMedia.length + files.length;
+  const remainingSlots = MAX_MEDIA - totalCount;
 
   const handleFilesSelected = (e) => {
     const picked = Array.from(e.target.files || []);
@@ -155,27 +162,34 @@ function UploadPhotosStep({ existingPhotos, onSubmit, loading }) {
   return (
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-bold text-slate-900 mb-1">Upload Proof of Delivery</h2>
-      <p className="text-sm text-slate-400 mb-5">Add photos of the delivered cargo</p>
+      <p className="text-sm text-slate-400 mb-5">Add photos or videos of the delivered cargo (at least {MIN_MEDIA})</p>
 
       <div className="grid grid-cols-3 gap-3 mb-3">
-        {existingPhotos.map((url, i) => (
+        {existingMedia.map((item, i) => (
           <div key={`existing-${i}`} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200">
-            <AuthImage src={url} alt="" className="w-full h-full object-cover" />
+            <AuthMedia src={item.url} type={item.type} alt="" className="w-full h-full object-cover" />
             <span className="absolute bottom-1 right-1 bg-emerald-500 text-white rounded-full p-0.5"><Check className="w-3 h-3" /></span>
           </div>
         ))}
-        {files.map((f, i) => (
-          <div key={`new-${i}`} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200">
-            <img src={f.previewUrl} alt="" className="w-full h-full object-cover" />
-            <button
-              onClick={() => removeFile(i)}
-              className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        ))}
-        {totalCount < MAX_PHOTOS && (
+        {files.map((f, i) => {
+          const isVideo = f.file.type?.startsWith("video/");
+          return (
+            <div key={`new-${i}`} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200">
+              {isVideo ? (
+                <video src={f.previewUrl} className="w-full h-full object-cover" controls />
+              ) : (
+                <img src={f.previewUrl} alt="" className="w-full h-full object-cover" />
+              )}
+              <button
+                onClick={() => removeFile(i)}
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          );
+        })}
+        {totalCount < MAX_MEDIA && (
           <button
             onClick={() => inputRef.current?.click()}
             className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400 hover:border-primary hover:text-primary transition-colors"
@@ -186,17 +200,21 @@ function UploadPhotosStep({ existingPhotos, onSubmit, loading }) {
         )}
       </div>
 
-      <p className="text-xs text-slate-400 mb-6">{totalCount} of {MAX_PHOTOS} photos added</p>
+      <p className="text-xs text-slate-400 mb-1">{totalCount} of {MAX_MEDIA} photos/videos added</p>
+      {totalCount < MIN_MEDIA && (
+        <p className="text-xs text-amber-600 font-medium mb-5">Add at least {MIN_MEDIA - totalCount} more to continue.</p>
+      )}
+      {totalCount >= MIN_MEDIA && <div className="mb-5" />}
 
-      <input ref={inputRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handleFilesSelected} />
+      <input ref={inputRef} type="file" accept="image/*,video/*" capture="environment" multiple className="hidden" onChange={handleFilesSelected} />
 
       <div className="mt-auto">
         <button
           onClick={() => onSubmit(files.map((f) => f.file))}
-          disabled={totalCount < 1 || loading}
+          disabled={totalCount < MIN_MEDIA || loading}
           className="w-full py-4 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
         >
-          {loading ? "Uploading..." : "Submit Photos"}
+          {loading ? "Uploading..." : "Submit Photos/Videos"}
         </button>
       </div>
     </div>
@@ -409,17 +427,23 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
     setUploadingPhotos(true);
     try {
       // Raw camera photos are compressed before upload — see imageCompression.js for why
-      // ("request entity too large" on a full batch of uncompressed photos).
+      // ("request entity too large" on a full batch of uncompressed photos). Videos pass
+      // through compressImage unchanged (it only ever touches image/* files) — compressing
+      // video client-side is a different problem entirely and out of scope here.
       const compressed = await Promise.all(files.map((file) => compressImage(file)));
       const formData = new FormData();
       compressed.forEach((file) => formData.append("files", file));
       const response = await api.upload(`/api/trips/${trip.id}/pod`, formData, getToken());
-      if (!response.success) throw new Error(response.message || "Failed to upload photos");
-      setTrip((prev) => ({ ...prev, podPhotos: response.data?.podPhotos || prev.podPhotos }));
-      addToast("Photos uploaded.", "success");
+      if (!response.success) throw new Error(response.message || "Failed to upload photos/videos");
+      setTrip((prev) => ({
+        ...prev,
+        podPhotos: response.data?.podPhotos || prev.podPhotos,
+        podMedia: response.data?.podMedia || prev.podMedia,
+      }));
+      addToast("Photos/videos uploaded.", "success");
       setStep(PAYMENT_DUE_STATUSES.includes(trip.paymentStatus) ? "payments" : "complete");
     } catch (err) {
-      addToast(err.message || "Failed to upload photos.", "error");
+      addToast(err.message || "Failed to upload photos/videos.", "error");
     } finally {
       setUploadingPhotos(false);
     }
@@ -468,7 +492,11 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
         <StepProgress current={step} includePayments={includePayments} />
         {step === "arrived" && <ArrivedStep trip={trip} onConfirm={handleConfirmArrival} loading={confirmingArrival} />}
         {step === "upload" && (
-          <UploadPhotosStep existingPhotos={trip.podPhotos || []} onSubmit={handleSubmitPhotos} loading={uploadingPhotos} />
+          <UploadPhotosStep
+            existingMedia={trip.podMedia?.length ? trip.podMedia : (trip.podPhotos || []).map((url) => ({ url, type: "image" }))}
+            onSubmit={handleSubmitPhotos}
+            loading={uploadingPhotos}
+          />
         )}
         {step === "payments" && (
           <PaymentsStep

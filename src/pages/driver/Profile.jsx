@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import {
   User, Mail, Phone, Lock, Save, ShieldCheck, Truck, FileCheck,
-  CalendarDays, ChevronDown, LogOut, IndianRupee,
+  CalendarDays, ChevronDown, LogOut, IndianRupee, MessageCircle,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { useNavigate } from "react-router-dom";
 import { api, getToken } from "../../services/api";
 import { formatDate, formatKycStatus, formatCurrency } from "../../utils";
+import Modal from "../../components/broker/Modal";
+import ChatWindow from "../../components/ChatWindow";
 
 // Icon-prefixed, softly-bordered field — same shape as the client app's edit-profile inputs.
 const Field = ({ label, icon: Icon, value, onChange, type = "text", disabled = false, placeholder }) => (
@@ -69,6 +71,9 @@ export default function Profile() {
   const [changingPw, setChangingPw] = useState(false);
   const [upiId, setUpiId] = useState("");
   const [savingUpi, setSavingUpi] = useState(false);
+  const [brokerThreadId, setBrokerThreadId] = useState(null);
+  const [showBrokerChat, setShowBrokerChat] = useState(false);
+  const [openingBrokerChat, setOpeningBrokerChat] = useState(false);
 
   const toggleSection = (id) => setOpenSection((current) => (current === id ? null : id));
 
@@ -156,6 +161,24 @@ export default function Profile() {
       addToast(err.message || "Failed to save UPI ID.", "error");
     } finally {
       setSavingUpi(false);
+    }
+  };
+
+  // Opens the standing, booking-less chat channel with this driver's own broker
+  // (GET /api/chat/broker/thread get-or-creates it, resolving the broker automatically from
+  // driver_profiles.broker_id) — 404s if this driver has no linked broker (e.g. a
+  // self-registered owner-operator), surfaced via the usual toast.
+  const handleMessageBroker = async () => {
+    setOpeningBrokerChat(true);
+    try {
+      const res = await api.get("/api/chat/broker/thread", getToken());
+      if (!res.success) throw new Error(res.message || "Failed to open chat");
+      setBrokerThreadId(res.data.thread.id);
+      setShowBrokerChat(true);
+    } catch (err) {
+      addToast(err.message || "Failed to open chat with your broker.", "error");
+    } finally {
+      setOpeningBrokerChat(false);
     }
   };
 
@@ -252,6 +275,15 @@ export default function Profile() {
             </div>
           </div>
         </div>
+
+        <button
+          onClick={handleMessageBroker}
+          disabled={openingBrokerChat}
+          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-100 rounded-xl h-12 text-sm font-semibold text-primary hover:bg-primary/5 transition-colors disabled:opacity-60"
+        >
+          <MessageCircle className="w-4 h-4" strokeWidth={1.8} />
+          {openingBrokerChat ? "Opening..." : "Message My Broker"}
+        </button>
 
         <p className="text-center text-[10px] text-slate-300">GadiDost Driver App v1.0.0</p>
       </div>
@@ -373,6 +405,10 @@ export default function Profile() {
           Sign Out
         </button>
       </div>
+
+      <Modal isOpen={showBrokerChat} onClose={() => setShowBrokerChat(false)} title="Message My Broker" size="sm">
+        {brokerThreadId && <ChatWindow threadId={brokerThreadId} currentUserId={user?.id} />}
+      </Modal>
     </div>
   );
 }

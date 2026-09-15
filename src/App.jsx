@@ -157,6 +157,7 @@ export default function App() {
             <Route path="/job-history/:id" element={<PrivateRoute role="broker"><BrokerAppLayout><JobDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats"        element={<PrivateRoute role="broker"><BrokerAppLayout><ChatList /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/chats/direct/:threadId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats/:bookingId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/profile"      element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerProfile /></BrokerAppLayout></PrivateRoute>} />
@@ -171,6 +172,7 @@ export default function App() {
               <Route path="/driver/history"  element={<TripHistory />} />
               <Route path="/driver/history/:id" element={<TripDetail />} />
               <Route path="/driver/chats"    element={<ChatList />} />
+              <Route path="/driver/chats/direct/:threadId" element={<ChatDetail />} />
               <Route path="/driver/chats/:bookingId" element={<ChatDetail />} />
               <Route path="/driver/kyc"      element={<DriverKYC />} />
               <Route path="/driver/earnings"         element={<DriverEarnings />} />

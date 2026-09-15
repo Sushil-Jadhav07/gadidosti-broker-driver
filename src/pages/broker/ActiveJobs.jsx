@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle, Navigation } from "lucide-react";
+import { MapPin, Truck, User, AlertTriangle, Flag, Wrench, MessageCircle, Navigation, Repeat } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import Modal from "../../components/broker/Modal";
@@ -57,7 +57,12 @@ export default function ActiveJobs() {
   const [resolution, setResolution] = useState("");
   const [resolving, setResolving] = useState(false);
   const [reassignDriverId, setReassignDriverId] = useState("");
+  const [reassignReason, setReassignReason] = useState("");
   const [reassigning, setReassigning] = useState(false);
+  // General reassignment — reachable on every active job card, not just through an incident
+  // (see openIncident's own embedded reassign section below, which stays for the
+  // incident-triggered flow and shares the same reassignDriverId/reassignReason/handleReassign).
+  const [reassignJob, setReassignJob] = useState(null);
   const [mechanicForm, setMechanicForm] = useState({ status: "", mechanicName: "", mechanicPhone: "", notes: "" });
   const [updatingMechanic, setUpdatingMechanic] = useState(false);
 
@@ -128,9 +133,19 @@ export default function ActiveJobs() {
     setSelectedJob(job);
     setResolution("");
     setReassignDriverId("");
+    setReassignReason("");
     const incident = incidentsByBooking[job.id]?.incident;
     const mr = incident?.mechanicRequest;
     setMechanicForm({ status: mr?.status || "", mechanicName: mr?.mechanicName || "", mechanicPhone: mr?.mechanicPhone || "", notes: "" });
+  };
+
+  // General "Reassign Driver" — available on every active job card regardless of whether an
+  // incident exists (unlike openIncident's embedded reassign section, which only shows up once
+  // an incident is already open).
+  const openReassign = (job) => {
+    setReassignJob(job);
+    setReassignDriverId("");
+    setReassignReason("");
   };
 
   const openDispute = (job) => {
@@ -221,9 +236,15 @@ export default function ActiveJobs() {
     }
   };
 
-  const handleReassign = async () => {
-    if (!selectedJob || !reassignDriverId) return;
-    if (!selectedJob.jobRequestId) {
+  // Shared by both the incident-embedded reassign section and the standalone "Reassign Driver"
+  // modal — `job` is passed explicitly since either flow can trigger this (selectedJob for the
+  // former, reassignJob for the latter). The backend now gates this with a 409 once the trip has
+  // moved past in-progress (delivered/completed/cancelled) — that error message is already
+  // clear on its own, so it's just surfaced via the normal toast rather than pre-filtering which
+  // jobs get the button.
+  const handleReassign = async (job) => {
+    if (!job || !reassignDriverId) return;
+    if (!job.jobRequestId) {
       addToast("Can't find the original job request for this booking.", "error");
       return;
     }
@@ -231,13 +252,14 @@ export default function ActiveJobs() {
     setReassigning(true);
     try {
       const response = await api.post(
-        `/api/jobs/${selectedJob.jobRequestId}/assign-driver`,
-        { driverId: reassignDriverId, truckId: selectedJob.truckId },
+        `/api/jobs/${job.jobRequestId}/assign-driver`,
+        { driverId: reassignDriverId, truckId: job.truckId, reason: reassignReason.trim() || undefined },
         getToken()
       );
       if (!response.success) throw new Error(response.message || "Failed to reassign driver");
       addToast("Driver reassigned.", "success");
       setSelectedJob(null);
+      setReassignJob(null);
       load();
     } catch (err) {
       addToast(err.message || "Failed to reassign driver.", "error");
@@ -332,6 +354,12 @@ export default function ActiveJobs() {
                 <Flag size={12} /> Report a Problem
               </button>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => openReassign(job)}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+                >
+                  <Repeat size={12} /> Reassign Driver
+                </button>
                 <button
                   onClick={() => navigate(`/job-history/${job.id}`)}
                   className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
@@ -446,8 +474,15 @@ export default function ActiveJobs() {
                 <div className="pt-3 border-t border-slate-100">
                   <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Reassign to a different driver</label>
                   <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select driver" />
+                  <input
+                    type="text"
+                    value={reassignReason}
+                    onChange={(e) => setReassignReason(e.target.value)}
+                    placeholder="Reason (optional)"
+                    className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
+                  />
                   <button
-                    onClick={handleReassign}
+                    onClick={() => handleReassign(selectedJob)}
                     disabled={!reassignDriverId || reassigning}
                     className="mt-2 w-full py-2.5 text-sm rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                   >
@@ -509,6 +544,42 @@ export default function ActiveJobs() {
 
       <Modal isOpen={!!chatJob} onClose={() => setChatJob(null)} title="Chat" size="sm">
         {chatJob && <ChatWindow bookingId={chatJob.id} currentUserId={user?.id} />}
+      </Modal>
+
+      <Modal isOpen={!!reassignJob} onClose={() => setReassignJob(null)} title="Reassign Driver" size="sm">
+        {reassignJob && (
+          <div className="space-y-4">
+            <p className="text-xs text-slate-400">{reassignJob.pickup} to {reassignJob.drop}</p>
+            <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-2">
+              <Truck size={15} className="text-primary flex-shrink-0" />
+              <div>
+                <p className="text-[10px] text-slate-400 font-semibold uppercase">Currently Assigned</p>
+                <p className="text-sm font-semibold text-slate-800">{reassignJob.driver?.name || "Not Assigned"}</p>
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Reassign to</label>
+              <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select driver" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason (optional)</label>
+              <textarea
+                value={reassignReason}
+                onChange={(e) => setReassignReason(e.target.value)}
+                rows={2}
+                placeholder="e.g. Driver unavailable, vehicle breakdown, better route fit..."
+                className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
+              />
+            </div>
+            <button
+              onClick={() => handleReassign(reassignJob)}
+              disabled={!reassignDriverId || reassigning}
+              className="w-full py-2.5 text-sm rounded-lg font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {reassigning ? "Reassigning..." : "Reassign Driver"}
+            </button>
+          </div>
+        )}
       </Modal>
     </div>
   );

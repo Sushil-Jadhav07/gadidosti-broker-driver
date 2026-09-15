@@ -10,7 +10,15 @@ const BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 // access token as every REST call) delivers new messages/typing/read-receipts in real time.
 // className overrides the thread's own height — defaults to the size used inline on
 // MyTrip/ActiveJobs, but ChatLauncher passes "h-full" to fill its own panel instead.
-export default function ChatWindow({ bookingId, currentUserId, className = "h-[60vh] md:h-[480px]" }) {
+//
+// Pass either `bookingId` (existing behavior — looks the thread up via
+// GET /api/chat/bookings/:bookingId/thread, which also returns isLocked) or `threadId` directly
+// when the caller already has one from a booking-less source (GET /api/chat/drivers/:id/thread
+// or GET /api/chat/broker/thread for the new direct broker<->driver channel) — those threads
+// never lock, so isLocked is simply false in that case. Every call past this point
+// (messages/send/read/sockets) is identical either way; only how the thread id is obtained
+// differs.
+export default function ChatWindow({ bookingId, threadId, currentUserId, className = "h-[60vh] md:h-[480px]" }) {
   const [thread, setThread] = useState(null);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +35,7 @@ export default function ChatWindow({ bookingId, currentUserId, className = "h-[6
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (!bookingId) return;
+    if (!bookingId && !threadId) return;
     let cancelled = false;
     const token = getToken();
 
@@ -35,9 +43,16 @@ export default function ChatWindow({ bookingId, currentUserId, className = "h-[6
       setLoading(true);
       setLoadError(false);
       try {
-        const threadRes = await api.get(`/api/chat/bookings/${bookingId}/thread`, token);
-        if (!threadRes?.success) throw new Error(threadRes?.message);
-        const t = threadRes.data.thread;
+        let t;
+        if (bookingId) {
+          const threadRes = await api.get(`/api/chat/bookings/${bookingId}/thread`, token);
+          if (!threadRes?.success) throw new Error(threadRes?.message);
+          t = threadRes.data.thread;
+        } else {
+          // Direct thread — caller already resolved the id (broker<->driver channel, no
+          // booking involved), so there's no lookup call here, and no lock to check.
+          t = { id: threadId, isLocked: false };
+        }
         if (cancelled) return;
         setThread(t);
 
@@ -82,7 +97,7 @@ export default function ChatWindow({ bookingId, currentUserId, className = "h-[6
       socketRef.current?.disconnect();
       socketRef.current = null;
     };
-  }, [bookingId, currentUserId]);
+  }, [bookingId, threadId, currentUserId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

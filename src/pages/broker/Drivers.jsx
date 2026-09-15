@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2,
   UserPlus, Copy, Edit2, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight,
-  Phone, Truck as TruckIcon,
+  Phone, Truck as TruckIcon, MessageCircle,
 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
@@ -11,6 +11,8 @@ import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import TruckDropdown from "../../components/broker/TruckDropdown";
 import MapView from "../../components/MapView";
 import TripHistoryList from "../../components/TripHistoryList";
+import ChatWindow from "../../components/ChatWindow";
+import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatKycStatus, formatDate } from "../../utils";
@@ -122,7 +124,10 @@ function DateInput({ value, onChange, placeholder = "dd/mm/yyyy" }) {
 
 export default function Drivers() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { addToast } = useToast();
+  const [chatDriver, setChatDriver] = useState(null);
+  const [openingChat, setOpeningChat] = useState(false);
   const [search, setSearch] = useState("");
   const [kycFilter, setKycFilter] = useState("All");
   const [viewMode, setViewMode] = useState("grid");
@@ -404,6 +409,23 @@ export default function Drivers() {
     }
   };
 
+  // Opens the standing, booking-less chat channel with this driver (GET /api/chat/drivers/:id/
+  // thread get-or-creates it) — alongside the Fleet Map, this is the other "no booking needed"
+  // way to reach one of your own drivers directly.
+  const handleMessageDriver = async (driver) => {
+    const id = driver.id || driver.user_id;
+    setOpeningChat(true);
+    try {
+      const res = await api.get(`/api/chat/drivers/${id}/thread`, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to open chat");
+      setChatDriver({ ...driver, threadId: res.data.thread.id });
+    } catch (err) {
+      addToast(err.message || "Failed to open chat with this driver.", "error");
+    } finally {
+      setOpeningChat(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -508,13 +530,24 @@ export default function Drivers() {
                     const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
                     const isSelected = (selected?.id || selected?.user_id) === (driver.id || driver.user_id);
                     return (
-                      <button
+                      <div
                         key={driver.id || driver.user_id}
+                        role="button"
+                        tabIndex={0}
                         onClick={() => setSelected(driver)}
-                        className={`bg-white rounded-2xl border shadow-card p-4 text-left transition-all duration-200 ${
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setSelected(driver); }}
+                        className={`relative bg-white rounded-2xl border shadow-card p-4 text-left transition-all duration-200 cursor-pointer ${
                           isSelected ? "border-primary/40 ring-2 ring-primary/20" : "border-slate-100 hover:shadow-md hover:-translate-y-0.5"
                         }`}
                       >
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleMessageDriver(driver); }}
+                          disabled={openingChat}
+                          title="Message"
+                          className="absolute top-3 right-3 w-8 h-8 rounded-lg flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                        >
+                          <MessageCircle size={14} />
+                        </button>
                         <div className="flex flex-col items-center text-center">
                           <DriverAvatar driver={driver} size="w-14 h-14" />
                           <h3 className="font-bold text-slate-900 mt-2.5 truncate w-full">{driver.name}</h3>
@@ -530,7 +563,7 @@ export default function Drivers() {
                           <TruckIcon size={13} className="text-slate-400 flex-shrink-0" />
                           <span className="text-xs text-slate-600 truncate">{driver.truckReg || driver.truck_reg || "No assigned vehicle"}</span>
                         </div>
-                      </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -540,14 +573,14 @@ export default function Drivers() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100">
-                          {["Driver", "Phone", "License No.", "KYC", "Status", "Assigned Truck", "Trips"].map((heading) => (
+                          {["Driver", "Phone", "License No.", "KYC", "Status", "Assigned Truck", "Trips", ""].map((heading) => (
                             <th key={heading} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{heading}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {paginated.length === 0 ? (
-                          <tr><td colSpan={7} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found</td></tr>
+                          <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found</td></tr>
                         ) : paginated.map((driver) => {
                           const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
                           const isSelected = (selected?.id || selected?.user_id) === (driver.id || driver.user_id);
@@ -565,6 +598,16 @@ export default function Drivers() {
                               <td className="px-4 py-3"><Badge variant={AVAILABILITY_VARIANT[driver.status] || "default"} size="sm">{AVAILABILITY_LABEL[driver.status] || driver.status}</Badge></td>
                               <td className="px-4 py-3 font-mono text-xs text-slate-600">{driver.truckReg || driver.truck_reg || "-"}</td>
                               <td className="px-4 py-3 text-slate-600">{driver.totalTrips || driver.total_trips || 0}</td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); handleMessageDriver(driver); }}
+                                  disabled={openingChat}
+                                  title="Message"
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-primary bg-primary/10 hover:bg-primary/20 transition-colors flex-shrink-0 disabled:opacity-50"
+                                >
+                                  <MessageCircle size={14} />
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
@@ -913,6 +956,10 @@ export default function Drivers() {
         message={`Remove ${deleteTarget?.name || "this driver"} from your fleet? Their driver account is not deleted — you can add them back later.`}
         confirmText={deleting ? "Removing..." : "Remove"}
       />
+
+      <Modal isOpen={!!chatDriver} onClose={() => setChatDriver(null)} title={chatDriver ? `Chat with ${chatDriver.name}` : "Chat"} size="sm">
+        {chatDriver && <ChatWindow threadId={chatDriver.threadId} currentUserId={user?.id} />}
+      </Modal>
     </div>
   );
 }

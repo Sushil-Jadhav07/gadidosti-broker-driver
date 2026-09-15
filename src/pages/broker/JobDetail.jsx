@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle, Repeat } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
@@ -13,7 +13,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
+import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, formatDateTime, formatDuration, shareInvoicePdf } from "../../utils";
 
 const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
 
@@ -54,6 +54,9 @@ export default function JobDetail() {
   const [completingTrip, setCompletingTrip] = useState(null);
   const [loadingCompletion, setLoadingCompletion] = useState(false);
   const [collectingPayment, setCollectingPayment] = useState(false);
+  // Hidden entirely when empty — most bookings are never reassigned, so this only shows up
+  // when there's actually something to show.
+  const [reassignmentHistory, setReassignmentHistory] = useState([]);
 
   const load = async ({ silent } = {}) => {
     if (!silent) {
@@ -74,6 +77,14 @@ export default function JobDetail() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get(`/api/bookings/${id}/reassignment-history`, getToken())
+      .then((res) => { if (!cancelled) setReassignmentHistory(res?.data?.history || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
   }, [id]);
 
   // Live push the moment this job's trip status changes (picked up, delivered, etc.) — updates
@@ -384,6 +395,28 @@ export default function JobDetail() {
                 </div>
               </div>
             </div>
+
+            {reassignmentHistory.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Reassignment History</p>
+                <div className="space-y-2">
+                  {reassignmentHistory.map((h) => (
+                    <div key={h.id} className="flex items-start gap-3 bg-slate-50 rounded-lg px-3 py-2.5">
+                      <Repeat size={14} className="text-primary mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-slate-700">
+                          <span className="font-semibold">{h.fromDriverName || "Unassigned"}</span>
+                          <span className="text-slate-300 mx-1.5">→</span>
+                          <span className="font-semibold">{h.toDriverName || "Unknown"}</span>
+                        </p>
+                        {h.reason && <p className="text-xs text-slate-500 mt-0.5">{h.reason}</p>}
+                        <p className="text-[11px] text-slate-400 mt-1">By {h.reassignedByName || "—"} · {formatDateTime(h.createdAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <ConfirmDialog

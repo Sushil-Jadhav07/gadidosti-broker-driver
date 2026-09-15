@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Clock, Download, Mail, Share2, Send, MessageCircle } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Clock, Download, Mail, Share2, Send, MessageCircle, Repeat } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
@@ -8,7 +8,7 @@ import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import Modal from "../../components/broker/Modal";
 import ChatWindow from "../../components/ChatWindow";
 import { api, getToken } from "../../services/api";
-import { adaptTrip, bookingRef, formatCurrency, formatDate, formatDuration, shareInvoicePdf } from "../../utils";
+import { adaptTrip, bookingRef, formatCurrency, formatDate, formatDateTime, formatDuration, shareInvoicePdf } from "../../utils";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 
@@ -41,6 +41,9 @@ export default function TripDetail() {
   const [notifying, setNotifying] = useState(false);
   const [collectingPayment, setCollectingPayment] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  // Hidden entirely when empty — most trips are never reassigned, so this only shows up when
+  // there's actually something to show.
+  const [reassignmentHistory, setReassignmentHistory] = useState([]);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +63,15 @@ export default function TripDetail() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  useEffect(() => {
+    if (!trip?.bookingId) return undefined;
+    let cancelled = false;
+    api.get(`/api/bookings/${trip.bookingId}/reassignment-history`, getToken())
+      .then((res) => { if (!cancelled) setReassignmentHistory(res?.data?.history || []); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [trip?.bookingId]);
 
   const handleDownloadInvoice = async () => {
     setDownloading(true);
@@ -272,6 +284,28 @@ export default function TripDetail() {
                 </div>
               </div>
             </div>
+
+            {reassignmentHistory.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Reassignment History</p>
+                <div className="space-y-2">
+                  {reassignmentHistory.map((h) => (
+                    <div key={h.id} className="flex items-start gap-3 bg-slate-50 rounded-lg px-3 py-2.5">
+                      <Repeat size={14} className="text-primary mt-0.5 flex-shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm text-slate-700">
+                          <span className="font-semibold">{h.fromDriverName || "Unassigned"}</span>
+                          <span className="text-slate-300 mx-1.5">→</span>
+                          <span className="font-semibold">{h.toDriverName || "Unknown"}</span>
+                        </p>
+                        {h.reason && <p className="text-xs text-slate-500 mt-0.5">{h.reason}</p>}
+                        <p className="text-[11px] text-slate-400 mt-1">By {h.reassignedByName || "—"} · {formatDateTime(h.createdAt)}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </>
       ) : null}

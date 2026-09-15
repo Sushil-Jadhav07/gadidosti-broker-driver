@@ -48,20 +48,35 @@ export default function ChatLauncher() {
         >
           {activeThread ? (
             <>
-              <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100 flex-shrink-0">
-                <button onClick={() => setActiveThread(null)} className="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
-                  <ArrowLeft className="w-4 h-4" />
-                </button>
-                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
-                  {initials(activeThread.clientName)}
-                </div>
-                <p className="text-sm font-bold text-slate-900 truncate flex-1">{activeThread.clientName || "Client"}</p>
-                <button onClick={close} className="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              {/* Direct broker<->driver threads (isDirect) have no client at all — the "other
+                  party" is whichever of broker/driver isn't this viewer, same as
+                  ChatThreadList.jsx's otherPartyName. */}
+              {(() => {
+                const displayName = activeThread.isDirect
+                  ? (activeThread.brokerId === user?.id ? activeThread.driverName : activeThread.brokerName)
+                  : activeThread.clientName;
+                return (
+                  <div className="flex items-center gap-2.5 px-4 py-3 border-b border-slate-100 flex-shrink-0">
+                    <button onClick={() => setActiveThread(null)} className="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs flex-shrink-0">
+                      {initials(displayName)}
+                    </div>
+                    <p className="text-sm font-bold text-slate-900 truncate flex-1">{displayName || (activeThread.isDirect ? "Direct message" : "Client")}</p>
+                    <button onClick={close} className="text-slate-400 hover:text-slate-700 transition-colors flex-shrink-0">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                );
+              })()}
               <div className="flex-1 min-h-0 p-3">
-                <ChatWindow bookingId={activeThread.bookingId} currentUserId={user?.id} className="h-full" />
+                <ChatWindow
+                  bookingId={activeThread.isDirect ? undefined : activeThread.bookingId}
+                  threadId={activeThread.isDirect ? activeThread.threadId : undefined}
+                  currentUserId={user?.id}
+                  className="h-full"
+                />
               </div>
             </>
           ) : (
@@ -73,7 +88,7 @@ export default function ChatLauncher() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-3">
-                <ChatThreadList threads={threads} loading={loading} error={error} onRetry={reload} onSelect={setActiveThread} />
+                <ChatThreadList threads={threads} loading={loading} error={error} onRetry={reload} onSelect={setActiveThread} currentUserId={user?.id} />
               </div>
             </>
           )}

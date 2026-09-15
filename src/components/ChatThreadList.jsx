@@ -11,9 +11,19 @@ function timeAgo(dateStr) {
   return `${Math.floor(diffSec / 86400)}d ago`;
 }
 
+// A thread's "other party" name, from this viewer's own point of view. Booking threads always
+// show the client (client/broker/driver all message the client, never each other, on a booking
+// thread). Direct broker<->driver threads (isDirect, no booking at all — see
+// GET /api/chat/drivers/:driverId/thread and GET /api/chat/broker/thread) have no client at
+// all, so the "other party" is whichever of broker/driver isn't this viewer.
+const otherPartyName = (t, currentUserId) => {
+  if (!t.isDirect) return t.clientName;
+  return t.brokerId === currentUserId ? t.driverName : t.brokerName;
+};
+
 // Row markup shared by ChatList.jsx (full page) and ChatLauncher.jsx (floating panel) — only
 // what happens on tap differs, so that's the one thing left to the caller via onSelect.
-export default function ChatThreadList({ threads, loading, error, onRetry, onSelect, skeletonCount = 4 }) {
+export default function ChatThreadList({ threads, loading, error, onRetry, onSelect, currentUserId, skeletonCount = 4 }) {
   if (loading) {
     return (
       <div className="space-y-3">
@@ -42,40 +52,47 @@ export default function ChatThreadList({ threads, loading, error, onRetry, onSel
 
   return (
     <div className="space-y-3">
-      {threads.map((t) => (
-        <button
-          key={t.threadId}
-          onClick={() => onSelect(t)}
-          className="w-full bg-white rounded-xl border border-slate-100 shadow-card p-4 flex items-center gap-3 text-left hover:border-primary/30 transition-colors"
-        >
-          <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">
-            {initials(t.clientName)}
-          </div>
+      {threads.map((t) => {
+        const name = otherPartyName(t, currentUserId);
+        return (
+          <button
+            key={t.threadId}
+            onClick={() => onSelect(t)}
+            className="w-full bg-white rounded-xl border border-slate-100 shadow-card p-4 flex items-center gap-3 text-left hover:border-primary/30 transition-colors"
+          >
+            <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm flex-shrink-0">
+              {initials(name)}
+            </div>
 
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-sm font-bold text-slate-900 truncate">{t.clientName || "Client"}</p>
-              <span className="text-[11px] font-mono text-slate-400 flex-shrink-0">{bookingRef(t)}</span>
-              {t.isLocked && (
-                <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0">Closed</span>
-              )}
-              {t.stage === "bot" && (
-                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex-shrink-0">Not yet connected</span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-sm font-bold text-slate-900 truncate">{name || (t.isDirect ? "Direct message" : "Client")}</p>
+                {t.isDirect ? (
+                  <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full flex-shrink-0">Direct message</span>
+                ) : (
+                  <span className="text-[11px] font-mono text-slate-400 flex-shrink-0">{bookingRef(t)}</span>
+                )}
+                {t.isLocked && (
+                  <span className="text-[10px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0">Closed</span>
+                )}
+                {t.stage === "bot" && (
+                  <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full flex-shrink-0">Not yet connected</span>
+                )}
+              </div>
+              <p className="text-xs text-slate-400 truncate mt-0.5">{t.lastMessage || "No messages yet"}</p>
+            </div>
+
+            <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+              <span className="text-[11px] text-slate-300 whitespace-nowrap">{timeAgo(t.lastMessageAt)}</span>
+              {t.unreadCount > 0 && (
+                <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-primary text-white text-[11px] font-bold rounded-full">
+                  {t.unreadCount > 9 ? "9+" : t.unreadCount}
+                </span>
               )}
             </div>
-            <p className="text-xs text-slate-400 truncate mt-0.5">{t.lastMessage || "No messages yet"}</p>
-          </div>
-
-          <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
-            <span className="text-[11px] text-slate-300 whitespace-nowrap">{timeAgo(t.lastMessageAt)}</span>
-            {t.unreadCount > 0 && (
-              <span className="min-w-[20px] h-5 px-1.5 flex items-center justify-center bg-primary text-white text-[11px] font-bold rounded-full">
-                {t.unreadCount > 9 ? "9+" : t.unreadCount}
-              </span>
-            )}
-          </div>
-        </button>
-      ))}
+          </button>
+        );
+      })}
     </div>
   );
 }

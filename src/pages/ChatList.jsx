@@ -25,7 +25,11 @@ export default function ChatList() {
         loading={loading}
         error={error}
         onRetry={reload}
-        onSelect={(t) => navigate(`${isDriver ? "/driver/chats" : "/chats"}/${t.bookingId}`)}
+        currentUserId={user?.id}
+        onSelect={(t) => {
+          const base = isDriver ? "/driver/chats" : "/chats";
+          navigate(t.isDirect ? `${base}/direct/${t.threadId}` : `${base}/${t.bookingId}`);
+        }}
       />
     </div>
   );
