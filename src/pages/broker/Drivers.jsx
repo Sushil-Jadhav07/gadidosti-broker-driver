@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2,
   UserPlus, Copy, Edit2, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight,
-  Phone, Truck as TruckIcon, MessageCircle,
+  Phone, Truck as TruckIcon, MessageCircle, FileText, ShieldCheck, Clock,
 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
@@ -15,7 +15,7 @@ import ChatWindow from "../../components/ChatWindow";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { formatKycStatus, formatDate } from "../../utils";
+import { formatKycStatus, formatDate, formatDateTime } from "../../utils";
 
 const KYC_VARIANT = { Verified: "success", Pending: "warning", Rejected: "danger", Submitted: "warning" };
 const AVAILABILITY_VARIANT = { available: "success", on_trip: "primary", offline: "default" };
@@ -122,6 +122,52 @@ function DateInput({ value, onChange, placeholder = "dd/mm/yyyy" }) {
   );
 }
 
+// KYC document files are served from a route behind `authenticate` (a broker may only fetch
+// documents for a driver in their own fleet — see gadidosti-backend's getKycFile) — a plain
+// <img src="..."> can't attach a Bearer token, so it 401s. Same blob-URL workaround already
+// used for invoice PDFs (JobDetail.jsx) and POD media (DeliveryCompletionFlow.jsx's AuthMedia).
+function KycDocThumb({ doc }) {
+  const [blobUrl, setBlobUrl] = useState(null);
+
+  useEffect(() => {
+    if (!doc?.url) return undefined;
+    let cancelled = false;
+    let objectUrl = null;
+    api.getFileBlobUrl(doc.url, getToken())
+      .then((url) => {
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        objectUrl = url;
+        setBlobUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [doc?.url]);
+
+  const isImage = doc.mime_type?.startsWith("image/");
+
+  return (
+    <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-3">
+      {isImage && blobUrl ? (
+        <img src={blobUrl} alt={doc.document_type} className="w-14 h-14 rounded-lg object-cover flex-shrink-0 border border-slate-200" />
+      ) : (
+        <div className="w-14 h-14 rounded-lg bg-slate-200 flex items-center justify-center flex-shrink-0">
+          <FileText size={18} className="text-slate-400" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-semibold text-slate-700 truncate capitalize">{doc.document_type?.replace(/_/g, " ") || "Document"}</p>
+        <p className="text-[11px] text-slate-400 truncate">{doc.filename}</p>
+      </div>
+      {blobUrl && (
+        <a href={blobUrl} target="_blank" rel="noreferrer" className="flex-shrink-0 text-primary text-xs font-semibold hover:underline">View</a>
+      )}
+    </div>
+  );
+}
+
 export default function Drivers() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -161,6 +207,18 @@ export default function Drivers() {
   const [registerErrors, setRegisterErrors] = useState({});
   const [registering, setRegistering] = useState(false);
   const [tempPasswordResult, setTempPasswordResult] = useState(null);
+
+  // Broker KYC review (GET/PATCH /api/broker/kyc/:driverId...) — scoped server-side to drivers
+  // in this broker's own fleet.
+  const [kycTarget, setKycTarget] = useState(null);
+  const [kycData, setKycData] = useState(null); // { kyc_status, submission }
+  const [kycDocuments, setKycDocuments] = useState([]);
+  const [kycLoading, setKycLoading] = useState(false);
+  const [kycError, setKycError] = useState(null);
+  const [verifyingKyc, setVerifyingKyc] = useState(false);
+  const [showRejectInput, setShowRejectInput] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingKyc, setRejectingKyc] = useState(false);
 
   const loadAll = async () => {
     setLoading(true);
@@ -444,6 +502,70 @@ export default function Drivers() {
     }
   };
 
+  // Opens the KYC review modal for a driver in this broker's fleet — fetches the submission
+  // (documents/rejection_reason/reviewer) and the uploaded document files in parallel.
+  const openKycReview = async (driver) => {
+    const id = driver.id || driver.user_id;
+    setKycTarget(driver);
+    setKycData(null);
+    setKycDocuments([]);
+    setKycError(null);
+    setShowRejectInput(false);
+    setRejectReason("");
+    setKycLoading(true);
+    try {
+      const [kycRes, docsRes] = await Promise.all([
+        api.get(`/api/broker/kyc/${id}`, getToken()),
+        api.get(`/api/broker/kyc/${id}/documents`, getToken()),
+      ]);
+      if (!kycRes.success) throw new Error(kycRes.message || "Failed to load KYC details");
+      setKycData(kycRes.data);
+      setKycDocuments(docsRes?.data?.documents || []);
+    } catch (err) {
+      setKycError(err.message || "Failed to load KYC details.");
+    } finally {
+      setKycLoading(false);
+    }
+  };
+
+  const handleVerifyKyc = async () => {
+    if (!kycTarget) return;
+    setVerifyingKyc(true);
+    try {
+      const id = kycTarget.id || kycTarget.user_id;
+      const res = await api.patch(`/api/broker/kyc/${id}/verify`, {}, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to verify KYC");
+      addToast(`${kycTarget.name || "Driver"}'s KYC verified.`, "success");
+      setKycTarget(null);
+      loadAll();
+    } catch (err) {
+      addToast(err.message || "Failed to verify KYC.", "error");
+    } finally {
+      setVerifyingKyc(false);
+    }
+  };
+
+  const handleRejectKyc = async () => {
+    if (!kycTarget) return;
+    if (!rejectReason.trim()) {
+      addToast("Enter a reason for rejecting this KYC submission.", "error");
+      return;
+    }
+    setRejectingKyc(true);
+    try {
+      const id = kycTarget.id || kycTarget.user_id;
+      const res = await api.patch(`/api/broker/kyc/${id}/reject`, { reason: rejectReason.trim() }, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to reject KYC");
+      addToast(`${kycTarget.name || "Driver"}'s KYC rejected.`, "success");
+      setKycTarget(null);
+      loadAll();
+    } catch (err) {
+      addToast(err.message || "Failed to reject KYC.", "error");
+    } finally {
+      setRejectingKyc(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -552,7 +674,9 @@ export default function Drivers() {
                           <DriverAvatar driver={driver} size="w-14 h-14" />
                           <h3 className="font-bold text-slate-900 mt-2.5 truncate w-full">{driver.name}</h3>
                           <div className="flex items-center gap-1.5 mt-1">
-                            <Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge>
+                            <button onClick={(e) => { e.stopPropagation(); openKycReview(driver); }} className="rounded-full">
+                              <Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge>
+                            </button>
                             <Badge variant={AVAILABILITY_VARIANT[driver.status] || "default"} size="sm">{AVAILABILITY_LABEL[driver.status] || driver.status}</Badge>
                           </div>
                         </div>
@@ -594,7 +718,11 @@ export default function Drivers() {
                               </td>
                               <td className="px-4 py-3 text-slate-600">{driver.phone}</td>
                               <td className="px-4 py-3 font-mono text-xs text-slate-500">{driver.licenseNo || driver.license_no || "-"}</td>
-                              <td className="px-4 py-3"><Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge></td>
+                              <td className="px-4 py-3">
+                                <button onClick={(e) => { e.stopPropagation(); openKycReview(driver); }} className="rounded-full">
+                                  <Badge variant={KYC_VARIANT[kycStatus] || "default"} size="sm">{kycStatus}</Badge>
+                                </button>
+                              </td>
                               <td className="px-4 py-3"><Badge variant={AVAILABILITY_VARIANT[driver.status] || "default"} size="sm">{AVAILABILITY_LABEL[driver.status] || driver.status}</Badge></td>
                               <td className="px-4 py-3 font-mono text-xs text-slate-600">{driver.truckReg || driver.truck_reg || "-"}</td>
                               <td className="px-4 py-3 text-slate-600">{driver.totalTrips || driver.total_trips || 0}</td>
@@ -644,7 +772,9 @@ export default function Drivers() {
                 <div className="min-w-0">
                   <h4 className="font-bold text-slate-900 truncate">{selected.name}</h4>
                   <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                    <Badge variant={KYC_VARIANT[formatKycStatus(selected.kycStatus || selected.kyc_status)] || "default"} size="sm">{formatKycStatus(selected.kycStatus || selected.kyc_status)}</Badge>
+                    <button onClick={() => openKycReview(selected)} className="rounded-full">
+                      <Badge variant={KYC_VARIANT[formatKycStatus(selected.kycStatus || selected.kyc_status)] || "default"} size="sm">{formatKycStatus(selected.kycStatus || selected.kyc_status)}</Badge>
+                    </button>
                     <Badge variant={AVAILABILITY_VARIANT[selected.status] || "default"} size="sm">{AVAILABILITY_LABEL[selected.status] || selected.status}</Badge>
                   </div>
                 </div>
@@ -673,6 +803,13 @@ export default function Drivers() {
                 </div>
                 <TripHistoryList driverId={selected.id || selected.user_id} />
               </div>
+
+              <button
+                onClick={() => openKycReview(selected)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-primary/20 text-primary hover:bg-primary/5 transition-colors text-sm font-semibold"
+              >
+                <ShieldCheck size={13} /> Review KYC
+              </button>
 
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button onClick={() => openEdit(selected)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-semibold"><Edit2 size={13} /> Edit</button>
@@ -959,6 +1096,128 @@ export default function Drivers() {
 
       <Modal isOpen={!!chatDriver} onClose={() => setChatDriver(null)} title={chatDriver ? `Chat with ${chatDriver.name}` : "Chat"} size="sm">
         {chatDriver && <ChatWindow threadId={chatDriver.threadId} currentUserId={user?.id} />}
+      </Modal>
+
+      <Modal isOpen={!!kycTarget} onClose={() => setKycTarget(null)} title={kycTarget ? `KYC Review — ${kycTarget.name}` : "KYC Review"} size="lg">
+        {kycLoading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-6 h-6 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+          </div>
+        ) : kycError ? (
+          <div className="text-sm text-red-500 text-center py-8">{kycError}</div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between bg-slate-50 rounded-xl p-3">
+              <div>
+                <p className="text-[11px] text-slate-400 font-semibold uppercase">Status</p>
+                <Badge variant={KYC_VARIANT[formatKycStatus(kycData?.kyc_status)] || "default"} size="md" className="mt-1">
+                  {formatKycStatus(kycData?.kyc_status)}
+                </Badge>
+              </div>
+              {kycData?.kyc_status === "verified" && kycData?.submission?.reviewed_at && (
+                <div className="text-right">
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase">Verified</p>
+                  <p className="text-xs text-slate-600 font-medium mt-0.5 flex items-center gap-1 justify-end">
+                    <ShieldCheck size={12} className="text-emerald-500" />
+                    {kycData.submission.reviewer_role === "broker" ? "You" : kycData.submission.reviewer_name || "Reviewer"}
+                    {kycData.submission.reviewed_at ? ` · ${formatDateTime(kycData.submission.reviewed_at)}` : ""}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {kycData?.kyc_status === "rejected" && kycData?.submission?.rejection_reason && (
+              <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-600">
+                <Info size={14} className="flex-shrink-0 mt-0.5" />
+                <span><span className="font-semibold">Reason: </span>{kycData.submission.rejection_reason}</span>
+              </div>
+            )}
+
+            {!kycData?.submission ? (
+              <div className="text-center text-sm text-slate-400 py-8">
+                <FileText size={28} className="mx-auto mb-2 opacity-30" />
+                This driver hasn&apos;t submitted KYC documents yet.
+              </div>
+            ) : (
+              <>
+                <div>
+                  <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-2">Submitted Details</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {Object.entries(kycData.submission.documents || {})
+                      .filter(([, value]) => typeof value !== "string" || !/^https?:\/\//i.test(value))
+                      .map(([key, value]) => (
+                        <div key={key} className="bg-slate-50 rounded-xl px-3 py-2.5 min-w-0">
+                          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wide capitalize">{key.replace(/_/g, " ")}</p>
+                          <p className="text-sm font-mono font-semibold text-slate-800 truncate" title={String(value)}>{String(value) || "—"}</p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {kycDocuments.length > 0 && (
+                  <div>
+                    <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-2">Uploaded Documents</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                      {kycDocuments.map((doc) => <KycDocThumb key={doc.id} doc={doc} />)}
+                    </div>
+                  </div>
+                )}
+
+                {kycData.kyc_status === "submitted" && (
+                  <div className="pt-1 border-t border-slate-100">
+                    {showRejectInput ? (
+                      <div className="space-y-3 pt-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-600 mb-1.5">Reason for rejection *</label>
+                          <textarea
+                            value={rejectReason}
+                            onChange={(e) => setRejectReason(e.target.value.slice(0, 500))}
+                            rows={3}
+                            placeholder="Let the driver know what needs to be fixed..."
+                            className="w-full resize-none rounded-lg border-2 border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-primary"
+                          />
+                        </div>
+                        <div className="flex gap-3">
+                          <button onClick={() => setShowRejectInput(false)} disabled={rejectingKyc} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200 disabled:opacity-60">Cancel</button>
+                          <button
+                            onClick={handleRejectKyc}
+                            disabled={rejectingKyc || !rejectReason.trim()}
+                            className="flex-1 py-2.5 text-sm font-semibold rounded-xl bg-red-500 text-white hover:bg-red-600 transition-all disabled:opacity-60"
+                          >
+                            {rejectingKyc ? "Rejecting..." : "Confirm Rejection"}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-3 pt-3">
+                        <button
+                          onClick={() => setShowRejectInput(true)}
+                          disabled={verifyingKyc}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold rounded-xl border-2 border-slate-200 text-slate-500 hover:bg-slate-50 transition-all disabled:opacity-60"
+                        >
+                          <XCircle size={15} /> Reject
+                        </button>
+                        <button
+                          onClick={handleVerifyKyc}
+                          disabled={verifyingKyc}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-sm font-semibold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 transition-all disabled:opacity-60"
+                        >
+                          <CheckCircle2 size={15} /> {verifyingKyc ? "Verifying..." : "Verify"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {kycData.submission.submitted_at && (
+                  <p className="text-[11px] text-slate-400 text-center flex items-center justify-center gap-1">
+                    <Clock size={11} /> Submitted {formatDateTime(kycData.submission.submitted_at)}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

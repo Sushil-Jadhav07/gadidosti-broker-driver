@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, Phone, XCircle, IndianRupee, History, Lock, CheckCircle2, Truck, User, Route, Package, ArrowRight, Plus, Minus } from "lucide-react";
+import { Clock, Phone, XCircle, IndianRupee, History, Lock, CheckCircle2, Truck, User, Route, Package, ArrowRight, Plus, Minus, Handshake } from "lucide-react";
 import { useToast } from "../hooks/useToast";
 import { formatCurrency, bookingRef } from "../utils";
 
@@ -53,6 +53,10 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
   const isDriver = role === "driver";
   const locked = isDriver && req.status === "Requested" && req.driverTimedOut;
   const canAct = req.status === "Requested" && !locked;
+  // Broker-assign origin (job_request_id/jobRequestId set) — the price was already agreed
+  // with the broker via JobRequests.jsx's "Assign Driver & Truck" flow, so the backend rejects
+  // counter-offers here with a 409 (see driverRequest.controller.js). Only accept/decline apply.
+  const isBrokerAssigned = !!(req.jobRequestId || req.job_request_id);
   // Mutual-confirmation: one side already accepted, the other must now confirm/decline — no
   // more countering past here. "client" pending means the client already committed and it's
   // this driver/broker's turn; "respondent" pending means the reverse (this app already
@@ -114,6 +118,14 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
               {req.truckType && (
                 <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                   <Truck size={10} /> {req.truckType}
+                </span>
+              )}
+              {isBrokerAssigned && (
+                <span
+                  className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  title="This price was already agreed with the broker — accept or decline, no counter-offers."
+                >
+                  <Handshake size={10} /> Broker-assigned
                 </span>
               )}
             </div>
@@ -186,7 +198,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
             <StatusBanner tone="locked" icon={Lock}>You didn&apos;t respond in time — your broker has taken over this request.</StatusBanner>
           )}
 
-          {canAct && showCounter && (
+          {canAct && !isBrokerAssigned && showCounter && (
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 mb-1.5 block">Your Offer</label>
@@ -249,7 +261,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
                 <button onClick={() => onAccept(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20">
                   <CheckCircle2 size={14} /> Accept
                 </button>
-                {!respondentCounterLimitReached && (
+                {!isBrokerAssigned && !respondentCounterLimitReached && (
                   <button onClick={openCounter} className="flex-1 py-2.5 text-xs font-bold rounded-xl border-2 border-primary/20 text-primary hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
                     <IndianRupee size={14} /> Counter
                   </button>
@@ -261,9 +273,11 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
               {role === "broker" && (
                 <p className="text-[11px] text-amber-600 text-center mt-2 font-medium">Driver timed out — you&apos;re responding on their behalf.</p>
               )}
-              {respondentCounterLimitReached && (
+              {isBrokerAssigned ? (
+                <p className="text-[11px] text-slate-400 text-center mt-2">Already agreed with the broker — accept or decline, no negotiation.</p>
+              ) : respondentCounterLimitReached ? (
                 <p className="text-[11px] text-slate-400 text-center mt-2">You've used both your counter-offers — accept or decline instead.</p>
-              )}
+              ) : null}
             </>
           )}
 
