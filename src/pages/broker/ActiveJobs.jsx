@@ -7,6 +7,7 @@ import Modal from "../../components/broker/Modal";
 import DriverDropdown from "../../components/broker/DriverDropdown";
 import StatusTimeline from "../../components/driver/StatusTimeline";
 import ChatWindow from "../../components/ChatWindow";
+import HaltingTimer from "../../components/HaltingTimer";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
@@ -107,11 +108,21 @@ export default function ActiveJobs() {
         })
       );
 
-      setJobs(bookings.map((job) => ({
-        ...job,
-        tripId: tripByBooking[job.id]?.id || null,
-        jobRequestId: jobRequestByBooking[job.id]?.id || null,
-      })));
+      setJobs(bookings.map((job) => {
+        const trip = tripByBooking[job.id];
+        return {
+          ...job,
+          tripId: trip?.id || null,
+          jobRequestId: jobRequestByBooking[job.id]?.id || null,
+          // Carried over from the linked trip for HaltingTimer below — job.status is already a
+          // formatted label (adaptBooking), so rawStatus keeps the raw value it needs to tell a
+          // delivered/completed trip apart from one still in progress.
+          startedAt: trip?.startedAt ?? null,
+          haltingGraceHours: trip?.haltingGraceHours ?? null,
+          haltingRatePerHour: trip?.haltingRatePerHour ?? null,
+          rawStatus: trip?.status || null,
+        };
+      }));
       setIncidentsByBooking(Object.fromEntries(incidentEntries));
       setDrivers(driversRes.data?.drivers || []);
     } catch {
@@ -344,6 +355,11 @@ export default function ActiveJobs() {
             <div className="mt-auto pt-3 border-t border-slate-100">
               <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-3">Trip Progress</p>
               <StatusTimeline steps={DRIVER_STATUS_STEPS} currentStatus={STATUS_KEY_MAP[job.status] || "assigned"} />
+              {job.haltingGraceHours != null && (
+                <div className="mt-3">
+                  <HaltingTimer trip={job} />
+                </div>
+              )}
             </div>
 
             <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">

@@ -3,6 +3,7 @@ import { Package, Phone, Clock, IndianRupee, Navigation, ShieldAlert, XCircle, W
 import Badge from "../../components/driver/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import StatusTimeline from "../../components/driver/StatusTimeline";
+import HaltingTimer from "../../components/HaltingTimer";
 import TripStatusButton from "../../components/driver/TripStatusButton";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
@@ -343,6 +344,12 @@ export default function MyTrip() {
                 </p>
               )}
             </div>
+          </div>
+        )}
+
+        {trip.haltingGraceHours != null && (
+          <div className="mb-4">
+            <HaltingTimer trip={trip} />
           </div>
         )}
 

@@ -4,6 +4,7 @@ import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, C
 import Badge from "../../components/driver/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
+import HaltingTimer from "../../components/HaltingTimer";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
 import Modal from "../../components/broker/Modal";
 import ChatWindow from "../../components/ChatWindow";
@@ -283,6 +284,11 @@ export default function TripDetail() {
                   <p className="text-sm font-bold text-slate-800 mt-0.5">{trip.deliveredAt ? formatDate(trip.deliveredAt) : "—"}</p>
                 </div>
               </div>
+              {trip.haltingGraceHours != null && (
+                <div className="mt-3">
+                  <HaltingTimer trip={trip} />
+                </div>
+              )}
             </div>
 
             {reassignmentHistory.length > 0 && (
