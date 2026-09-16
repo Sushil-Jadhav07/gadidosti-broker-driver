@@ -2,13 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Plus, Truck, Search, LayoutGrid, List, ChevronLeft, ChevronRight,
-  CheckCircle2, Navigation, Wrench, Edit2, UserCog, History, Trash2,
+  CheckCircle2, Navigation, Wrench, Edit2, UserCog, History, Trash2, MapPin,
 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverDropdown from "../../components/broker/DriverDropdown";
-import MapView from "../../components/MapView";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
@@ -52,7 +51,6 @@ export default function Trucks() {
   const [statusTab, setStatusTab] = useState("All");
   const [viewMode, setViewMode] = useState("grid");
   const [currentPage, setCurrentPage] = useState(1);
-  const [showMap, setShowMap] = useState(false);
 
   const [selectedTruck, setSelectedTruck] = useState(null);
 
@@ -102,18 +100,6 @@ export default function Trucks() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE) || 1;
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginated = filtered.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  // Fleet map markers — only trucks with a known last-reported location (currentLat/currentLng,
-  // sourced from the assigned driver's live GPS) show up on the map; the rest are still visible
-  // in the list above, just without a pin. Same pattern as Drivers.jsx's own Fleet Map.
-  const fleetMarkers = useMemo(() => truckList
-    .filter((truck) => truck.currentLat != null && truck.currentLng != null)
-    .map((truck) => ({
-      id: truck.id,
-      position: { lat: Number(truck.currentLat), lng: Number(truck.currentLng) },
-      color: truck.status === "on_trip" ? "blue" : truck.status === "maintenance" ? "yellow" : "green",
-      title: `${truck.registration}${truck.driver ? ` — ${truck.driver}` : ""}`,
-    })), [truckList]);
 
   const openAdd = () => { setEditTruck(null); setForm(EMPTY_FORM); setSaveError(""); setShowModal(true); };
   const openEdit = (truck) => {
@@ -270,33 +256,12 @@ export default function Trucks() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setShowMap((v) => !v)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors border ${showMap ? "bg-primary/10 text-primary border-primary/20" : "text-slate-500 border-slate-200 hover:bg-slate-50"}`}
-          >
-            Fleet Map
-          </button>
           <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-shrink-0">
             <button onClick={() => setViewMode("grid")} aria-label="Grid view" className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}><LayoutGrid size={16} /></button>
             <button onClick={() => setViewMode("list")} aria-label="List view" className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}><List size={16} /></button>
           </div>
         </div>
       </div>
-
-      {showMap && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-4">
-          {fleetMarkers.length ? (
-            <div className="relative h-[280px] rounded-xl overflow-hidden border border-slate-100">
-              <MapView markers={fleetMarkers} height="100%" className="absolute inset-0" />
-            </div>
-          ) : (
-            <div className="h-[200px] flex flex-col items-center justify-center text-slate-400 text-sm">
-              <Truck size={28} className="mb-2 opacity-30" />
-              No trucks currently reporting a location
-            </div>
-          )}
-        </div>
-      )}
 
       {loading ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-10 flex justify-center">
@@ -425,9 +390,10 @@ export default function Trucks() {
                 <span className={`font-medium ${isInsuranceExpiring(selectedTruck.insuranceExpiry) ? "text-red-500" : ""}`}>{formatDate(selectedTruck.insuranceExpiry)}</span>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <button onClick={() => openEdit(selectedTruck)} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><Edit2 size={15} /><span className="text-[11px] font-semibold">Edit</span></button>
               <button onClick={() => openAssign(selectedTruck)} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><UserCog size={15} /><span className="text-[11px] font-semibold">Assign</span></button>
+              <button onClick={() => navigate(`/trucks/${selectedTruck.id}/location`)} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><MapPin size={15} /><span className="text-[11px] font-semibold">Track</span></button>
               <button onClick={() => navigate(`/trucks/${selectedTruck.id}/history`)} className="flex flex-col items-center gap-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"><History size={15} /><span className="text-[11px] font-semibold">History</span></button>
             </div>
             <button

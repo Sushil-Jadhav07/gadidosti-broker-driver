@@ -14,6 +14,7 @@ import BrokerSidebar  from "./components/broker/BrokerSidebar";
 import BrokerTopBar   from "./components/broker/BrokerTopBar";
 import Dashboard      from "./pages/broker/Dashboard";
 import Trucks         from "./pages/broker/Trucks";
+import TruckLocation  from "./pages/broker/TruckLocation";
 import Drivers        from "./pages/broker/Drivers";
 import JobRequests    from "./pages/broker/JobRequests";
 import BrokerDriverRequests from "./pages/broker/DriverRequests";
@@ -148,6 +149,7 @@ export default function App() {
             <Route path="/broker"       element={<PrivateRoute role="broker"><BrokerAppLayout><Dashboard /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/trucks"       element={<PrivateRoute role="broker"><BrokerAppLayout><Trucks /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/trucks/:id/history" element={<PrivateRoute role="broker"><BrokerAppLayout><TripHistoryPage mode="truck" /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/trucks/:id/location" element={<PrivateRoute role="broker"><BrokerAppLayout><TruckLocation /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/drivers"      element={<PrivateRoute role="broker"><BrokerAppLayout><Drivers /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/drivers/:id/history" element={<PrivateRoute role="broker"><BrokerAppLayout><TripHistoryPage mode="driver" /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/job-requests" element={<PrivateRoute role="broker"><BrokerAppLayout><JobRequests /></BrokerAppLayout></PrivateRoute>} />
