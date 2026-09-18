@@ -2,26 +2,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Truck, Clock } from "lucide-react";
 import MapView from "../../components/MapView";
+import { buildTruckIcon } from "../../lib/truckIcon";
 import { api, getToken } from "../../services/api";
 import { formatDateTime } from "../../utils";
 
 const POLL_MS = 10000;
-
-const STATUS_COLOR = { available: "#17D86B", on_trip: "#166534", maintenance: "#F59E0B" };
-
-// A small truck glyph, not a generic map pin — rendered as a data-URI SVG so MapView's
-// Marker can use it as a custom icon without needing an image asset. Colored to match the
-// same status palette as Trucks.jsx's STATUS_META.
-const truckIconUrl = (color) => `data:image/svg+xml;utf8,${encodeURIComponent(`
-<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 48 48">
-  <g transform="translate(3,12)">
-    <rect x="0" y="0" width="26" height="16" rx="2" fill="${color}" stroke="white" stroke-width="1.5"/>
-    <path d="M26 4h8l7 7v5h-15V4z" fill="${color}" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
-    <rect x="29" y="7" width="7" height="6" fill="white" opacity="0.9"/>
-    <circle cx="9" cy="18" r="3.2" fill="#1f2937" stroke="white" stroke-width="1"/>
-    <circle cx="33" cy="18" r="3.2" fill="#1f2937" stroke="white" stroke-width="1"/>
-  </g>
-</svg>`)}`;
 
 // Live single-truck location — replaces the old all-trucks-at-once map on the Trucks list
 // page. Polls the truck's own detail endpoint (currentLat/currentLng come from its assigned
@@ -54,11 +39,14 @@ export default function TruckLocation() {
   }, [load]);
 
   const hasLocation = truck?.currentLat != null && truck?.currentLng != null;
+  // Same vehicle marker the driver's own route map (RouteMapPanel.jsx) already uses — kept
+  // identical rather than a bespoke icon, so a truck looks the same on every screen it shows up
+  // on. Rotates to face truck.heading, same as there.
   const markers = hasLocation
     ? [{
         id: truck.id,
         position: { lat: Number(truck.currentLat), lng: Number(truck.currentLng) },
-        iconUrl: truckIconUrl(STATUS_COLOR[truck.status] || STATUS_COLOR.available),
+        iconUrl: buildTruckIcon(truck.heading),
         title: truck.registration,
       }]
     : [];

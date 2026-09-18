@@ -10,6 +10,7 @@ import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import TruckDropdown from "../../components/broker/TruckDropdown";
 import MapView from "../../components/MapView";
+import { buildTruckIcon } from "../../lib/truckIcon";
 import TripHistoryList from "../../components/TripHistoryList";
 import ChatWindow from "../../components/ChatWindow";
 import { useAuth } from "../../hooks/useAuth";
@@ -266,13 +267,15 @@ export default function Drivers() {
 
   // Fleet map markers — only drivers with a known last-reported location (current_lat/lng,
   // kept fresh via PATCH /api/vehicles/drivers/me/location) show up on the map; the rest are
-  // still visible in the list below, just without a pin.
+  // still visible in the list below, just without a pin. Same vehicle glyph as the driver's own
+  // route map (RouteMapPanel.jsx) and the broker's per-truck TruckLocation.jsx, rather than a
+  // plain colored dot, so a truck looks the same everywhere it's shown.
   const fleetMarkers = useMemo(() => drivers
     .filter((driver) => driver.currentLat != null && driver.currentLng != null)
     .map((driver) => ({
       id: driver.id || driver.user_id,
       position: { lat: Number(driver.currentLat), lng: Number(driver.currentLng) },
-      color: driver.status === "on_trip" ? "blue" : driver.status === "offline" ? "yellow" : "green",
+      iconUrl: buildTruckIcon(driver.currentHeading),
       title: `${driver.name}${driver.truckReg ? ` — ${driver.truckReg}` : ""}`,
     })), [drivers]);
 
