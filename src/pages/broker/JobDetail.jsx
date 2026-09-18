@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle, Repeat } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle, Repeat, AlertTriangle, ChevronDown } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
@@ -13,9 +13,19 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, adaptTrip, bookingRef, formatCurrency, formatDate, formatDateTime, formatDuration, shareInvoicePdf } from "../../utils";
+import { adaptBooking, adaptTrip, bookingRef, formatBookingStatus, formatCurrency, formatDate, formatDateTime, formatDuration, shareInvoicePdf } from "../../utils";
 
 const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
+
+// The trip's own forward lifecycle (mirrors DRIVER_STATUS_STEPS in utils.js, minus the label
+// bits this file doesn't need) — used to build the "force status" dropdown's options as
+// whatever comes after the trip's current raw status. Cancelled sits outside this sequence and
+// is offered separately as an always-available escape hatch.
+const TRIP_STATUS_ORDER = ["confirmed", "en_route_pickup", "picked_up", "in_transit", "delivered", "completed"];
+
+// Section is hidden once the booking is past the point a "take over" action would ever make
+// sense — matches INVOICE_READY_STATUSES' own casing convention.
+const OVERRIDE_HIDDEN_STATUSES = ["Delivered", "Completed", "Cancelled"];
 
 const STATUS_BADGE = { Completed: "success", Cancelled: "danger" };
 const PAYMENT_BADGE = { paid: "success", pending: "warning", partial: "warning", refunded: "default" };
@@ -57,6 +67,18 @@ export default function JobDetail() {
   // Hidden entirely when empty — most bookings are never reassigned, so this only shows up
   // when there's actually something to show.
   const [reassignmentHistory, setReassignmentHistory] = useState([]);
+  // "Take over" section for when the driver is stuck/unreachable (dead phone, crashed app, lost
+  // signal) and can't advance the trip themselves — lets the broker force the trip's status
+  // forward (or cancel it) and check off any extra loading/unloading stops, directly on the
+  // driver's behalf. Collapsed by default; the trip is only fetched once expanded, same
+  // on-demand pattern as handleOpenCompletion above.
+  const [overrideOpen, setOverrideOpen] = useState(false);
+  const [overrideTrip, setOverrideTrip] = useState(null);
+  const [loadingOverrideTrip, setLoadingOverrideTrip] = useState(false);
+  const [completingOverrideStop, setCompletingOverrideStop] = useState(null);
+  const [selectedForceStatus, setSelectedForceStatus] = useState("");
+  const [forceStatusConfirmOpen, setForceStatusConfirmOpen] = useState(false);
+  const [applyingForceStatus, setApplyingForceStatus] = useState(false);
 
   const load = async ({ silent } = {}) => {
     if (!silent) {
@@ -189,6 +211,69 @@ export default function JobDetail() {
     }
   };
 
+  const handleToggleOverride = async () => {
+    const next = !overrideOpen;
+    setOverrideOpen(next);
+    if (!next || overrideTrip) return;
+    setLoadingOverrideTrip(true);
+    try {
+      const res = await api.get(`/api/trips/booking/${id}`, getToken());
+      if (!res?.success || !res.data?.trip) throw new Error(res?.message || "Trip not found");
+      setOverrideTrip(adaptTrip(res.data.trip));
+    } catch (err) {
+      addToast(err.message || "Failed to load trip.", "error");
+    } finally {
+      setLoadingOverrideTrip(false);
+    }
+  };
+
+  // Only the earliest pending stop of each type is actionable — mirrors the sequential
+  // enforcement already used in src/pages/driver/MyTrip.jsx (nextActionableIndex there).
+  const overrideNextActionableIndex = (type) =>
+    (overrideTrip?.stops || []).findIndex((s) => s.type === type && s.status !== "done");
+
+  const handleCompleteOverrideStop = async (index) => {
+    if (!overrideTrip) return;
+    setCompletingOverrideStop(index);
+    try {
+      const res = await api.patch(`/api/trips/${overrideTrip.id}/stops/${index}/complete`, {}, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to complete stop");
+      setOverrideTrip(adaptTrip(res.data.trip));
+      addToast("Stop marked complete.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to complete stop.", "error");
+    } finally {
+      setCompletingOverrideStop(null);
+    }
+  };
+
+  const forwardStatusOptions = (() => {
+    if (!overrideTrip) return [];
+    const currentIndex = TRIP_STATUS_ORDER.indexOf(overrideTrip.rawStatus);
+    const forward = currentIndex === -1 ? [] : TRIP_STATUS_ORDER.slice(currentIndex + 1);
+    return [...forward, "cancelled"];
+  })();
+  const effectiveForceStatus = selectedForceStatus || forwardStatusOptions[0] || "";
+
+  const handleForceStatus = async () => {
+    if (!overrideTrip || !effectiveForceStatus) return;
+    setApplyingForceStatus(true);
+    try {
+      const res = await api.patch(`/api/trips/${overrideTrip.id}/status`, { status: effectiveForceStatus }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to update trip status");
+      setOverrideTrip(adaptTrip(res.data.trip));
+      setSelectedForceStatus("");
+      addToast(`Trip status forced to "${formatBookingStatus(effectiveForceStatus)}".`, "success");
+      load({ silent: true });
+    } catch (err) {
+      // Surfaces the backend's own 409 message (e.g. "Complete all loading stops before
+      // starting delivery.") verbatim rather than a generic one.
+      addToast(err.message || "Failed to update trip status.", "error");
+    } finally {
+      setApplyingForceStatus(false);
+    }
+  };
+
   if (completingTrip) {
     return (
       <div className="space-y-4">
@@ -293,6 +378,89 @@ export default function JobDetail() {
               )}
             </div>
           </div>
+
+          {!OVERRIDE_HIDDEN_STATUSES.includes(booking.status) && (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-card">
+              <button onClick={handleToggleOverride} className="w-full flex items-center justify-between p-4 text-left">
+                <span className="flex items-center gap-2">
+                  <AlertTriangle size={15} className="text-amber-500 flex-shrink-0" />
+                  <span className="text-sm font-semibold text-slate-800">Driver unreachable? Take over this trip</span>
+                </span>
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 flex-shrink-0">
+                  {overrideOpen ? "Hide" : "Show"}
+                  <ChevronDown size={14} className={`transition-transform ${overrideOpen ? "rotate-180" : ""}`} />
+                </span>
+              </button>
+
+              {overrideOpen && (
+                <div className="px-4 pb-4 pt-1 border-t border-slate-50 space-y-4">
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Use this only if the driver's phone is dead, their app crashed, or they've lost signal and can't update the trip themselves.
+                    Actions here happen directly on the driver's behalf.
+                  </p>
+
+                  {loadingOverrideTrip ? (
+                    <p className="text-xs text-slate-400">Loading trip...</p>
+                  ) : !overrideTrip ? (
+                    <button onClick={handleToggleOverride} className="text-xs font-semibold text-primary underline">Retry loading trip</button>
+                  ) : (
+                    <>
+                      {overrideTrip.stops?.some((s) => s.type === "loading" || s.type === "unloading") && (
+                        <div>
+                          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Loading &amp; Unloading Stops</p>
+                          <div className="space-y-1.5">
+                            {overrideTrip.stops.map((stop, index) => {
+                              if (stop.type !== "loading" && stop.type !== "unloading") return null;
+                              const isDone = stop.status === "done";
+                              const isActionable = index === overrideNextActionableIndex(stop.type);
+                              const Icon = stop.type === "loading" ? PackagePlus : PackageMinus;
+                              return (
+                                <div key={index} className={`flex items-center gap-3 rounded-lg px-3 py-2 ${isDone ? "bg-emerald-50" : "bg-slate-50"}`}>
+                                  {isDone ? <CheckCircle2 size={15} className="text-emerald-600 flex-shrink-0" /> : <Icon size={14} className="text-slate-400 flex-shrink-0" />}
+                                  <span className="text-sm text-slate-700 truncate flex-1">{stop.location || "—"}</span>
+                                  {!isDone && (
+                                    <button
+                                      onClick={() => handleCompleteOverrideStop(index)}
+                                      disabled={!isActionable || completingOverrideStop === index}
+                                      className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+                                    >
+                                      {completingOverrideStop === index ? "..." : stop.type === "loading" ? "Mark Loaded" : "Mark Unloaded"}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <div>
+                        <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Force Status</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <select
+                            value={effectiveForceStatus}
+                            onChange={(e) => setSelectedForceStatus(e.target.value)}
+                            className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-primary"
+                          >
+                            {forwardStatusOptions.map((s) => (
+                              <option key={s} value={s}>{formatBookingStatus(s)}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => setForceStatusConfirmOpen(true)}
+                            disabled={!effectiveForceStatus || applyingForceStatus}
+                            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-amber-500 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60"
+                          >
+                            {applyingForceStatus ? "Applying..." : "Apply"}
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-slate-100 shadow-card p-2 overflow-hidden">
@@ -426,6 +594,15 @@ export default function JobDetail() {
             message="This only removes it from your own list — it stays visible to admin. There's no undo."
             confirmText={deleting ? "Removing..." : "Remove"}
             variant="danger"
+          />
+
+          <ConfirmDialog
+            isOpen={forceStatusConfirmOpen} onClose={() => setForceStatusConfirmOpen(false)}
+            onConfirm={handleForceStatus}
+            title={`Force status to "${formatBookingStatus(effectiveForceStatus)}"?`}
+            message="This will override the driver's own status update. Use this only if the driver can't act themselves."
+            confirmText={applyingForceStatus ? "Applying..." : "Force Status"}
+            variant={effectiveForceStatus === "cancelled" ? "danger" : "warning"}
           />
 
           <InvoiceEmailModal
