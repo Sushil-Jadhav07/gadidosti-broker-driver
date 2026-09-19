@@ -72,6 +72,10 @@ export default function SwipeToConfirm({ label, confirmedLabel = "Confirmed!", o
     <div
       ref={trackRef}
       className={`relative w-full h-14 ${styles.track} rounded-full overflow-hidden select-none ${isLocked && !loading ? "opacity-60" : ""}`}
+      // Without this, a touch-drag starting here can be claimed by the browser as a page-scroll
+      // gesture before any pointermove ever reaches the handle below — the swipe works with a
+      // mouse (no such competing gesture exists) but silently never fires on a real phone.
+      style={{ touchAction: "none" }}
     >
       <div
         className={`absolute inset-y-0 left-0 ${styles.fill}`}
@@ -84,8 +88,12 @@ export default function SwipeToConfirm({ label, confirmedLabel = "Confirmed!", o
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        // A touch drag interrupted by the OS (e.g. a notification pull-down mid-swipe) fires
+        // this instead of pointerup — without handling it, dragging stays stuck true forever
+        // and the handle never responds again. Same fallback as an incomplete drag.
+        onPointerCancel={handlePointerUp}
         className={`absolute top-1 left-1 rounded-full ${styles.handle} shadow-md flex items-center justify-center text-white ${dragging ? "" : "transition-transform duration-300"}`}
-        style={{ width: HANDLE_SIZE, height: HANDLE_SIZE, transform: `translateX(${dragX}px)`, cursor: isLocked ? "default" : "grab" }}
+        style={{ width: HANDLE_SIZE, height: HANDLE_SIZE, transform: `translateX(${dragX}px)`, cursor: isLocked ? "default" : "grab", touchAction: "none" }}
       >
         {loading ? (
           <span className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />

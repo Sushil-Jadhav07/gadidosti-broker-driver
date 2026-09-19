@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Clock, Phone, XCircle, IndianRupee, History, Lock, CheckCircle2, Truck, User, Route, Package, ArrowRight, Plus, Minus, Handshake } from "lucide-react";
 import { useToast } from "../hooks/useToast";
 import { formatCurrency, bookingRef } from "../utils";
+import SwipeDecideBar from "./SwipeDecideBar";
 
 // +/- nudge for the inline counter-offer stepper — plain typing into the field still works
 // for anything finer than this.
@@ -257,19 +258,26 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
 
           {canAct && !showCounter && (
             <>
-              <div className="flex items-center gap-2">
-                <button onClick={() => onAccept(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20">
-                  <CheckCircle2 size={14} /> Accept
-                </button>
-                {!isBrokerAssigned && !respondentCounterLimitReached && (
-                  <button onClick={openCounter} className="flex-1 py-2.5 text-xs font-bold rounded-xl border-2 border-primary/20 text-primary hover:bg-primary/5 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
-                    <IndianRupee size={14} /> Counter
+              {isBrokerAssigned || respondentCounterLimitReached ? (
+                // Nothing left to negotiate — plain two-button layout, no swipe.
+                <div className="flex items-center gap-2">
+                  <button onClick={() => onAccept(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20">
+                    <CheckCircle2 size={14} /> Accept
                   </button>
-                )}
-                <button onClick={() => onDecline(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl border-2 border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
-                  <XCircle size={14} /> Decline
-                </button>
-              </div>
+                  <button onClick={() => onDecline(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl border-2 border-slate-200 text-slate-500 hover:bg-slate-50 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5">
+                    <XCircle size={14} /> Decline
+                  </button>
+                </div>
+              ) : (
+                // Accept stays a plain tap (too consequential for a gesture); Decline/Negotiate
+                // are now one bidirectional swipe bar instead of two separate buttons.
+                <div className="space-y-2">
+                  <button onClick={() => onAccept(req.id)} className="w-full py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20">
+                    <CheckCircle2 size={14} /> Accept
+                  </button>
+                  <SwipeDecideBar onDecline={() => onDecline(req.id)} onNegotiate={openCounter} />
+                </div>
+              )}
               {role === "broker" && (
                 <p className="text-[11px] text-amber-600 text-center mt-2 font-medium">Driver timed out — you&apos;re responding on their behalf.</p>
               )}
