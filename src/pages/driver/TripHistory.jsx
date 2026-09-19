@@ -1,11 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { History, Search } from "lucide-react";
+import { History, Search, LayoutGrid, List, Package, MapPin, Clock } from "lucide-react";
 import TripCard from "../../components/driver/TripCard";
+import Badge from "../../components/driver/Badge";
+import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptTrip, formatDate } from "../../utils";
+import { adaptTrip, bookingRef, formatDate, splitLocationName } from "../../utils";
+
+const PRICE_COLOR = {
+  Completed: "text-emerald-600",
+  Delivered: "text-emerald-600",
+  Cancelled: "text-red-500",
+  "In Transit": "text-primary",
+};
 
 export default function TripHistory() {
   const navigate = useNavigate();
@@ -13,6 +22,8 @@ export default function TripHistory() {
   const [trips, setTrips] = useState([]);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [viewMode, setViewMode] = useState("grid");
+  const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -120,6 +131,22 @@ export default function TripHistory() {
             </button>
           ))}
         </div>
+        <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-1 flex-shrink-0">
+          <button
+            onClick={() => setViewMode("grid")}
+            aria-label="Box view"
+            className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+          >
+            <LayoutGrid size={16} />
+          </button>
+          <button
+            onClick={() => setViewMode("list")}
+            aria-label="List view"
+            className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-white text-primary shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+          >
+            <List size={16} />
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -136,9 +163,63 @@ export default function TripHistory() {
           <p className="font-bold text-slate-800 text-[15px]">No trips found</p>
           <p className="text-sm text-slate-400 mt-1">Try a different search or filter.</p>
         </div>
-      ) : (
+      ) : viewMode === "grid" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredCards.map((trip) => <TripCard key={trip.id} trip={trip} onDelete={setDeleteTarget} onViewDetails={() => navigate(`/driver/history/${trip.id}`)} />)}
+          {filteredCards.map((trip) => (
+            <TripCard
+              key={trip.id}
+              trip={trip}
+              onDelete={setDeleteTarget}
+              onViewDetails={() => navigate(`/driver/history/${trip.id}`)}
+              expanded={expandedId === trip.id}
+              onToggle={() => setExpandedId((current) => (current === trip.id ? null : trip.id))}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card divide-y divide-slate-100 overflow-hidden">
+          {filteredCards.map((trip) => {
+            const pickup = splitLocationName(trip.pickup);
+            const drop = splitLocationName(trip.drop);
+            return (
+              <div
+                key={trip.id}
+                onClick={() => navigate(`/driver/history/${trip.id}`)}
+                className="flex items-center gap-4 px-4 py-3.5 cursor-pointer hover:bg-slate-50 transition-colors"
+              >
+                <div className="w-32 flex-shrink-0">
+                  <p className="font-mono text-xs text-slate-500">{bookingRef(trip)}</p>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <Badge status={trip.status} />
+                    {trip.isExpress && <ExpressBadge />}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 flex items-center gap-2 text-sm">
+                  <MapPin size={14} className="text-slate-300 flex-shrink-0" />
+                  <span className="font-semibold text-slate-700 truncate" title={trip.pickup}>{pickup.name || "-"}</span>
+                  <span className="text-slate-300">&rarr;</span>
+                  <span className="font-semibold text-slate-700 truncate" title={trip.drop}>{drop.name || "-"}</span>
+                </div>
+
+                <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-500 w-40 flex-shrink-0">
+                  <Package size={13} className="text-slate-300 flex-shrink-0" />
+                  <span className="truncate">{trip.cargo || "-"}{trip.weight ? ` · ${trip.weight}` : ""}</span>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 w-28 flex-shrink-0">
+                  <Clock size={13} className="text-slate-300 flex-shrink-0" />
+                  <span>{trip.date}</span>
+                </div>
+
+                <div className="text-xs text-slate-500 w-16 flex-shrink-0 text-right">{trip.distance ? `${trip.distance} km` : "-"}</div>
+
+                <div className={`font-bold text-sm w-20 flex-shrink-0 text-right ${PRICE_COLOR[trip.status] || "text-slate-800"}`}>
+                  {trip.earnings ? `Rs ${Number(trip.earnings).toLocaleString("en-IN")}` : "-"}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ChevronDown, ChevronUp, MapPin, Package, Phone, Trash2, ArrowUpRight, Clock } from "lucide-react";
 import Badge from "./Badge";
 import ExpressBadge from "../ExpressBadge";
@@ -25,8 +24,7 @@ const PRICE_COLOR = {
   "In Transit": "text-primary",
 };
 
-export default function TripCard({ trip, onDelete, onViewDetails }) {
-  const [expanded, setExpanded] = useState(false);
+export default function TripCard({ trip, onDelete, onViewDetails, expanded, onToggle }) {
   if (!trip) return null;
   const canDelete = onDelete && DELETABLE_STATUSES.includes(trip.status);
   const pickup = splitLocationName(trip.pickup);
@@ -35,7 +33,7 @@ export default function TripCard({ trip, onDelete, onViewDetails }) {
   return (
     <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden hover:shadow-modal transition-shadow">
       <div className={`h-1 w-full ${ACCENT[trip.status] || "bg-slate-200"}`} />
-      <button className="w-full p-4 text-left" onClick={() => setExpanded(!expanded)}>
+      <button className="w-full p-4 text-left" onClick={onToggle}>
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 min-w-0">
             <span className="text-xs font-mono text-slate-400 flex-shrink-0">{bookingRef(trip)}</span>
@@ -122,7 +120,7 @@ export default function TripCard({ trip, onDelete, onViewDetails }) {
         </div>
       )}
 
-      <button onClick={() => setExpanded(!expanded)}
+      <button onClick={onToggle}
         className="w-full flex justify-center py-1.5 border-t border-slate-50 hover:bg-slate-50 transition-colors">
         {expanded ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
       </button>

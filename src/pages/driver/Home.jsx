@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router-dom";
 import { Navigation, Gauge, Wallet, Clock, TrendingUp, Truck, ShieldAlert, ArrowRight } from "lucide-react";
 import Badge from "../../components/driver/Badge";
@@ -44,7 +44,8 @@ export default function Home() {
   const firstName = (user?.name || "Driver").split(" ")[0];
   const [activeTrip, setActiveTrip] = useState(null);
   const [upcomingTrip, setUpcomingTrip] = useState(null);
-  const [history, setHistory] = useState([]);
+  const [summary, setSummary] = useState({ trips: 0, distance: 0, earnings: 0 });
+  const [trend, setTrend] = useState({ trips: null, distance: null, earnings: null });
   const [profile, setProfile] = useState(user || {});
   const [assignedTruck, setAssignedTruck] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -57,18 +58,23 @@ export default function Home() {
       setError(null);
       try {
         const token = getToken();
-        const [truckRes, profileRes, activeRes, upcomingRes, analyticsRes] = await Promise.all([
+        const [truckRes, profileRes, activeRes, upcomingRes, summaryRes] = await Promise.all([
           api.get("/api/vehicles/drivers/me/truck", token),
           api.get("/api/users/profile", token),
           api.get("/api/trips/active", token),
           api.get("/api/trips/upcoming", token),
-          api.get("/api/analytics/broker", token),
+          api.get("/api/trips/dashboard-summary", token),
         ]);
         setAssignedTruck(truckRes.data?.truck || null);
         setProfile(profileRes.data?.user || profileRes.data || user || {});
         setActiveTrip(activeRes.data?.trip ? adaptTrip(activeRes.data.trip) : null);
         setUpcomingTrip(upcomingRes.data?.trip ? adaptTrip(upcomingRes.data.trip) : null);
-        setHistory((analyticsRes.data?.tripHistory || []).map(adaptTrip));
+        setSummary({
+          trips: Number(summaryRes.data?.trips || 0),
+          distance: Number(summaryRes.data?.distance || 0),
+          earnings: Number(summaryRes.data?.earnings || 0),
+        });
+        setTrend(summaryRes.data?.trend || { trips: null, distance: null, earnings: null });
       } catch {
         setError("Failed to load dashboard data. Please try again.");
       } finally {
@@ -77,40 +83,6 @@ export default function Home() {
     };
     load();
   }, [user]);
-
-  const summary = useMemo(() => ({
-    trips: history.length,
-    distance: history.reduce((sum, trip) => sum + Number(trip.distance || 0), 0),
-    earnings: history.reduce((sum, trip) => sum + Number(trip.earnings || 0), 0),
-  }), [history]);
-
-  // Real month-over-month change, not a placeholder number — buckets each trip by whether it
-  // fell in the current or previous calendar month (using its createdAt) and compares totals.
-  // null (not 0%) when there's nothing to compare against, so the trend row just doesn't show
-  // rather than claiming a misleading "+0%".
-  const trend = useMemo(() => {
-    const now = new Date();
-    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const totals = { current: { trips: 0, distance: 0, earnings: 0 }, previous: { trips: 0, distance: 0, earnings: 0 } };
-
-    history.forEach((trip) => {
-      const created = trip.createdAt ? new Date(trip.createdAt) : null;
-      if (!created || Number.isNaN(created.getTime())) return;
-      const bucket = created >= thisMonthStart ? "current" : created >= lastMonthStart ? "previous" : null;
-      if (!bucket) return;
-      totals[bucket].trips += 1;
-      totals[bucket].distance += Number(trip.distance || 0);
-      totals[bucket].earnings += Number(trip.earnings || 0);
-    });
-
-    const pctChange = (curr, prev) => (prev > 0 ? Math.round(((curr - prev) / prev) * 100) : null);
-    return {
-      trips: pctChange(totals.current.trips, totals.previous.trips),
-      distance: pctChange(totals.current.distance, totals.previous.distance),
-      earnings: pctChange(totals.current.earnings, totals.previous.earnings),
-    };
-  }, [history]);
 
   if (loading) {
     return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading dashboard...</div>;

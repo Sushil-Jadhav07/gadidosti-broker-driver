@@ -13,7 +13,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, adaptTrip, bookingRef, formatBookingStatus, formatCurrency, formatDate, formatDateTime, formatDuration, shareInvoicePdf } from "../../utils";
+import { adaptBooking, adaptTrip, bookingRef, formatBookingStatus, formatCurrency, formatDate, formatDateTime, formatDuration, formatPaymentMode, shareInvoicePdf } from "../../utils";
 
 const INVOICE_READY_STATUSES = ["Delivered", "Completed"];
 
@@ -555,7 +555,7 @@ export default function JobDetail() {
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase">Payment Mode</p>
-                  <p className="text-sm font-bold text-slate-800 mt-0.5 capitalize">{booking.paymentMode || "—"}</p>
+                  <p className="text-sm font-bold text-slate-800 mt-0.5">{formatPaymentMode(booking.paymentMode) || "—"}</p>
                 </div>
                 <div className="bg-slate-50 rounded-lg px-3 py-2.5">
                   <p className="text-[10px] text-slate-400 font-semibold uppercase flex items-center gap-1"><Clock size={11} /> Time Taken</p>

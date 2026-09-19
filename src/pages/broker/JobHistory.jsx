@@ -6,7 +6,7 @@ import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration } from "../../utils";
+import { adaptBooking, bookingRef, formatCurrency, formatDate, formatDuration, formatPaymentMode } from "../../utils";
 
 const PAYMENT_BADGE = { paid: "success", pending: "warning", refunded: "default" };
 
@@ -189,7 +189,7 @@ export default function JobHistory() {
                     <td className="px-4 py-3 text-emerald-700 font-semibold whitespace-nowrap">{formatCurrency(row.net)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <Badge variant={PAYMENT_BADGE[row.paymentStatus] || "default"} size="sm">
-                        {row.paymentStatus}{row.paymentMode ? ` · ${row.paymentMode}` : ""}
+                        {row.paymentStatus}{row.paymentMode ? ` · ${formatPaymentMode(row.paymentMode)}` : ""}
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDuration(row.timeTakenMinutes)}</td>

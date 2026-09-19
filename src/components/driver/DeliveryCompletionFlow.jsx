@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle } from "lucide-react";
+import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle, Camera, Wallet } from "lucide-react";
 import Badge from "./Badge";
 import ExpressBadge from "../ExpressBadge";
 import SwipeToConfirm from "./SwipeToConfirm";
 import { useToast } from "../../hooks/useToast";
-import { api, getToken } from "../../services/api";
+import { api, getToken, API_BASE } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency } from "../../utils";
 import { compressImage } from "../../lib/imageCompression";
+import { extractQrCrop } from "../../lib/qrCrop";
 
 const MAX_MEDIA = 6;
 // Mirrors the backend's own minRequired (POST /api/trips/:id/pod's minRequired, and the 409
@@ -69,34 +70,44 @@ const resolveInitialStep = (trip) => {
 };
 
 const ALL_STEPS = [
-  { key: "arrived", label: "Arrived" },
-  { key: "upload", label: "Upload" },
-  { key: "payments", label: "Payments" },
-  { key: "complete", label: "Complete" },
+  { key: "arrived", label: "Arrived", icon: MapPin },
+  { key: "upload", label: "Upload", icon: Camera },
+  { key: "payments", label: "Payments", icon: Wallet },
+  { key: "complete", label: "Complete", icon: CheckCheck },
 ];
 
 // A compact wizard progress bar so the flow reads as a deliberate multi-step sequence on a
 // wide desktop viewport, instead of a single card floating in a lot of empty space with no
 // sense of where you are in the process. `includePayments` is fixed once at mount (see
 // DeliveryCompletionFlow) so the step count never jumps mid-flow after payment is collected.
+// Labels sit below each icon (not beside it) so the connecting line reads as one continuous
+// track across the full width — the mt-4 on that line is deliberate, not a magic number: it's
+// half the w-9/h-9 circle's height, centering the track on the circle regardless of how tall
+// the label text below happens to be.
 function StepProgress({ current, includePayments }) {
   const steps = includePayments ? ALL_STEPS : ALL_STEPS.filter((s) => s.key !== "payments");
   const currentIndex = steps.findIndex((s) => s.key === current);
 
   return (
-    <div className="flex items-center mb-8">
+    <div className="flex items-start mb-8">
       {steps.map((s, i) => (
-        <div key={s.key} className="flex items-center flex-1 last:flex-none">
-          <div className="flex items-center gap-2">
-            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0 transition-colors ${
-              i < currentIndex ? "bg-emerald-500 text-white" : i === currentIndex ? "bg-primary text-white" : "bg-slate-100 text-slate-400"
+        <div key={s.key} className="flex items-start flex-1 last:flex-none">
+          <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-300 ${
+              i < currentIndex ? "bg-emerald-500 text-white" :
+              i === currentIndex ? "bg-primary text-white ring-4 ring-primary/15" :
+              "bg-slate-100 text-slate-400"
             }`}>
-              {i < currentIndex ? <Check size={13} /> : i + 1}
+              {i < currentIndex ? <Check size={16} /> : <s.icon size={16} />}
             </div>
-            <span className={`text-xs font-semibold whitespace-nowrap ${i === currentIndex ? "text-slate-800" : "text-slate-400"}`}>{s.label}</span>
+            <span className={`text-[11px] font-semibold whitespace-nowrap ${
+              i === currentIndex ? "text-slate-800" : i < currentIndex ? "text-emerald-600" : "text-slate-400"
+            }`}>
+              {s.label}
+            </span>
           </div>
           {i < steps.length - 1 && (
-            <div className={`flex-1 h-0.5 mx-3 rounded-full transition-colors ${i < currentIndex ? "bg-emerald-500" : "bg-slate-100"}`} />
+            <div className={`flex-1 h-1 mx-2 mt-4 rounded-full transition-colors duration-300 ${i < currentIndex ? "bg-emerald-500" : "bg-slate-100"}`} />
           )}
         </div>
       ))}
@@ -234,23 +245,77 @@ const buildUpiIntent = ({ upiId, payeeName, amount, note }) => (
   `&am=${Number(amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(note)}`
 );
 
-function PaymentsStep({ trip, onCollect, collecting }) {
+function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
   const [qrDataUrl, setQrDataUrl] = useState(null);
   const [qrError, setQrError] = useState(false);
-  // Which QR to show is the driver's own call, made fresh for every collection — not a saved
-  // preference. Defaults to "personal" (today's only behavior) and is only ever offered as a
-  // choice when both are configured; see hasPersonalUpi/hasCompanyUpi below.
-  const [qrSource, setQrSource] = useState("personal");
 
   const hasPersonalUpi = !!trip.driverUpiId;
   const hasCompanyUpi = !!trip.companyUpiId;
-  // If only one side is configured, use it regardless of qrSource — no toggle is rendered in
-  // that case, so there's nothing for the driver to have chosen.
-  const activeSource = hasPersonalUpi && hasCompanyUpi ? qrSource : hasCompanyUpi ? "company" : "personal";
+  // Only offered when the backend's active payment gateway is Razorpay — see
+  // gadidosti-backend's collect-payment/qr endpoints. Unlike the two UPI-intent QRs above,
+  // this one is generated server-side and independently confirmed by Razorpay, so it doesn't
+  // rely on the driver self-reporting that they were paid.
+  const hasRazorpayQr = !!trip.razorpayQrAvailable;
+  const availableSources = [
+    hasPersonalUpi && "personal",
+    hasCompanyUpi && "company",
+    hasRazorpayQr && "razorpay",
+  ].filter(Boolean);
+
+  // Which QR to show is the driver's own call, made fresh for every collection — not a saved
+  // preference. Defaults to whichever source is available first (personal, then company, then
+  // Razorpay) and only offers a toggle at all when more than one source is configured.
+  const [qrSource, setQrSource] = useState(() => availableSources[0] || "personal");
+  const activeSource = availableSources.includes(qrSource) ? qrSource : (availableSources[0] || "personal");
   const activeUpiId = activeSource === "company" ? trip.companyUpiId : trip.driverUpiId;
   const activePayeeName = activeSource === "company" ? (trip.companyUpiName || "GadiDost Logistics") : (trip.driverName || "Driver");
 
+  // Razorpay-verified QR: fetched from the backend (not generated client-side), and polled so
+  // the flow can auto-advance once Razorpay confirms the customer actually paid — no button tap
+  // needed, unlike the self-reported Personal/Company QR below.
+  const [razorpayQr, setRazorpayQr] = useState(() => (
+    trip.razorpayQrStatus === "active" && trip.razorpayQrImageUrl
+      ? { qrCodeId: trip.razorpayQrCodeId, imageUrl: trip.razorpayQrImageUrl }
+      : { qrCodeId: null, imageUrl: null }
+  ));
+  const [razorpayQrError, setRazorpayQrError] = useState(false);
+  const [razorpayPaid, setRazorpayPaid] = useState(false);
+  const razorpayPollRef = useRef(null);
+
+  // Once the Razorpay QR image is available, fetch it through our own backend (same-origin,
+  // so <canvas> can actually read its pixels — see getPaymentQrImage in trip.controller.js)
+  // and auto-crop just the QR square out of Razorpay's branded poster (see lib/qrCrop.js) so
+  // the driver only ever sees the scannable code, not the surrounding header/logos/business
+  // name text. Falls back to the uncropped (but still same-origin) image if detection can't
+  // confidently find a QR-shaped region, so there's always something to show.
+  const [razorpayQrDisplaySrc, setRazorpayQrDisplaySrc] = useState(null);
   useEffect(() => {
+    if (!razorpayQr.imageUrl) {
+      setRazorpayQrDisplaySrc(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let objectUrl = null;
+    const proxyUrl = `${API_BASE}/api/trips/${trip.id}/collect-payment/qr/image`;
+    api.getFileBlobUrl(proxyUrl, getToken())
+      .then(async (blobUrl) => {
+        if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
+        objectUrl = blobUrl;
+        const cropped = await extractQrCrop(blobUrl);
+        if (!cancelled) setRazorpayQrDisplaySrc(cropped || blobUrl);
+      })
+      .catch(() => { if (!cancelled) setRazorpayQrDisplaySrc(null); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [razorpayQr.imageUrl, trip.id]);
+
+  useEffect(() => {
+    if (activeSource === "razorpay") {
+      setQrDataUrl(null);
+      return undefined;
+    }
     if (!activeUpiId || !trip.amountToCollect) {
       setQrDataUrl(null);
       return undefined;
@@ -266,7 +331,69 @@ function PaymentsStep({ trip, onCollect, collecting }) {
       .then((url) => { if (!cancelled) { setQrDataUrl(url); setQrError(false); } })
       .catch(() => { if (!cancelled) setQrError(true); });
     return () => { cancelled = true; };
-  }, [activeUpiId, activePayeeName, trip.amountToCollect, trip.id]);
+  }, [activeSource, activeUpiId, activePayeeName, trip.amountToCollect, trip.id]);
+
+  // Creates (or reuses) the Razorpay QR while this tab is active, then polls payment status
+  // every ~3.5s until it's paid, the driver switches tabs, or the component unmounts — the
+  // interval is always cleared in the cleanup function so it never leaks across any of those.
+  useEffect(() => {
+    if (activeSource !== "razorpay" || !hasRazorpayQr || razorpayPaid) return undefined;
+
+    let cancelled = false;
+
+    const stopPolling = () => {
+      if (razorpayPollRef.current) {
+        clearInterval(razorpayPollRef.current);
+        razorpayPollRef.current = null;
+      }
+    };
+
+    const pollStatus = async () => {
+      try {
+        const response = await api.get(`/api/trips/${trip.id}/collect-payment/qr/status`, getToken());
+        if (cancelled) return;
+        if (response.success && response.data?.paid) {
+          stopPolling();
+          setRazorpayPaid(true);
+          onVerifiedPaid();
+        }
+      } catch {
+        // Transient poll failure — just try again on the next tick.
+      }
+    };
+
+    const start = async () => {
+      let qr = razorpayQr;
+      if (!qr.imageUrl) {
+        setRazorpayQrError(false);
+        try {
+          const response = await api.post(`/api/trips/${trip.id}/collect-payment/qr`, {}, getToken());
+          if (!response.success) throw new Error(response.message || "Failed to generate QR code");
+          qr = { qrCodeId: response.data?.qrCodeId, imageUrl: response.data?.imageUrl };
+          if (cancelled) return;
+          setRazorpayQr(qr);
+        } catch {
+          if (!cancelled) setRazorpayQrError(true);
+          return;
+        }
+      }
+      if (cancelled || !qr.imageUrl) return;
+      pollStatus();
+      razorpayPollRef.current = setInterval(pollStatus, 3500);
+    };
+
+    start();
+
+    return () => {
+      cancelled = true;
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSource, hasRazorpayQr, razorpayPaid, trip.id]);
+
+  const razorpayTabActiveUnpaid = activeSource === "razorpay" && !razorpayPaid;
+  const tabButtonClass = (source) =>
+    `px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${activeSource === source ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`;
 
   return (
     <div className="flex flex-col h-full">
@@ -294,33 +421,76 @@ function PaymentsStep({ trip, onCollect, collecting }) {
         )}
       </div>
 
-      {hasPersonalUpi || hasCompanyUpi ? (
-        <div className="bg-white border border-slate-100 rounded-xl p-5 mb-4 text-center">
-          {hasPersonalUpi && hasCompanyUpi && (
-            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-4">
-              <button
-                onClick={() => setQrSource("personal")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${qrSource === "personal" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Personal QR
-              </button>
-              <button
-                onClick={() => setQrSource("company")}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${qrSource === "company" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
-              >
-                Company QR
-              </button>
+      {hasPersonalUpi || hasCompanyUpi || hasRazorpayQr ? (
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5 mb-4">
+          {availableSources.length > 1 && (
+            <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-5">
+              {hasPersonalUpi && (
+                <button onClick={() => setQrSource("personal")} className={tabButtonClass("personal")}>
+                  Personal QR
+                </button>
+              )}
+              {hasCompanyUpi && (
+                <button onClick={() => setQrSource("company")} className={tabButtonClass("company")}>
+                  Company QR
+                </button>
+              )}
+              {hasRazorpayQr && (
+                <button onClick={() => setQrSource("razorpay")} className={tabButtonClass("razorpay")}>
+                  Verified QR
+                </button>
+              )}
             </div>
           )}
-          {qrDataUrl ? (
-            <>
-              <img src={qrDataUrl} alt="UPI payment QR" className="w-44 h-44 mx-auto rounded-lg" />
-              <p className="text-xs text-slate-400 mt-3">Ask the customer to scan &amp; pay {formatCurrency(trip.amountToCollect)} via any UPI app</p>
-            </>
+
+          {activeSource === "razorpay" ? (
+            razorpayPaid ? (
+              <div className="flex flex-col items-center py-6">
+                <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">
+                  <CheckCheck className="w-8 h-8 text-emerald-500" />
+                </div>
+                <p className="text-sm font-semibold text-emerald-600 mt-3">Payment verified by Razorpay</p>
+              </div>
+            ) : razorpayQr.imageUrl ? (
+              <div className="flex flex-col items-center">
+                <p className="text-sm font-semibold text-slate-800">Scan to pay {formatCurrency(trip.amountToCollect)}</p>
+                <p className="text-xs text-slate-400 mt-0.5 text-center">Auto-confirms the moment Razorpay verifies the payment — no button tap needed</p>
+                {/* Razorpay's image is a full branded poster (header, the QR, scan-text,
+                    payment-app logos, our business name/trip number, a decorative footer) —
+                    fixed CSS crops kept breaking since that bottom block is generated per-QR,
+                    not part of any stable template. razorpayQrDisplaySrc is instead the result
+                    of actually scanning the image's pixels for the QR's real bounding box (see
+                    lib/qrCrop.js) — shown at a fixed max width, letting its own (now roughly
+                    square) aspect ratio decide the height rather than forcing one. */}
+                {razorpayQrDisplaySrc ? (
+                  <div className="mt-4 w-full max-w-[220px] rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white p-3">
+                    <img src={razorpayQrDisplaySrc} alt="Razorpay verified payment QR" className="w-full h-auto block" />
+                  </div>
+                ) : (
+                  <div className="mt-4 w-full max-w-[220px] aspect-square mx-auto rounded-xl bg-slate-100 animate-pulse" />
+                )}
+                <div className="flex items-center gap-1.5 mt-4 px-3 py-1.5 rounded-full bg-amber-50">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                  <span className="text-[11px] text-amber-600 font-semibold">Waiting for payment...</span>
+                </div>
+              </div>
+            ) : razorpayQrError ? (
+              <p className="text-xs text-danger text-center py-6">Couldn't generate the verified QR code — collect via UPI ID or cash instead.</p>
+            ) : (
+              <div className="w-full max-w-[240px] aspect-[3/4] mx-auto rounded-xl bg-slate-100 animate-pulse" />
+            )
+          ) : qrDataUrl ? (
+            <div className="flex flex-col items-center">
+              <p className="text-sm font-semibold text-slate-800">Scan to pay {formatCurrency(trip.amountToCollect)}</p>
+              <p className="text-xs text-slate-400 mt-0.5">via any UPI app</p>
+              <div className="mt-4 p-3 rounded-xl border border-slate-200 shadow-sm bg-white">
+                <img src={qrDataUrl} alt="UPI payment QR" className="w-44 h-44" />
+              </div>
+            </div>
           ) : qrError ? (
-            <p className="text-xs text-danger">Couldn't generate the QR code — collect via UPI ID or cash instead.</p>
+            <p className="text-xs text-danger text-center py-6">Couldn't generate the QR code — collect via UPI ID or cash instead.</p>
           ) : (
-            <div className="w-44 h-44 mx-auto rounded-lg bg-slate-100 animate-pulse" />
+            <div className="w-44 h-44 mx-auto rounded-xl bg-slate-100 animate-pulse" />
           )}
         </div>
       ) : (
@@ -330,13 +500,15 @@ function PaymentsStep({ trip, onCollect, collecting }) {
       )}
 
       <div className="mt-auto space-y-3">
-        <button
-          onClick={() => onCollect("upi")}
-          disabled={collecting}
-          className="w-full py-4 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
-        >
-          {collecting ? "Confirming..." : "Payment Received via UPI"}
-        </button>
+        {!razorpayTabActiveUnpaid && (
+          <button
+            onClick={() => onCollect("upi")}
+            disabled={collecting}
+            className="w-full py-4 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
+          >
+            {collecting ? "Confirming..." : "Payment Received via UPI"}
+          </button>
+        )}
         <button
           onClick={() => onCollect("cash")}
           disabled={collecting}
@@ -463,6 +635,15 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
     }
   };
 
+  // Called by PaymentsStep once its Razorpay QR poll reports `paid: true` — the backend has
+  // already fully finalized the payment server-side at that point (same as the PATCH above
+  // would have), so this just mirrors handleCollectPayment's success path without another
+  // network call.
+  const handleVerifiedPayment = () => {
+    setTrip((prev) => ({ ...prev, paymentStatus: "paid" }));
+    setStep("complete");
+  };
+
   const runCompletion = async () => {
     setCompleting(true);
     setCompleteError(null);
@@ -488,7 +669,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
 
   return (
     <div className="max-w-xl mx-auto">
-      <div className="bg-white rounded-xl border border-slate-100 shadow-card p-6 md:p-8 min-h-[520px] flex flex-col">
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 md:p-8 min-h-[520px] flex flex-col">
         <StepProgress current={step} includePayments={includePayments} />
         {step === "arrived" && <ArrivedStep trip={trip} onConfirm={handleConfirmArrival} loading={confirmingArrival} />}
         {step === "upload" && (
@@ -503,6 +684,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
             trip={trip}
             onCollect={handleCollectPayment}
             collecting={collectingPayment}
+            onVerifiedPaid={handleVerifiedPayment}
           />
         )}
         {step === "complete" && (

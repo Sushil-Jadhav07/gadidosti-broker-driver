@@ -78,15 +78,37 @@ export const shareInvoicePdf = async ({ blob, filename, text }) => {
 // "Warehouse Alpha, 124 Industrial Pkwy, Sector 4"), so split on the first comma rather than
 // inventing data that isn't there. Used anywhere a long address needs a bold name + gray
 // address line instead of one unbroken run of text.
+// A real Indian address routinely starts with a bare house/plot number or a Google Plus Code
+// before the actual locality name — "1, Vartak Nagar, Thane West..." or "6X96+7WJ, Unnathi
+// Gardens...". Splitting on just the first comma took that leading fragment as "the name" ("1",
+// "6X96+7WJ"), which is what a driver actually saw on trip cards instead of a real place name.
+// Skip any number of leading segments that look like a bare code (short, alphanumeric, has a
+// digit) and use the first segment that doesn't — falling back to the very first segment only if
+// literally every one of them looks like a code (better than showing nothing at all).
+const looksLikeBareCode = (segment) => segment.length <= 12 && /\d/.test(segment) && /^[A-Za-z0-9+\-/]+$/.test(segment);
+
 export const splitLocationName = (value) => {
   if (!value) return { name: null, address: null };
-  const idx = value.indexOf(",");
-  if (idx === -1) return { name: value, address: null };
-  return { name: value.slice(0, idx).trim(), address: value.slice(idx + 1).trim() };
+  const parts = value.split(",").map((p) => p.trim()).filter(Boolean);
+  if (parts.length <= 1) return { name: value, address: null };
+
+  let nameIdx = parts.findIndex((p) => !looksLikeBareCode(p));
+  if (nameIdx === -1) nameIdx = 0;
+
+  const name = parts[nameIdx];
+  const address = parts.filter((_, i) => i !== nameIdx).join(", ") || null;
+  return { name, address };
 };
 
 export const formatBookingStatus = (status) => BOOKING_STATUS[status] || status || "Requested";
 export const formatKycStatus = (status) => status ? `${status.charAt(0).toUpperCase()}${status.slice(1)}` : "Pending";
+
+// booking.paymentMode as collected by the driver's Payments step (see
+// DeliveryCompletionFlow.jsx) — 'razorpay_qr' is new (verified via Razorpay's own QR Code API,
+// not self-reported like the other two) and would otherwise render as the raw snake_case value
+// wherever this gets shown (JobDetail.jsx, JobHistory.jsx).
+const PAYMENT_MODE_LABEL = { upi: "UPI", cash: "Cash", razorpay_qr: "Razorpay QR" };
+export const formatPaymentMode = (mode) => PAYMENT_MODE_LABEL[mode] || mode || null;
 
 export const adaptJobRequest = (request) => ({
   ...request,
