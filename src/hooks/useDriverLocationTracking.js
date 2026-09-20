@@ -15,6 +15,9 @@ const STORAGE_KEY = DRIVER_ONLINE_STORAGE_KEY;
 const MIN_INTERVAL_MS = 3000;
 const MIN_DISTANCE_M = 50;    // ...unless moved at least ~50m
 const ACTIVE_TRIP_REFRESH_MS = 60000; // re-check which trip (if any) is active every ~60s
+// Comfortably under staleDriverLocationSweep's 5-minute cutoff (backend cron, runs every 2min)
+// — see the heartbeat effect below for why this exists at all.
+const HEARTBEAT_MS = 90000;
 
 const haversineMeters = (lat1, lng1, lat2, lng2) => {
   const R = 6371000;
@@ -135,6 +138,29 @@ export function useDriverLocationTracking() {
     );
 
     return () => navigator.geolocation.clearWatch(watchId);
+  }, [tracking]);
+
+  // watchPosition's callback above only fires when the browser's geolocation provider decides
+  // the position actually changed — on a stationary desktop browser (Wi-Fi-based geolocation,
+  // no real GPS) that can mean one callback and then nothing for many minutes, even though the
+  // driver is still genuinely "online." Without something independent re-affirming the fix, the
+  // backend's last_location_at goes stale and its 5-minute cron
+  // (staleDriverLocationSweep.js) silently flips the driver to 'offline' — invisible to every
+  // nearby-driver query (Find Truck broadcast included) despite the UI still showing them
+  // online, with nothing telling either side why. This just re-sends the LAST KNOWN fix on a
+  // fixed interval regardless of whether a new one ever arrives, purely to keep that timestamp
+  // alive; watchPosition's own callback still owns sending anything that's actually moved.
+  useEffect(() => {
+    if (!tracking) return undefined;
+    const heartbeat = setInterval(() => {
+      const last = lastSentRef.current;
+      if (last.lat == null) return; // no fix yet at all — nothing to keep alive
+      lastSentRef.current = { ...last, time: Date.now() };
+      api.patch("/api/vehicles/drivers/me/location", { lat: last.lat, lng: last.lng }, getToken()).catch((err) => {
+        console.error("Failed to push location heartbeat:", err);
+      });
+    }, HEARTBEAT_MS);
+    return () => clearInterval(heartbeat);
   }, [tracking]);
 
   // Fully locked while a trip is active — not just "can't turn off", nothing to toggle at all,
