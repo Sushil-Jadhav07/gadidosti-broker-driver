@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle, Repeat, AlertTriangle, ChevronDown } from "lucide-react";
+import { ArrowLeft, Truck, User, Phone, Package, Ruler, IndianRupee, Calendar, Trash2, Download, Mail, Clock, Share2, Send, PackagePlus, PackageMinus, CheckCircle2, Circle, ClipboardCheck, MessageCircle, Repeat, AlertTriangle, ChevronDown, Camera } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import ExpressBadge from "../../components/ExpressBadge";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import DeliveryCompletionFlow from "../../components/driver/DeliveryCompletionFlow";
 import InvoiceEmailModal from "../../components/InvoiceEmailModal";
+import PodGallery from "../../components/PodGallery";
 import Modal from "../../components/broker/Modal";
 import ChatWindow from "../../components/ChatWindow";
 import { useAuth } from "../../hooks/useAuth";
@@ -563,6 +564,15 @@ export default function JobDetail() {
                 </div>
               </div>
             </div>
+
+            {booking.podMedia?.length > 0 && (
+              <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <Camera size={13} className="text-primary" /> Proof of Delivery
+                </p>
+                <PodGallery media={booking.podMedia} token={getToken()} />
+              </div>
+            )}
 
             {reassignmentHistory.length > 0 && (
               <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
