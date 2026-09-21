@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import SelectDropdown from "../components/SelectDropdown";
 import {
   Truck, User, Eye, EyeOff, CheckCircle, ArrowLeft, ArrowRight, Building2, Lock, FileText, AlertCircle, Mail, Gauge, Calendar,
   ShieldCheck, IndianRupee, BarChart3,
@@ -368,9 +369,11 @@ export default function Register() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Type</label>
-                    <select value={truck.category} onChange={setTruckField("category")} className="input-field px-3 py-2.5 w-full">
-                      {TRUCK_TYPES.map((t) => <option key={t} value={t}>{t[0].toUpperCase() + t.slice(1)}</option>)}
-                    </select>
+                    <SelectDropdown
+                      options={TRUCK_TYPES.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+                      value={truck.category}
+                      onChange={(v) => setTruckField("category")({ target: { value: v } })}
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Capacity</label>

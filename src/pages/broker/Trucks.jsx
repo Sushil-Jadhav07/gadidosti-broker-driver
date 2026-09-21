@@ -8,6 +8,7 @@ import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverDropdown from "../../components/broker/DriverDropdown";
+import SelectDropdown from "../../components/SelectDropdown";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
@@ -419,9 +420,11 @@ export default function Trucks() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Type</label>
-            <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="input-field px-3 py-2 w-full">
-              {TRUCK_TYPES.map((truckType) => <option key={truckType} value={truckType}>{truckType[0].toUpperCase() + truckType.slice(1)}</option>)}
-            </select>
+            <SelectDropdown
+              options={(TRUCK_TYPES.includes(form.category) ? TRUCK_TYPES : [...TRUCK_TYPES, form.category]).map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+              value={form.category}
+              onChange={(v) => setForm((current) => ({ ...current, category: v }))}
+            />
           </div>
           {[
             ["capacity", "Capacity"],
