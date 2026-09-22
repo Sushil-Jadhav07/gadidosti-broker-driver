@@ -1,6 +1,17 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export const API_BASE = BASE;
 
+// Fires once on the first 401 seen for an already-authenticated call (force-logout, a naturally
+// expired access token, anything that makes the current session invalid) — useAuth.jsx's
+// AuthProvider registers the actual clear-session-and-redirect-to-login handler. Before this,
+// nothing looked at the response status at all: every page just got back
+// { success: false, message: "..." } same as any other failure, showed its own generic error
+// toast, and left the driver sitting on a broken page with a token that would never start
+// working again — never actually logged out client-side despite the server having ended the
+// session, no matter how many more requests they tried.
+let unauthorizedHandler = null;
+export const setUnauthorizedHandler = (fn) => { unauthorizedHandler = fn; };
+
 const request = async (method, path, body, token) => {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -10,7 +21,12 @@ const request = async (method, path, body, token) => {
     },
     ...(body && { body: JSON.stringify(body) }),
   });
-  return res.json();
+  const data = await res.json();
+  // Only for a call that actually carried a token — a 401 from /api/auth/login (wrong password)
+  // or /api/auth/refresh-token (expired refresh token, handled separately by refreshTokens) is a
+  // normal login-attempt failure, not an existing session dying, and neither call passes `token`.
+  if (res.status === 401 && token) unauthorizedHandler?.(data.message);
+  return data;
 };
 
 // Multipart upload — no Content-Type set manually so the browser fills in the
@@ -21,7 +37,9 @@ const uploadFile = async (path, formData, token) => {
     headers: { ...(token && { Authorization: `Bearer ${token}` }) },
     body: formData,
   });
-  return res.json();
+  const data = await res.json();
+  if (res.status === 401 && token) unauthorizedHandler?.(data.message);
+  return data;
 };
 
 // Fetches a file (e.g. the driver's payment QR) with the auth header attached and returns

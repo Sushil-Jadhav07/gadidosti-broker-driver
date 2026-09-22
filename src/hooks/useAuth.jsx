@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
-import { api } from "../services/api";
+import { useNavigate } from "react-router-dom";
+import { api, setUnauthorizedHandler } from "../services/api";
 import { unregisterFcmToken } from "../lib/fcm";
 import { DRIVER_ONLINE_STORAGE_KEY } from "./useDriverLocationTracking";
 
@@ -56,6 +57,29 @@ export function AuthProvider({ children }) {
     }
     setUser(null);
   }, []);
+
+  const navigate = useNavigate();
+  // Guards against firing this more than once for one dead session — several requests can be
+  // in flight at once (e.g. a page's parallel initial fetches) and each would otherwise see the
+  // same 401 and try to redirect independently, which is harmless but pointless repeated work.
+  const loggingOutRef = useRef(false);
+
+  // api.js calls this the first time ANY authenticated request comes back 401 — a force-logout
+  // (see gadidosti-backend's auth.middleware.js, sessions_valid_after), or an access token that
+  // simply expired (~7 days, nothing currently refreshes it proactively). Previously nothing
+  // reacted to this at all: the driver (or broker) stayed on whatever page they were on with a
+  // token that would never start working again, no matter how many more requests they tried —
+  // every page just showed its own generic "failed to load" toast forever, never an actual
+  // logout. Clears the session and sends them to Login with a message explaining why, instead.
+  useEffect(() => {
+    setUnauthorizedHandler((message) => {
+      if (loggingOutRef.current || !userRef.current) return;
+      loggingOutRef.current = true;
+      clearSession(userRef.current.role);
+      navigate("/login", { replace: true, state: { sessionMessage: message || "Your session has ended — please log in again." } });
+      setTimeout(() => { loggingOutRef.current = false; }, 2000);
+    });
+  }, [clearSession, navigate]);
 
   const loginBroker = useCallback(async (email, password) => {
     const data = await api.post("/api/auth/login", { email, password });

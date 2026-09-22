@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SplashLoader from "../components/SplashLoader";
 import {
@@ -36,6 +36,18 @@ export default function Login() {
 
   const { loginBroker, loginDriver, googleLogin } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // Set by useAuth.jsx's global 401 handler when an existing session dies (force-logout, or a
+  // naturally expired access token) — shown once, then cleared from history state so it doesn't
+  // reappear if the driver later navigates back to this page normally.
+  const [sessionMessage, setSessionMessage] = useState(location.state?.sessionMessage || "");
+  useEffect(() => {
+    if (location.state?.sessionMessage) {
+      window.history.replaceState({}, document.title);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const autofill = () => {
     setEmail(CREDS[role].email);
@@ -259,6 +271,13 @@ export default function Login() {
                   </button>
                 </div>
               </div>
+
+              {sessionMessage && !error && (
+                <div className="flex items-center gap-2 bg-amber-50 text-amber-700 rounded-lg px-3 py-2.5 text-sm">
+                  <AlertCircle size={15} className="flex-shrink-0" />
+                  {sessionMessage}
+                </div>
+              )}
 
               {error && (
                 <div className="flex items-center gap-2 bg-red-50 text-red-600 rounded-lg px-3 py-2.5 text-sm">
