@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Users, Plus, Info, Search, CheckCircle2, XCircle, Trash2,
   UserPlus, Copy, Edit2, ArrowUpRight, LayoutGrid, List, ChevronLeft, ChevronRight,
-  Phone, Truck as TruckIcon, MessageCircle, FileText, ShieldCheck, Clock,
+  Phone, Truck as TruckIcon, MessageCircle, FileText, ShieldCheck, Clock, RotateCcw,
 } from "lucide-react";
 import Badge from "../../components/broker/Badge";
 import Modal from "../../components/broker/Modal";
@@ -196,6 +196,9 @@ export default function Drivers() {
   const [lookupError, setLookupError] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [resetTarget, setResetTarget] = useState(null);
+  const [resettingSession, setResettingSession] = useState(false);
 
   const [editTarget, setEditTarget] = useState(null);
   const [editForm, setEditForm] = useState({ licenseNo: "", licenseExpiry: "", aadhaar: "", truckId: "", status: "available" });
@@ -502,6 +505,27 @@ export default function Drivers() {
       addToast(err.message || "Failed to remove driver.", "error");
     } finally {
       setDeleting(false);
+    }
+  };
+
+  // Ends every active session for a driver whose app was killed/lost connectivity without
+  // logging out — auth.controller.js's hasBlockingDriverSession only allows one active session
+  // per driver, so that driver is otherwise stuck unable to log in on a new device/reinstall for
+  // up to the refresh token's 30-day expiry. Broker-scoped counterpart to admin's own
+  // force-logout (that one is admin-only and can't be called from here).
+  const handleResetSession = async () => {
+    if (!resetTarget) return;
+    setResettingSession(true);
+    try {
+      const id = resetTarget.id || resetTarget.user_id;
+      const res = await api.post(`/api/vehicles/drivers/${id}/force-logout`, {}, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to reset session");
+      addToast(`${resetTarget.name}'s session has been reset — they can log in again now.`, "success");
+      setResetTarget(null);
+    } catch (err) {
+      addToast(err.message || "Failed to reset session.", "error");
+    } finally {
+      setResettingSession(false);
     }
   };
 
@@ -818,6 +842,12 @@ export default function Drivers() {
                 <button onClick={() => openEdit(selected)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-semibold"><Edit2 size={13} /> Edit</button>
                 <button onClick={() => setDeleteTarget(selected)} className="flex items-center justify-center gap-1.5 py-2 rounded-xl text-red-600 hover:bg-red-50 transition-colors text-sm font-semibold"><Trash2 size={13} /> Remove</button>
               </div>
+              <button
+                onClick={() => setResetTarget(selected)}
+                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors text-sm font-semibold"
+              >
+                <RotateCcw size={13} /> Reset Session
+              </button>
             </div>
           )}
         </div>
@@ -1095,6 +1125,15 @@ export default function Drivers() {
         title="Remove Driver"
         message={`Remove ${deleteTarget?.name || "this driver"} from your fleet? Their driver account is not deleted — you can add them back later.`}
         confirmText={deleting ? "Removing..." : "Remove"}
+      />
+
+      <ConfirmDialog
+        isOpen={!!resetTarget}
+        onClose={() => setResetTarget(null)}
+        onConfirm={handleResetSession}
+        title="Reset Driver Session"
+        message={`End every active session for ${resetTarget?.name || "this driver"}? Use this if their app was force-closed or lost connectivity without logging out — that leaves them unable to log in on a new device or after reinstalling until this is reset.`}
+        confirmText={resettingSession ? "Resetting..." : "Reset Session"}
       />
 
       <Modal isOpen={!!chatDriver} onClose={() => setChatDriver(null)} title={chatDriver ? `Chat with ${chatDriver.name}` : "Chat"} size="sm">

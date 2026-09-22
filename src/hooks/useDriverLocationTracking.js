@@ -156,9 +156,23 @@ export function useDriverLocationTracking() {
       const last = lastSentRef.current;
       if (last.lat == null) return; // no fix yet at all — nothing to keep alive
       lastSentRef.current = { ...last, time: Date.now() };
-      api.patch("/api/vehicles/drivers/me/location", { lat: last.lat, lng: last.lng }, getToken()).catch((err) => {
+      const payload = { lat: last.lat, lng: last.lng };
+      api.patch("/api/vehicles/drivers/me/location", payload, getToken()).catch((err) => {
         console.error("Failed to push location heartbeat:", err);
       });
+      // Same staleness problem as driver_profiles above, but for trips.current_lat/lng — the
+      // pickup/delivery proximity gate (trip.controller.js's updateTripStatus) reads THAT
+      // column, not driver_profiles'. Without this, a driver on a stationary desktop browser
+      // could type a correct pickup code and still get rejected with "your current location is
+      // not available" or "you're Xkm from the pickup point", because trips.current_lat/lng went
+      // stale even though driver_profiles' own copy was still being kept fresh above — reading
+      // as "the OTP doesn't work" when the actual block was the proximity check running first.
+      const tripId = activeTripIdRef.current;
+      if (tripId) {
+        api.patch(`/api/trips/${tripId}/location`, payload, getToken()).catch((err) => {
+          console.error("Failed to push trip location heartbeat:", err);
+        });
+      }
     }, HEARTBEAT_MS);
     return () => clearInterval(heartbeat);
   }, [tracking]);
@@ -170,12 +184,24 @@ export function useDriverLocationTracking() {
   // state (via `hasActiveTrip` below) — this guard is defense in depth in case anything
   // else ever calls toggleOnline directly. Once the trip ends, the toggle goes back to
   // reflecting/controlling the raw preference normally.
+  //
+  // Also tells the server directly now (PATCH .../drivers/me/status) — this used to be purely
+  // local React state. Going online only ever became true in driver_profiles.status as a side
+  // effect of the first location ping landing, and going offline had NO server effect at all —
+  // the DB status stayed 'available' until the 5-minute staleDriverLocationSweep cron eventually
+  // caught up, so admin/broker driver lists and Find Truck broadcast eligibility could keep
+  // showing this driver as available for minutes after they'd toggled offline in their own app.
+  // Best-effort: the UI still flips immediately either way (matches the toggle being instant
+  // everywhere else), a failure here just means the server catches up via the cron instead.
   const toggleOnline = useCallback(() => {
     if (activeTripIdRef.current) return;
     setRawOnline((prev) => {
       const next = !prev;
       localStorage.setItem(STORAGE_KEY, next ? "1" : "0");
       if (!next) setLocationError(null);
+      api.patch("/api/vehicles/drivers/me/status", { status: next ? "available" : "offline" }, getToken()).catch((err) => {
+        console.error("Failed to update status:", err);
+      });
       return next;
     });
   }, []);
