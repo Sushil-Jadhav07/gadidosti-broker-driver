@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle, Camera, Wallet } from "lucide-react";
+import { Phone, MapPin, Check, X, Plus, CheckCheck, AlertTriangle, Camera, Wallet, Clock3 } from "lucide-react";
 import Badge from "./Badge";
 import ExpressBadge from "../ExpressBadge";
 import SwipeToConfirm from "./SwipeToConfirm";
@@ -9,6 +9,7 @@ import { api, getToken, API_BASE } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency } from "../../utils";
 import { compressImage } from "../../lib/imageCompression";
 import { extractQrCrop } from "../../lib/qrCrop";
+import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 
 const MAX_MEDIA = 6;
 // Mirrors the backend's own minRequired (POST /api/trips/:id/pod's minRequired, and the 409
@@ -62,7 +63,9 @@ const PAYMENT_DUE_STATUSES = ["pending", "partial"];
 const resolveInitialStep = (trip) => {
   if (trip.rawStatus === "delivered") {
     const uploadedCount = trip.podPhotos?.length || 0;
-    if (uploadedCount < (trip.podMinRequired || MIN_MEDIA)) return "upload";
+    // A rejected POD sends the driver straight back to re-upload, even if the old (rejected)
+    // photos still technically meet the minimum count — those don't count anymore.
+    if (trip.podStatus === "rejected" || uploadedCount < (trip.podMinRequired || MIN_MEDIA)) return "upload";
     if (PAYMENT_DUE_STATUSES.includes(trip.paymentStatus)) return "payments";
     return "complete";
   }
@@ -154,7 +157,7 @@ function ArrivedStep({ trip, onConfirm, loading }) {
 }
 
 // ─── Step 2: Upload photo/video ────────────────────────────────────────────────
-function UploadPhotosStep({ existingMedia, onSubmit, loading }) {
+function UploadPhotosStep({ existingMedia, onSubmit, loading, rejectionReason }) {
   const [files, setFiles] = useState([]);
   const inputRef = useRef(null);
   const totalCount = existingMedia.length + files.length;
@@ -174,6 +177,16 @@ function UploadPhotosStep({ existingMedia, onSubmit, loading }) {
     <div className="flex flex-col h-full">
       <h2 className="text-lg font-bold text-slate-900 mb-1">Upload Proof of Delivery</h2>
       <p className="text-sm text-slate-400 mb-5">Add photos or videos of the delivered cargo (at least {MIN_MEDIA})</p>
+
+      {rejectionReason && (
+        <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 rounded-xl p-4 mb-4">
+          <AlertTriangle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">The customer rejected your last upload</p>
+            <p className="text-xs text-red-500 mt-0.5">{rejectionReason}</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-3 mb-3">
         {existingMedia.map((item, i) => (
@@ -522,7 +535,39 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
 }
 
 // ─── Step 4: Complete ───────────────────────────────────────────────────────────
-function CompleteStep({ trip, completing, error, onRetry, onBack }) {
+// Three POD states can land here now (see resolveInitialStep/handleSubmitPhotos — both routes
+// through "complete" the same way they always did): 'pending_verification' shows a waiting
+// screen (live-updated by useTripStatusSocket, no polling needed) instead of blindly firing the
+// completion PATCH; 'rejected' routes back to re-upload; only 'verified' actually auto-completes,
+// same as this step always did before POD review existed.
+function CompleteStep({ trip, completing, error, onRetry, onBack, onReupload }) {
+  if (trip.podStatus === "pending_verification") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
+        <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center mb-4">
+          <Clock3 className="w-10 h-10 text-amber-500" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-1">Waiting for the customer to review</h3>
+        <p className="text-sm text-slate-400 mb-1">Your proof-of-delivery photos are up — this screen updates automatically the moment they respond.</p>
+      </div>
+    );
+  }
+
+  if (trip.podStatus === "rejected") {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
+        <div className="w-20 h-20 rounded-full bg-red-50 flex items-center justify-center mb-4">
+          <AlertTriangle className="w-10 h-10 text-red-500" />
+        </div>
+        <h3 className="text-lg font-bold text-slate-900 mb-1">Proof of delivery rejected</h3>
+        <p className="text-sm text-slate-400 mb-6">{trip.podRejectionReason || "The customer asked for new photos."}</p>
+        <button onClick={onReupload} className="px-6 py-3 rounded-xl font-semibold text-sm text-white bg-primary hover:opacity-90 active:scale-[0.98] transition-all">
+          Upload New Photos
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex flex-col items-center justify-center text-center py-10">
       {completing ? (
@@ -577,6 +622,13 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
   const [completeError, setCompleteError] = useState(null);
   const autoRunRef = useRef(false);
 
+  // The client's approve/reject (and a driver-side re-upload) all reach this screen live —
+  // same event every other trip-status listener in this app already uses, so no new polling
+  // needed for the "waiting for review" step to update itself.
+  useTripStatusSocket((updated) => {
+    if (updated?.id === trip.id) setTrip(adaptTrip(updated));
+  });
+
   const handleConfirmArrival = async () => {
     setConfirmingArrival(true);
     try {
@@ -611,6 +663,8 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
         ...prev,
         podPhotos: response.data?.podPhotos || prev.podPhotos,
         podMedia: response.data?.podMedia || prev.podMedia,
+        podStatus: response.data?.podStatus || prev.podStatus,
+        podRejectionReason: response.data?.podStatus === "pending_verification" ? null : prev.podRejectionReason,
       }));
       addToast("Photos/videos uploaded.", "success");
       setStep(PAYMENT_DUE_STATUSES.includes(trip.paymentStatus) ? "payments" : "complete");
@@ -657,15 +711,24 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
     }
   };
 
-  // Auto-fires the completion PATCH the moment this step is reached — settlement/total_trips
-  // side effects live entirely in the existing PATCH /trips/:id/status handler, untouched here.
+  // Sends the driver back to re-upload after a rejection — existingMedia is deliberately
+  // dropped for the old (rejected) batch (see the podStatus === "rejected" check below) so the
+  // driver can't just hit Submit again with zero new files and silently resubmit the same
+  // rejected photos.
+  const handleReupload = () => setStep("upload");
+
+  // Auto-fires the completion PATCH once this step is reached with a client-verified POD —
+  // settlement/total_trips side effects live entirely in the existing PATCH /trips/:id/status
+  // handler, untouched here. Keyed on podStatus too (not just step) since verification usually
+  // arrives asynchronously, via the socket listener above, while the driver is already sitting
+  // on this screen watching the "waiting for review" state.
   useEffect(() => {
-    if (step === "complete" && !autoRunRef.current) {
+    if (step === "complete" && trip.podStatus === "verified" && !completing && !autoRunRef.current) {
       autoRunRef.current = true;
       runCompletion();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, trip.podStatus]);
 
   return (
     <div className="max-w-xl mx-auto">
@@ -674,9 +737,13 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
         {step === "arrived" && <ArrivedStep trip={trip} onConfirm={handleConfirmArrival} loading={confirmingArrival} />}
         {step === "upload" && (
           <UploadPhotosStep
-            existingMedia={trip.podMedia?.length ? trip.podMedia : (trip.podPhotos || []).map((url) => ({ url, type: "image" }))}
+            // A rejected batch doesn't count toward the minimum anymore — hidden entirely so
+            // the driver can't hit Submit with zero new files and silently resubmit the same
+            // photos the customer just rejected.
+            existingMedia={trip.podStatus === "rejected" ? [] : (trip.podMedia?.length ? trip.podMedia : (trip.podPhotos || []).map((url) => ({ url, type: "image" })))}
             onSubmit={handleSubmitPhotos}
             loading={uploadingPhotos}
+            rejectionReason={trip.podStatus === "rejected" ? trip.podRejectionReason : null}
           />
         )}
         {step === "payments" && (
@@ -688,7 +755,7 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
           />
         )}
         {step === "complete" && (
-          <CompleteStep trip={trip} completing={completing} error={completeError} onRetry={runCompletion} onBack={onExit} />
+          <CompleteStep trip={trip} completing={completing} error={completeError} onRetry={runCompletion} onBack={onExit} onReupload={handleReupload} />
         )}
       </div>
     </div>

@@ -569,8 +569,20 @@ export default function JobDetail() {
               <div className="bg-white rounded-xl border border-slate-100 shadow-card p-4 lg:col-span-2">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3 flex items-center gap-1.5">
                   <Camera size={13} className="text-primary" /> Proof of Delivery
+                  {booking.podStatus === "pending_verification" && (
+                    <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">Awaiting client review</span>
+                  )}
+                  {booking.podStatus === "verified" && (
+                    <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Client approved</span>
+                  )}
+                  {booking.podStatus === "rejected" && (
+                    <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Client rejected — driver re-uploading</span>
+                  )}
                 </p>
                 <PodGallery media={booking.podMedia} token={getToken()} />
+                {booking.podStatus === "rejected" && booking.podRejectionReason && (
+                  <p className="text-xs text-slate-400 mt-2.5">Client's reason: {booking.podRejectionReason}</p>
+                )}
               </div>
             )}
 
