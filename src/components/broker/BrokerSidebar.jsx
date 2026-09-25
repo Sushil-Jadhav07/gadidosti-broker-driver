@@ -5,7 +5,7 @@ import NotificationBell from "../NotificationBell";
 import ChatBell from "../ChatBell";
 import {
   LayoutDashboard, Truck, Users, Inbox, UserCog, ClipboardList, History,
-  IndianRupee, ShieldCheck, User, Settings,
+  IndianRupee, ShieldCheck, User, Settings, CalendarClock,
   LogOut, X,
 } from "lucide-react";
 
@@ -18,6 +18,7 @@ const NAV = [
       { label: "Driver Requests", icon: UserCog, path: "/driver-requests" },
       { label: "Active Jobs", icon: ClipboardList, path: "/active-jobs" },
       { label: "Job History", icon: History, path: "/job-history" },
+      { label: "Monthly Hiring", icon: CalendarClock, path: "/monthly-hiring" },
     ],
   },
   {

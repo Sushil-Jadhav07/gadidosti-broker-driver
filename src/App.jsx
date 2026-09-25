@@ -26,6 +26,7 @@ import Earnings       from "./pages/broker/Earnings";
 import KYCStatus      from "./pages/broker/KYCStatus";
 import BrokerProfile  from "./pages/broker/Profile";
 import Settings       from "./pages/broker/Settings";
+import MonthlyHiring  from "./pages/MonthlyHiring";
 
 // Driver
 import DriverSidebar    from "./components/driver/DriverSidebar";
@@ -164,6 +165,7 @@ export default function App() {
             <Route path="/kyc"          element={<PrivateRoute role="broker"><BrokerAppLayout><KYCStatus /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/profile"      element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerProfile /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/settings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Settings /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/monthly-hiring" element={<PrivateRoute role="broker"><BrokerAppLayout><MonthlyHiring /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/notifications" element={<PrivateRoute role="broker"><BrokerAppLayout><NotificationsPage /></BrokerAppLayout></PrivateRoute>} />
 
             {/* Driver routes — all under /driver/* */}
@@ -180,6 +182,7 @@ export default function App() {
               <Route path="/driver/earnings"         element={<DriverEarnings />} />
               <Route path="/driver/profile"          element={<DriverProfile />} />
               <Route path="/driver/notifications"    element={<NotificationsPage />} />
+              <Route path="/driver/monthly-hiring"   element={<MonthlyHiring />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

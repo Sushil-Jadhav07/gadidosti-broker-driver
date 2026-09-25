@@ -4,7 +4,7 @@ import { useDriverSidebarCounts } from "../../hooks/useDriverSidebarCounts";
 import NotificationBell from "../NotificationBell";
 import ChatBell from "../ChatBell";
 import {
-  LayoutDashboard, Inbox, Navigation, History, User, ShieldCheck, IndianRupee,
+  LayoutDashboard, Inbox, Navigation, History, User, ShieldCheck, IndianRupee, CalendarClock,
   LogOut, X,
 } from "lucide-react";
 
@@ -16,6 +16,7 @@ const NAV = [
       { label: "My Trip", icon: Navigation, path: "/driver/my-trip" },
       { label: "Trip History", icon: History, path: "/driver/history" },
       { label: "Earnings", icon: IndianRupee, path: "/driver/earnings" },
+      { label: "Monthly Hiring", icon: CalendarClock, path: "/driver/monthly-hiring" },
     ],
   },
   {
