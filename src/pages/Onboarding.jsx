@@ -1,13 +1,15 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Truck, ShieldCheck, CreditCard, Fingerprint, Building2, FileText,
   Calendar, CheckCircle2, ArrowRight, ArrowLeft, Loader2, ShieldAlert,
-  Clock, PartyPopper, RefreshCw, AlertCircle,
+  Clock, PartyPopper, RefreshCw, AlertCircle, LayoutDashboard,
+  Landmark, UserCheck, HelpCircle,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import KycDocumentUpload from "../components/kyc/KycDocumentUpload";
+import OtpInput from "../components/kyc/OtpInput";
 
 // Step lists per role — 'welcome' and 'review' bookend a role-specific run of verification
 // steps. Broker has no driving license, driver has no GST/bank/business fields.
@@ -56,6 +58,22 @@ function Badge({ status, message }) {
 
 const inputCls = "input-field pl-9 pr-3 py-2.5 text-sm font-mono w-full";
 
+// What actually happens on this page, per role — no invented stats or certifications, just
+// the real checks (PAN via the Income Tax Department, Aadhaar via a UIDAI-issued OTP) and the
+// real fallback (manual review) so the copy stays true regardless of who reads it.
+const TRUST_POINTS = {
+  broker: [
+    { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
+    { icon: Fingerprint, text: "Aadhaar is confirmed with a one-time password sent by UIDAI to your registered mobile number." },
+    { icon: ShieldCheck, text: "Documents are used only to verify your identity and business — never shared beyond what's needed for compliance." },
+  ],
+  driver: [
+    { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
+    { icon: Fingerprint, text: "Aadhaar is confirmed with a one-time password sent by UIDAI to your registered mobile number." },
+    { icon: CreditCard, text: "Your driving license is verified against transport authority records before you can accept jobs." },
+  ],
+};
+
 export default function Onboarding() {
   const { user, updateUser } = useAuth();
   const navigate = useNavigate();
@@ -76,6 +94,12 @@ export default function Onboarding() {
   const [aadhaar, setAadhaar] = useState({ status: "idle", otpSent: false, refId: null, otp: "" });
   const [skipped, setSkipped] = useState({});
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Tracks whether the PAN/license number or photo has changed since the last Verify attempt.
+  // A failed check shouldn't let you just mash the same button again — it hides until you've
+  // actually changed something (fixed the number, or re-uploaded a clearer photo).
+  const [panDirty, setPanDirty] = useState(true);
+  const [dlDirty, setDlDirty] = useState(true);
 
   // Blocks rapid repeat Send/Resend clicks — Cashfree can issue a fresh OTP+ref_id on every
   // request, so clicking Resend before the SMS for the previous one even arrives risks the code
@@ -115,11 +139,17 @@ export default function Onboarding() {
     }).catch(() => setLoading(false));
   }, [token]);
 
-  const setField = (key, val) => setValues((v) => ({ ...v, [key]: val }));
+  const setField = (key, val) => {
+    setValues((v) => ({ ...v, [key]: val }));
+    if (key === "pan_number") setPanDirty(true);
+    if (key === "license_number" || key === "date_of_birth") setDlDirty(true);
+  };
 
   const handleFileChange = async (key, documentKey, file) => {
     setDocFiles((f) => ({ ...f, [key]: file }));
     setUploadingKey(key);
+    if (key === "pan_number") setPanDirty(true);
+    if (key === "license_number") setDlDirty(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -134,9 +164,17 @@ export default function Onboarding() {
     }
   };
 
+  const clearDoc = (key, documentKey) => {
+    setDocFiles((f) => ({ ...f, [key]: null }));
+    setDocUrls((u) => ({ ...u, [documentKey]: null }));
+    if (key === "pan_number") setPanDirty(true);
+    if (key === "license_number") setDlDirty(true);
+  };
+
   const verifyPan = async () => {
     if (!values.pan_number) return;
     setPan({ status: "loading" });
+    setPanDirty(false);
     try {
       const res = await api.post("/api/kyc/verify/pan", { pan: values.pan_number, name: user?.name }, token);
       if (!res.success) throw new Error(res.message);
@@ -149,6 +187,7 @@ export default function Onboarding() {
   const verifyDl = async () => {
     if (!values.license_number || !values.date_of_birth) return;
     setDl({ status: "loading" });
+    setDlDirty(false);
     try {
       const res = await api.post("/api/kyc/verify/driving-license", { dl_number: values.license_number, dob: values.date_of_birth }, token);
       if (!res.success) throw new Error(res.message);
@@ -186,6 +225,16 @@ export default function Onboarding() {
       setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
+
+  // All 6 boxes filled — submit automatically instead of making the user also hunt for a
+  // button, same as most OTP flows. Only fires on the transition into "complete" (the effect
+  // dependency is the otp string itself), so a failed attempt doesn't loop.
+  useEffect(() => {
+    if (aadhaar.otpSent && aadhaar.otp.length === 6 && aadhaar.status !== "loading" && aadhaar.status !== "verified") {
+      verifyAadhaarOtp();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aadhaar.otp]);
 
   const submitOnboarding = async () => {
     setSubmitting(true);
@@ -279,16 +328,25 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-10 flex items-center justify-center">
-      <div className="max-w-md w-full">
-        <div className="flex items-center gap-2 justify-center mb-6">
-          <div className="w-9 h-9 rounded-xl bg-primary flex items-center justify-center">
-            <Truck size={18} className="text-white" />
+    <div className="min-h-screen bg-slate-50">
+      <div className="bg-white border-b border-slate-100">
+        <div className="max-w-5xl mx-auto px-4 py-3.5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <img src="/gadidost-logo.png" alt="GadiDost" className="h-7 w-auto" />
+            <div className="hidden sm:block h-6 w-px bg-slate-200" />
+            <p className="hidden sm:block text-xs font-semibold text-slate-500">{role === "driver" ? "Driver Onboarding" : "Broker Onboarding"}</p>
           </div>
-          <span className="font-bold text-slate-900">SSK Logistics</span>
+          <button
+            onClick={goToDashboard}
+            className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-primary transition-colors"
+          >
+            <LayoutDashboard size={14} /> Back to Dashboard
+          </button>
         </div>
+      </div>
 
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-card p-7">
+      <div className="max-w-5xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-card p-7 order-2 lg:order-1">
           <ProgressBar steps={steps} currentIndex={stepIndex} />
 
           {rejectionReason && stepIndex === 0 && (
@@ -315,7 +373,7 @@ export default function Onboarding() {
           )}
 
           {currentStep === "pan" && (
-            <StepShell icon={CreditCard} title="Verify your PAN" subtitle="Enter your PAN exactly as printed on the card.">
+            <StepShell icon={CreditCard} title="Verify your PAN" subtitle="Enter your PAN exactly as printed on your PAN card.">
               <div className="space-y-4">
                 <div className="relative">
                   <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -327,14 +385,18 @@ export default function Onboarding() {
                   file={docFiles.pan_number} existingUrl={docUrls.pan_photo_url}
                   uploading={uploadingKey === "pan_number"}
                   onChange={(file) => handleFileChange("pan_number", "pan_photo_url", file)}
-                  onRemove={() => { setDocFiles((f) => ({ ...f, pan_number: null })); setDocUrls((u) => ({ ...u, pan_photo_url: null })); }}
+                  onRemove={() => clearDoc("pan_number", "pan_photo_url")}
                 />
                 <div className="flex items-center justify-between gap-3">
                   <Badge status={pan.status} message={pan.message} />
-                  <button type="button" onClick={verifyPan} disabled={!values.pan_number || pan.status === "loading"}
-                    className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
-                    Verify PAN
-                  </button>
+                  {pan.status === "verified" ? null : (pan.status !== "failed" && pan.status !== "error") || panDirty ? (
+                    <button type="button" onClick={verifyPan} disabled={!values.pan_number || pan.status === "loading"}
+                      className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
+                      Verify PAN
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 italic flex-shrink-0">Edit the number or re-upload the photo to try again</span>
+                  )}
                 </div>
               </div>
             </StepShell>
@@ -353,7 +415,7 @@ export default function Onboarding() {
                   file={docFiles.aadhaar_number} existingUrl={docUrls.aadhaar_photo_url}
                   uploading={uploadingKey === "aadhaar_number"}
                   onChange={(file) => handleFileChange("aadhaar_number", "aadhaar_photo_url", file)}
-                  onRemove={() => { setDocFiles((f) => ({ ...f, aadhaar_number: null })); setDocUrls((u) => ({ ...u, aadhaar_photo_url: null })); }}
+                  onRemove={() => clearDoc("aadhaar_number", "aadhaar_photo_url")}
                 />
                 {!aadhaar.otpSent ? (
                   <div className="flex items-center justify-between gap-3">
@@ -364,20 +426,27 @@ export default function Onboarding() {
                     </button>
                   </div>
                 ) : aadhaar.status !== "verified" ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <input type="text" inputMode="numeric" value={aadhaar.otp} onChange={(e) => setAadhaar((a) => ({ ...a, otp: e.target.value }))}
-                        placeholder="Enter OTP" className="input-field flex-1 py-2.5 text-sm font-mono" />
-                      <button type="button" onClick={verifyAadhaarOtp} disabled={!aadhaar.otp || aadhaar.status === "loading"}
-                        className="btn-primary px-4 py-2.5 text-xs disabled:opacity-40 flex-shrink-0">
-                        Verify
-                      </button>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-600 mb-2">Enter the 6-digit code</p>
+                      <OtpInput
+                        value={aadhaar.otp}
+                        onChange={(otp) => setAadhaar((a) => ({ ...a, otp }))}
+                        disabled={aadhaar.status === "loading"}
+                        autoFocus
+                      />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-3">
                       <Badge status={aadhaar.status} message={aadhaar.message} />
-                      <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading" || resendCooldown > 0} className="text-xs text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline">
-                        {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
-                      </button>
+                      <div className="flex items-center gap-3 flex-shrink-0">
+                        <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading" || resendCooldown > 0} className="text-xs text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline">
+                          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
+                        </button>
+                        <button type="button" onClick={verifyAadhaarOtp} disabled={aadhaar.otp.length !== 6 || aadhaar.status === "loading"}
+                          className="btn-primary px-4 py-2 text-xs disabled:opacity-40">
+                          {aadhaar.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : "Verify"}
+                        </button>
+                      </div>
                     </div>
                     {aadhaar.status === "failed" && (
                       <p className="text-[11px] text-slate-400">
@@ -410,14 +479,18 @@ export default function Onboarding() {
                   file={docFiles.license_number} existingUrl={docUrls.license_photo_url}
                   uploading={uploadingKey === "license_number"}
                   onChange={(file) => handleFileChange("license_number", "license_photo_url", file)}
-                  onRemove={() => { setDocFiles((f) => ({ ...f, license_number: null })); setDocUrls((u) => ({ ...u, license_photo_url: null })); }}
+                  onRemove={() => clearDoc("license_number", "license_photo_url")}
                 />
                 <div className="flex items-center justify-between gap-3">
                   <Badge status={dl.status} message={dl.message} />
-                  <button type="button" onClick={verifyDl} disabled={!values.license_number || !values.date_of_birth || dl.status === "loading"}
-                    className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
-                    Verify License
-                  </button>
+                  {dl.status === "verified" ? null : (dl.status !== "failed" && dl.status !== "error") || dlDirty ? (
+                    <button type="button" onClick={verifyDl} disabled={!values.license_number || !values.date_of_birth || dl.status === "loading"}
+                      className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
+                      Verify License
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 italic flex-shrink-0">Edit the details or re-upload the photo to try again</span>
+                  )}
                 </div>
               </div>
             </StepShell>
@@ -519,6 +592,40 @@ export default function Onboarding() {
               <ArrowLeft size={13} /> Back
             </button>
           )}
+        </div>
+
+        <div className="lg:col-span-1 space-y-4 order-1 lg:order-2">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
+            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center mb-3">
+              <ShieldCheck size={18} className="text-primary" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900">Why we verify this</h3>
+            <ul className="mt-3 space-y-3">
+              {TRUST_POINTS[role].map((point, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <point.icon size={14} className="text-slate-400 flex-shrink-0 mt-0.5" />
+                  <span className="text-xs text-slate-500 leading-relaxed">{point.text}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
+            <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
+              <HelpCircle size={18} className="text-amber-600" />
+            </div>
+            <h3 className="text-sm font-bold text-slate-900">If a document doesn't match</h3>
+            <p className="text-xs text-slate-500 leading-relaxed mt-2">
+              Double-check the number is typed exactly as printed, and that the photo is clear and unedited.
+              Still not matching? You can skip the step for now — our team reviews it manually and usually
+              clears it within 24-48 hours.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px] text-slate-400 px-1">
+            <UserCheck size={13} className="flex-shrink-0" />
+            Signed in as {user?.name || (role === "driver" ? "Driver" : "Broker")}
+          </div>
         </div>
       </div>
     </div>
