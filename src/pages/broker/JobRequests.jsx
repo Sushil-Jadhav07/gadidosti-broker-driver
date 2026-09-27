@@ -5,6 +5,8 @@ import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import Modal from "../../components/broker/Modal";
 import TruckDropdown from "../../components/broker/TruckDropdown";
 import DriverDropdown from "../../components/broker/DriverDropdown";
+import KycGate from "../../components/kyc/KycGate";
+import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptJobRequest, formatCurrency, bookingRef } from "../../utils";
@@ -18,6 +20,7 @@ import { useJobRequestSocket } from "../../hooks/useJobRequestSocket";
 const POLL_INTERVAL_MS = 8000;
 
 export default function JobRequests() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [requests, setRequests] = useState([]);
   const [drivers, setDrivers] = useState([]);
@@ -212,6 +215,14 @@ export default function JobRequests() {
       return exists ? current.map((request) => (request.id === updated.id ? updated : request)) : [updated, ...current];
     });
   });
+
+  if (user?.kyc_status !== "verified") {
+    return (
+      <div className="pt-6">
+        <KycGate status={user?.kyc_status || "pending"} kycPath="/onboarding" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

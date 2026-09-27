@@ -1,17 +1,12 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useOutletContext } from "react-router-dom";
-import { Navigation, Gauge, Wallet, Clock, TrendingUp, Truck, ShieldAlert, ArrowRight } from "lucide-react";
+import { useOutletContext } from "react-router-dom";
+import { Navigation, Gauge, Wallet, Clock, TrendingUp, Truck } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
+import KycReminderBanner from "../../components/kyc/KycReminderBanner";
 import { useAuth } from "../../hooks/useAuth";
 import { api, getToken } from "../../services/api";
 import { adaptTrip, formatCurrency, bookingRef, splitLocationName } from "../../utils";
-
-const KYC_BANNER = {
-  pending: { text: "Complete your KYC to start accepting trips.", cta: "Complete KYC" },
-  submitted: { text: "Your KYC documents are under review. We'll notify you once verified.", cta: "View Status" },
-  rejected: { text: "Your KYC submission was rejected. Please review and resubmit.", cta: "Resubmit KYC" },
-};
 
 // Solid-fill pills for the trip hero card — bolder than the outlined Badge used elsewhere,
 // since this is the one status that's meant to read at a glance.
@@ -35,7 +30,6 @@ const formatTimeOnly = (value) => {
 };
 
 export default function Home() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   // Online/offline tracking lives in DriverAppLayout (see App.jsx) so it survives navigating
   // between driver pages — the toggle itself only shows here, on the dashboard, instead of
@@ -50,7 +44,6 @@ export default function Home() {
   const [assignedTruck, setAssignedTruck] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const kycBanner = KYC_BANNER[user?.kyc_status || "pending"];
 
   useEffect(() => {
     const load = async () => {
@@ -133,13 +126,7 @@ export default function Home() {
         )}
       </div>
 
-      {kycBanner && (
-        <button onClick={() => navigate("/driver/kyc")} className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 text-left hover:bg-amber-100 transition-colors">
-          <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0" />
-          <p className="flex-1 text-sm font-medium text-amber-800">{kycBanner.text}</p>
-          <span className="flex items-center gap-1 text-xs font-bold text-amber-700 whitespace-nowrap">{kycBanner.cta} <ArrowRight size={13} /></span>
-        </button>
-      )}
+      <KycReminderBanner />
 
       {assignedTruck && activeTrip && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">

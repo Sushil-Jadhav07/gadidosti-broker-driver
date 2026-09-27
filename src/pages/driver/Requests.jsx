@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { CheckCircle, Inbox, ChevronLeft, ChevronRight } from "lucide-react";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverRequestCard from "../../components/DriverRequestCard";
+import KycGate from "../../components/kyc/KycGate";
+import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptDriverRequest } from "../../utils";
@@ -15,6 +17,7 @@ const LIMIT = 10;
 const POLL_INTERVAL_MS = 30000;
 
 export default function DriverRequests() {
+  const { user } = useAuth();
   const { addToast } = useToast();
   const [requests, setRequests] = useState([]);
   const [page, setPage] = useState(1);
@@ -111,6 +114,14 @@ export default function DriverRequests() {
     if (!res?.success) throw new Error(res?.message || "Failed to send counter-offer");
     applyUpdate(id, res);
   };
+
+  if (user?.kyc_status !== "verified") {
+    return (
+      <div className="pt-6">
+        <KycGate status={user?.kyc_status || "pending"} kycPath="/onboarding" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -1,21 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Truck, Users, Inbox, ClipboardList, ShieldAlert, ArrowRight, Sun, Sunset, Moon } from "lucide-react";
+import { Truck, Users, Inbox, ClipboardList, ArrowRight, Sun, Sunset, Moon } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, CartesianGrid,
 } from "recharts";
 import StatCard from "../../components/broker/StatCard";
 import Badge from "../../components/broker/Badge";
+import KycReminderBanner from "../../components/kyc/KycReminderBanner";
 import { useAuth } from "../../hooks/useAuth";
 import { api, getToken } from "../../services/api";
 import { adaptBooking, adaptJobRequest, formatCurrency, bookingRef } from "../../utils";
-
-const KYC_BANNER = {
-  pending: { text: "Complete your KYC to start accepting job requests.", cta: "Complete KYC" },
-  submitted: { text: "Your KYC documents are under review. We'll notify you once verified.", cta: "View Status" },
-  rejected: { text: "Your KYC submission was rejected. Please review and resubmit.", cta: "Resubmit KYC" },
-};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -25,8 +20,6 @@ export default function Dashboard() {
   const [jobRequests, setJobRequests] = useState([]);
   const [activeJobs, setActiveJobs] = useState([]);
   const [analytics, setAnalytics] = useState({ tripHistory: [] });
-
-  const kycBanner = KYC_BANNER[user?.kyc_status || "pending"];
 
   const greeting = useMemo(() => {
     const hour = new Date().getHours();
@@ -105,18 +98,7 @@ export default function Dashboard() {
         <p className="text-[12px] text-slate-400 font-medium whitespace-nowrap hidden sm:block">{today}</p>
       </div>
 
-      {kycBanner && (
-        <button
-          onClick={() => navigate("/kyc")}
-          className="w-full flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-2.5 text-left hover:bg-amber-100 transition-colors"
-        >
-          <ShieldAlert className="w-4 h-4 text-amber-600 flex-shrink-0" />
-          <p className="flex-1 text-sm font-medium text-amber-800">{kycBanner.text}</p>
-          <span className="flex items-center gap-1 text-xs font-bold text-amber-700 whitespace-nowrap">
-            {kycBanner.cta} <ArrowRight size={13} />
-          </span>
-        </button>
-      )}
+      <KycReminderBanner />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={Truck} iconBg="#F0FDF4" iconColor="#166534" label="Total Fleet" value={trucks.length} subtext={`${availableTrucks} available`} trend={8} />
