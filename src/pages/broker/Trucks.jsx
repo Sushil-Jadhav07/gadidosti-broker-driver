@@ -12,6 +12,7 @@ import SelectDropdown from "../../components/SelectDropdown";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
+import { TRUCK_TYPES as TRUCK_TYPE_OPTIONS, truckTypeLabel } from "../../lib/truckTypes";
 
 const STATUS_META = {
   available: { label: "Available", variant: "success", color: "#17D86B", icon: CheckCircle2 },
@@ -19,8 +20,8 @@ const STATUS_META = {
   maintenance: { label: "Maintenance", variant: "warning", color: "#F59E0B", icon: Wrench },
 };
 const STATUS_OPTIONS = Object.keys(STATUS_META);
-const TRUCK_TYPES = ["small", "medium", "large"];
-const EMPTY_FORM = { registration: "", category: "small", capacity: "", make: "", year: "", insuranceExpiry: "" };
+const TRUCK_TYPES = TRUCK_TYPE_OPTIONS.map((t) => t.value);
+const EMPTY_FORM = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "" };
 const ITEMS_PER_PAGE = 9;
 const REGISTRATION_REGEX = /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/i;
 
@@ -108,7 +109,7 @@ export default function Trucks() {
     setSaveError("");
     setForm({
       registration: truck.registration || "",
-      category: truck.category || truck.type || "small",
+      category: truck.category || truck.type || "14ft",
       capacity: truck.capacity || "",
       make: truck.make || "",
       year: String(truck.year || ""),
@@ -287,7 +288,7 @@ export default function Trucks() {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <h3 className="font-bold text-slate-900 truncate font-mono">{truck.registration}</h3>
-                        <p className="text-xs text-slate-400 mt-0.5 truncate capitalize">{truck.make || "-"} &middot; {truck.category || truck.type || "-"}</p>
+                        <p className="text-xs text-slate-400 mt-0.5 truncate">{truck.make || "-"} &middot; {truckTypeLabel(truck.category || truck.type || "-")}</p>
                       </div>
                       <Badge variant={meta.variant} size="sm">{meta.label || truck.status}</Badge>
                     </div>
@@ -338,7 +339,7 @@ export default function Trucks() {
                     ) : paginated.map((truck) => (
                       <tr key={truck.id} onClick={() => setSelectedTruck(truck)} className="table-row cursor-pointer">
                         <td className="px-4 py-3 font-mono font-semibold text-slate-800">{truck.registration}</td>
-                        <td className="px-4 py-3 text-slate-600 capitalize">{truck.category || truck.type || "-"}</td>
+                        <td className="px-4 py-3 text-slate-600">{truckTypeLabel(truck.category || truck.type || "-")}</td>
                         <td className="px-4 py-3 text-slate-600">{truck.capacity}</td>
                         <td className="px-4 py-3 text-slate-600">{truck.make}</td>
                         <td className="px-4 py-3 text-slate-600">{truck.year || "-"}</td>
@@ -381,7 +382,7 @@ export default function Trucks() {
               </div>
             </div>
             <div className="bg-slate-50 rounded-xl p-4 space-y-3 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium capitalize">{selectedTruck.category || selectedTruck.type || "-"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Type</span><span className="font-medium">{truckTypeLabel(selectedTruck.category || selectedTruck.type || "-")}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Make</span><span className="font-medium">{selectedTruck.make || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Year</span><span className="font-medium">{selectedTruck.year || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Capacity</span><span className="font-medium">{selectedTruck.capacity || "-"}</span></div>
@@ -421,9 +422,13 @@ export default function Trucks() {
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Type</label>
             <SelectDropdown
-              options={(TRUCK_TYPES.includes(form.category) ? TRUCK_TYPES : [...TRUCK_TYPES, form.category]).map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+              options={(TRUCK_TYPES.includes(form.category) ? TRUCK_TYPES : [...TRUCK_TYPES, form.category]).map((t) => ({ value: t, label: truckTypeLabel(t) }))}
               value={form.category}
-              onChange={(v) => setForm((current) => ({ ...current, category: v }))}
+              onChange={(v) => {
+                setForm((current) => ({ ...current, category: v }));
+                const matched = TRUCK_TYPE_OPTIONS.find((t) => t.value === v);
+                if (matched) setForm((current) => ({ ...current, capacity: matched.capacity }));
+              }}
             />
           </div>
           {[

@@ -2,14 +2,15 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SelectDropdown from "../components/SelectDropdown";
+import { TRUCK_TYPES as TRUCK_TYPE_OPTIONS, truckTypeLabel } from "../lib/truckTypes";
 import {
   Truck, User, Eye, EyeOff, CheckCircle, ArrowLeft, ArrowRight, Building2, Lock, FileText, AlertCircle, Mail, Gauge, Calendar,
   ShieldCheck, IndianRupee, BarChart3,
 } from "lucide-react";
 
-const TRUCK_TYPES = ["small", "medium", "large", "part"];
+const TRUCK_TYPES = TRUCK_TYPE_OPTIONS.map((t) => t.value);
 const REGISTRATION_REGEX = /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/i;
-const EMPTY_TRUCK = { registration: "", category: "small", capacity: "", make: "", year: "", insuranceExpiry: "" };
+const EMPTY_TRUCK = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "" };
 
 // Same feature set as Login.jsx's branding panel, for a consistent first impression whichever
 // screen a new user lands on.
@@ -370,9 +371,13 @@ export default function Register() {
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Type</label>
                     <SelectDropdown
-                      options={TRUCK_TYPES.map((t) => ({ value: t, label: t[0].toUpperCase() + t.slice(1) }))}
+                      options={TRUCK_TYPES.map((t) => ({ value: t, label: truckTypeLabel(t) }))}
                       value={truck.category}
-                      onChange={(v) => setTruckField("category")({ target: { value: v } })}
+                      onChange={(v) => {
+                        setTruckField("category")({ target: { value: v } });
+                        const matched = TRUCK_TYPE_OPTIONS.find((t) => t.value === v);
+                        if (matched) setTruckField("capacity")({ target: { value: matched.capacity } });
+                      }}
                     />
                   </div>
                   <div>
