@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { AlertCircle, FileText } from "lucide-react";
 
-export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, submitting, buttonLabel = "Submit for Review", onCancel, children }) {
+export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, submitting, buttonLabel = "Submit for Review", onCancel, onValuesChange, children }) {
   const [values, setValues] = useState({});
   const [error, setError] = useState("");
   const hasSeededRef = useRef(false);
@@ -15,6 +15,10 @@ export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, su
     fields.forEach(({ key }) => { seeded[key] = initialValues[key] || ""; });
     setValues(seeded);
   }, [fields, initialValues]);
+
+  // Lets a parent (e.g. a PAN/DL/Aadhaar verify panel rendered via `children`) read the current,
+  // not-yet-submitted field values — verification can happen before the final Submit tap.
+  useEffect(() => { onValuesChange?.(values); }, [values]);
 
   const canSubmit = fields.every(({ key, optional }) => optional || (values[key] || "").trim().length > 0);
 
@@ -42,7 +46,7 @@ export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, su
         <p className="text-xs text-slate-400 mb-5">Enter the ID/number printed on each document</p>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {fields.map(({ key, label, placeholder, icon: Icon, optional }) => (
+          {fields.map(({ key, label, placeholder, icon: Icon, optional, type }) => (
             <div key={key}>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5">
                 {label} {optional && <span className="text-slate-300 font-normal">(optional)</span>}
@@ -50,10 +54,11 @@ export default function KycSubmitForm({ fields, initialValues = {}, onSubmit, su
               <div className="relative">
                 {Icon && <Icon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />}
                 <input
-                  type="text"
+                  type={type || "text"}
                   value={values[key] || ""}
                   onChange={(e) => setValues((v) => ({ ...v, [key]: e.target.value }))}
                   placeholder={placeholder}
+                  max={type === "date" ? new Date().toISOString().slice(0, 10) : undefined}
                   className={`input-field ${Icon ? "pl-9" : "pl-3"} pr-3 py-2.5 text-sm font-mono`}
                 />
               </div>

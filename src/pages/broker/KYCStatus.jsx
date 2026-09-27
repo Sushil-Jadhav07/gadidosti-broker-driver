@@ -5,6 +5,7 @@ import { api } from "../../services/api";
 import KycStatusCard from "../../components/kyc/KycStatusCard";
 import KycSubmitForm from "../../components/kyc/KycSubmitForm";
 import KycDocumentUpload from "../../components/kyc/KycDocumentUpload";
+import KycVerificationPanel from "../../components/kyc/KycVerificationPanel";
 
 const FIELDS = [
   { key: "pan_number", label: "PAN Number", placeholder: "ABCDE1234F", icon: FileText },
@@ -35,6 +36,7 @@ export default function KYCStatus() {
   const [docUrls, setDocUrls] = useState({ pan_number: null, aadhaar_number: null });
   const [uploadingKey, setUploadingKey] = useState(null);
   const [uploadError, setUploadError] = useState("");
+  const [liveValues, setLiveValues] = useState({});
 
   const token = user?.tokens?.access_token;
   const kycStatus = user?.kyc_status || "pending";
@@ -130,6 +132,7 @@ export default function KYCStatus() {
           submitting={submitting}
           buttonLabel={kycStatus === "rejected" || editing ? "Resubmit for Review" : "Submit for Review"}
           onCancel={editing ? () => setEditing(false) : undefined}
+          onValuesChange={setLiveValues}
         >
           <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
             <div className="flex items-center gap-2 mb-1">
@@ -166,6 +169,13 @@ export default function KYCStatus() {
               </div>
             )}
           </div>
+
+          <KycVerificationPanel
+            token={token}
+            userName={user?.name}
+            values={liveValues}
+            initialResults={submission?.verification_results || {}}
+          />
         </KycSubmitForm>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
