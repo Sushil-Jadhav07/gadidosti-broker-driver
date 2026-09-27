@@ -75,6 +75,17 @@ export default function Onboarding() {
   const [dl, setDl] = useState({ status: "idle" });
   const [aadhaar, setAadhaar] = useState({ status: "idle", otpSent: false, refId: null, otp: "" });
   const [skipped, setSkipped] = useState({});
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Blocks rapid repeat Send/Resend clicks — Cashfree can issue a fresh OTP+ref_id on every
+  // request, so clicking Resend before the SMS for the previous one even arrives risks the code
+  // that shows up on the phone belonging to a different ref_id than the one this page ends up
+  // holding, and Cashfree fails it as invalid even though it matches a screen the user can see.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendCooldown]);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { autoVerified: bool } once submitted
@@ -149,14 +160,18 @@ export default function Onboarding() {
 
   const sendAadhaarOtp = async () => {
     const cleaned = (values.aadhaar_number || "").replace(/-/g, "");
-    if (!cleaned) return;
+    if (!cleaned || resendCooldown > 0) return;
     setAadhaar((a) => ({ ...a, status: "loading" }));
     try {
       const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: cleaned }, token);
       if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, message: null }));
+      // A fresh OTP was just sent — clear whatever was typed from a previous one, so there's no
+      // chance of submitting a stale code against this new ref_id.
+      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, otp: "", message: null }));
+      setResendCooldown(30);
     } catch (err) {
       setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
+      setResendCooldown(30);
     }
   };
 
@@ -343,7 +358,7 @@ export default function Onboarding() {
                 {!aadhaar.otpSent ? (
                   <div className="flex items-center justify-between gap-3">
                     <Badge status={aadhaar.status} message={aadhaar.message} />
-                    <button type="button" onClick={sendAadhaarOtp} disabled={!values.aadhaar_number || aadhaar.status === "loading"}
+                    <button type="button" onClick={sendAadhaarOtp} disabled={!values.aadhaar_number || aadhaar.status === "loading" || resendCooldown > 0}
                       className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
                       Send OTP
                     </button>
@@ -360,10 +375,15 @@ export default function Onboarding() {
                     </div>
                     <div className="flex items-center justify-between">
                       <Badge status={aadhaar.status} message={aadhaar.message} />
-                      <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading"} className="text-xs text-primary font-semibold hover:underline">
-                        Resend OTP
+                      <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading" || resendCooldown > 0} className="text-xs text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline">
+                        {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
                       </button>
                     </div>
+                    {aadhaar.status === "failed" && (
+                      <p className="text-[11px] text-slate-400">
+                        Make sure you're entering the code from the most recent SMS — if you tapped Resend more than once, only the latest one is valid.
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <Badge status={aadhaar.status} message={aadhaar.message} />
