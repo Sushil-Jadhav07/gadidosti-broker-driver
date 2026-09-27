@@ -264,6 +264,11 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
 
   const hasPersonalUpi = !!trip.driverUpiId;
   const hasCompanyUpi = !!trip.companyUpiId;
+  // A driver-uploaded static image (see Profile.jsx's "Payment QR Code" section) — unlike the
+  // generated Personal/Company QR, no amount is encoded in it, same as before this option
+  // existed the first time around; self-reported the same way (driver still taps "Payment
+  // Received via UPI" below), no different trust model than Personal/Company.
+  const hasMyQrCode = !!trip.driverQrCodeUrl;
   // Only offered when the backend's active payment gateway is Razorpay — see
   // gadidosti-backend's collect-payment/qr endpoints. Unlike the two UPI-intent QRs above,
   // this one is generated server-side and independently confirmed by Razorpay, so it doesn't
@@ -272,6 +277,7 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
   const availableSources = [
     hasPersonalUpi && "personal",
     hasCompanyUpi && "company",
+    hasMyQrCode && "mine",
     hasRazorpayQr && "razorpay",
   ].filter(Boolean);
 
@@ -324,8 +330,32 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
     };
   }, [razorpayQr.imageUrl, trip.id]);
 
+  // Same authenticated-blob-fetch reasoning as razorpayQrDisplaySrc above (a bare <img src>
+  // can't attach an Authorization header, and this URL is only guaranteed public under
+  // STORAGE_PROVIDER=fake) — no cropping needed here, it's already just the QR.
+  const [myQrDisplaySrc, setMyQrDisplaySrc] = useState(null);
   useEffect(() => {
-    if (activeSource === "razorpay") {
+    if (!trip.driverQrCodeUrl) {
+      setMyQrDisplaySrc(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let objectUrl = null;
+    api.getFileBlobUrl(trip.driverQrCodeUrl, getToken())
+      .then((blobUrl) => {
+        if (cancelled) { URL.revokeObjectURL(blobUrl); return; }
+        objectUrl = blobUrl;
+        setMyQrDisplaySrc(blobUrl);
+      })
+      .catch(() => { if (!cancelled) setMyQrDisplaySrc(null); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [trip.driverQrCodeUrl]);
+
+  useEffect(() => {
+    if (activeSource === "razorpay" || activeSource === "mine") {
       setQrDataUrl(null);
       return undefined;
     }
@@ -434,7 +464,7 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
         )}
       </div>
 
-      {hasPersonalUpi || hasCompanyUpi || hasRazorpayQr ? (
+      {hasPersonalUpi || hasCompanyUpi || hasMyQrCode || hasRazorpayQr ? (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5 mb-4">
           {availableSources.length > 1 && (
             <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit mx-auto mb-5">
@@ -448,6 +478,11 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
                   Company QR
                 </button>
               )}
+              {hasMyQrCode && (
+                <button onClick={() => setQrSource("mine")} className={tabButtonClass("mine")}>
+                  My QR
+                </button>
+              )}
               {hasRazorpayQr && (
                 <button onClick={() => setQrSource("razorpay")} className={tabButtonClass("razorpay")}>
                   Verified QR
@@ -456,7 +491,19 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
             </div>
           )}
 
-          {activeSource === "razorpay" ? (
+          {activeSource === "mine" ? (
+            <div className="flex flex-col items-center">
+              <p className="text-sm font-semibold text-slate-800">Show this to collect {formatCurrency(trip.amountToCollect)}</p>
+              <p className="text-xs text-slate-400 mt-0.5 text-center">Your own uploaded QR — no amount is encoded, confirm the amount with the customer before they scan.</p>
+              {myQrDisplaySrc ? (
+                <div className="mt-4 w-full max-w-[220px] rounded-xl overflow-hidden border border-slate-200 shadow-sm bg-white p-3">
+                  <img src={myQrDisplaySrc} alt="Your uploaded payment QR" className="w-full h-auto block" />
+                </div>
+              ) : (
+                <div className="mt-4 w-full max-w-[220px] aspect-square mx-auto rounded-xl bg-slate-100 animate-pulse" />
+              )}
+            </div>
+          ) : activeSource === "razorpay" ? (
             razorpayPaid ? (
               <div className="flex flex-col items-center py-6">
                 <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center">

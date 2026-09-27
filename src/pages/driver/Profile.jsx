@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   User, Mail, Phone, Lock, Save, ShieldCheck, Truck, FileCheck,
-  CalendarDays, ChevronDown, LogOut, IndianRupee, MessageCircle,
+  CalendarDays, ChevronDown, LogOut, IndianRupee, MessageCircle, QrCode, Upload, Trash2,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -71,6 +71,10 @@ export default function Profile() {
   const [changingPw, setChangingPw] = useState(false);
   const [upiId, setUpiId] = useState("");
   const [savingUpi, setSavingUpi] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState(null);
+  const [qrPreviewBlobUrl, setQrPreviewBlobUrl] = useState(null);
+  const [uploadingQr, setUploadingQr] = useState(false);
+  const [deletingQr, setDeletingQr] = useState(false);
   const [brokerThreadId, setBrokerThreadId] = useState(null);
   const [showBrokerChat, setShowBrokerChat] = useState(false);
   const [openingBrokerChat, setOpeningBrokerChat] = useState(false);
@@ -83,12 +87,13 @@ export default function Profile() {
       setError(null);
       try {
         const token = getToken();
-        const [profileRes, kycRes, truckRes, analyticsRes, upiRes] = await Promise.all([
+        const [profileRes, kycRes, truckRes, analyticsRes, upiRes, qrRes] = await Promise.all([
           api.get("/api/users/profile", token),
           api.get("/api/kyc/status", token),
           api.get("/api/vehicles/drivers/me/truck", token),
           api.get("/api/analytics/broker", token),
           api.get("/api/vehicles/drivers/me/upi-id", token),
+          api.get("/api/vehicles/drivers/me/qr-code", token),
         ]);
         const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
@@ -96,6 +101,7 @@ export default function Profile() {
         setKyc(kycRes.data || null);
         setAssignedTruck(truckRes.data?.truck || null);
         setUpiId(upiRes.data?.upiId || "");
+        setQrCodeUrl(qrRes.data?.qrCodeUrl || null);
         const history = analyticsRes.data?.tripHistory || [];
         setStats({
           trips: history.length,
@@ -111,6 +117,31 @@ export default function Profile() {
     };
     load();
   }, [user]);
+
+  // Fetched as an authenticated blob, not a plain <img src> — the uploaded QR's URL is only
+  // guaranteed publicly reachable under STORAGE_PROVIDER=fake (served via express.static); under
+  // STORAGE_PROVIDER=postgres it's an authenticated route (see kyc.controller.js's getKycFile,
+  // reused here — see vehicle.controller.js's uploadMyQrCode), which a bare <img> can't attach
+  // an Authorization header to. Same pattern already used for POD photos.
+  useEffect(() => {
+    if (!qrCodeUrl) {
+      setQrPreviewBlobUrl(null);
+      return undefined;
+    }
+    let cancelled = false;
+    let objectUrl = null;
+    api.getFileBlobUrl(qrCodeUrl, getToken())
+      .then((url) => {
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        objectUrl = url;
+        setQrPreviewBlobUrl(url);
+      })
+      .catch(() => { if (!cancelled) setQrPreviewBlobUrl(null); });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [qrCodeUrl]);
 
   const handleSaveProfile = async () => {
     const requestUserId = user?.id;
@@ -161,6 +192,37 @@ export default function Profile() {
       addToast(err.message || "Failed to save UPI ID.", "error");
     } finally {
       setSavingUpi(false);
+    }
+  };
+
+  const handleUploadQrCode = async (file) => {
+    if (!file) return;
+    setUploadingQr(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await api.upload("/api/vehicles/drivers/me/qr-code", formData, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to upload QR code");
+      setQrCodeUrl(res.data?.qrCodeUrl || null);
+      addToast("QR code uploaded.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to upload QR code.", "error");
+    } finally {
+      setUploadingQr(false);
+    }
+  };
+
+  const handleRemoveQrCode = async () => {
+    setDeletingQr(true);
+    try {
+      const res = await api.delete("/api/vehicles/drivers/me/qr-code", {}, getToken());
+      if (!res.success) throw new Error(res.message || "Failed to remove QR code");
+      setQrCodeUrl(null);
+      addToast("QR code removed.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to remove QR code.", "error");
+    } finally {
+      setDeletingQr(false);
     }
   };
 
@@ -333,6 +395,41 @@ export default function Profile() {
                 <button onClick={handleSaveUpi} disabled={savingUpi || !upiId.trim()} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <Save size={14} /> {savingUpi ? "Saving..." : "Save UPI ID"}
                 </button>
+              </div>
+            </AccordionRow>
+
+            <AccordionRow
+              id="qrcode" icon={QrCode} title="Payment QR Code"
+              badge={qrCodeUrl ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border mr-1 bg-emerald-50 text-emerald-700 border-emerald-200">Set</span> : null}
+              isOpen={openSection === "qrcode"} onToggle={toggleSection}
+            >
+              <div className="space-y-3 pt-3">
+                <p className="text-xs text-slate-400">
+                  Upload a photo of your own bank/UPI app's QR code as an alternative to the generated one on the Payments step — handy if your bank's code doesn't scan cleanly the usual way. Note this uploaded image has no amount encoded in it, unlike the generated QR.
+                </p>
+                {qrCodeUrl ? (
+                  <div className="flex items-center gap-3">
+                    {qrPreviewBlobUrl ? (
+                      <img src={qrPreviewBlobUrl} alt="Your payment QR code" className="w-20 h-20 rounded-xl border border-slate-100 object-contain bg-white" />
+                    ) : (
+                      <div className="w-20 h-20 rounded-xl border border-slate-100 bg-slate-50 animate-pulse" />
+                    )}
+                    <div className="flex-1 space-y-2">
+                      <label className="btn-secondary px-4 py-2 text-sm inline-flex items-center gap-2 cursor-pointer">
+                        <Upload size={14} /> {uploadingQr ? "Uploading..." : "Replace"}
+                        <input type="file" accept="image/*" className="hidden" disabled={uploadingQr} onChange={(e) => handleUploadQrCode(e.target.files?.[0])} />
+                      </label>
+                      <button onClick={handleRemoveQrCode} disabled={deletingQr} className="flex items-center gap-1.5 text-xs font-medium text-danger hover:underline disabled:opacity-60">
+                        <Trash2 size={13} /> {deletingQr ? "Removing..." : "Remove"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="btn-primary px-4 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer disabled:opacity-60">
+                    <Upload size={14} /> {uploadingQr ? "Uploading..." : "Upload QR Code"}
+                    <input type="file" accept="image/*" className="hidden" disabled={uploadingQr} onChange={(e) => handleUploadQrCode(e.target.files?.[0])} />
+                  </label>
+                )}
               </div>
             </AccordionRow>
           </div>
