@@ -12,6 +12,19 @@ export const API_BASE = BASE;
 let unauthorizedHandler = null;
 export const setUnauthorizedHandler = (fn) => { unauthorizedHandler = fn; };
 
+// A 422 validation failure's `message` is always the generic "Validation failed" — the actually
+// useful, field-specific reason (e.g. "PAN number must be in the format ABCDE1234F") lives in
+// `errors[].msg` instead. Every call site just does `throw new Error(res.message)`, so folding
+// the specific reason into `message` here — the two places every request passes through — fixes
+// it everywhere at once, with no changes needed at any individual call site.
+const withValidationDetail = (data) => {
+  if (data?.success === false && Array.isArray(data.errors) && data.errors.length > 0) {
+    const detail = data.errors.map((e) => e?.msg).filter(Boolean).join('; ');
+    if (detail) data.message = detail;
+  }
+  return data;
+};
+
 const request = async (method, path, body, token) => {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -21,7 +34,7 @@ const request = async (method, path, body, token) => {
     },
     ...(body && { body: JSON.stringify(body) }),
   });
-  const data = await res.json();
+  const data = withValidationDetail(await res.json());
   // Only for a call that actually carried a token — a 401 from /api/auth/login (wrong password)
   // or /api/auth/refresh-token (expired refresh token, handled separately by refreshTokens) is a
   // normal login-attempt failure, not an existing session dying, and neither call passes `token`.
@@ -37,7 +50,7 @@ const uploadFile = async (path, formData, token) => {
     headers: { ...(token && { Authorization: `Bearer ${token}` }) },
     body: formData,
   });
-  const data = await res.json();
+  const data = withValidationDetail(await res.json());
   if (res.status === 401 && token) unauthorizedHandler?.(data.message);
   return data;
 };
