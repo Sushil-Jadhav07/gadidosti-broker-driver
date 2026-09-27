@@ -2,11 +2,11 @@ import { useState } from "react";
 import { ShieldCheck, ShieldAlert, Loader2, ScanLine } from "lucide-react";
 import { api } from "../../services/api";
 
-function Badge({ status }) {
+function Badge({ status, message }) {
   if (status === "loading") return <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-400"><Loader2 size={13} className="animate-spin" /> Checking...</span>;
   if (status === "verified") return <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"><ShieldCheck size={13} /> Verified</span>;
   if (status === "failed") return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><ShieldAlert size={13} /> Details didn't match</span>;
-  if (status === "error") return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> Couldn't verify, try again</span>;
+  if (status === "error") return <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> {message || "Couldn't verify, try again"}</span>;
   return <span className="text-xs text-slate-400">Not verified yet</span>;
 }
 
@@ -38,8 +38,8 @@ export default function KycVerificationPanel({ token, userName, values, initialR
       const res = await api.post("/api/kyc/verify/pan", { pan: panNumber, name: userName || undefined }, token);
       if (!res.success) throw new Error(res.message);
       setPan({ status: res.data.status });
-    } catch {
-      setPan({ status: "error" });
+    } catch (err) {
+      setPan({ status: "error", message: err.message });
     }
   };
 
@@ -50,8 +50,8 @@ export default function KycVerificationPanel({ token, userName, values, initialR
       const res = await api.post("/api/kyc/verify/driving-license", { dl_number: dlNumber, dob }, token);
       if (!res.success) throw new Error(res.message);
       setDl({ status: res.data.status });
-    } catch {
-      setDl({ status: "error" });
+    } catch (err) {
+      setDl({ status: "error", message: err.message });
     }
   };
 
@@ -61,9 +61,9 @@ export default function KycVerificationPanel({ token, userName, values, initialR
     try {
       const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: aadhaarNumber }, token);
       if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId }));
-    } catch {
-      setAadhaar((a) => ({ ...a, status: "error" }));
+      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, message: null }));
+    } catch (err) {
+      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
 
@@ -74,8 +74,8 @@ export default function KycVerificationPanel({ token, userName, values, initialR
       const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaar.refId, otp: aadhaar.otp }, token);
       if (!res.success) throw new Error(res.message);
       setAadhaar((a) => ({ ...a, status: res.data.status }));
-    } catch {
-      setAadhaar((a) => ({ ...a, status: "error" }));
+    } catch (err) {
+      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
 
@@ -91,7 +91,7 @@ export default function KycVerificationPanel({ token, userName, values, initialR
         <div className="bg-slate-50 rounded-xl p-3.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">PAN</p>
-            <Badge status={pan.status} />
+            <Badge status={pan.status} message={pan.message} />
           </div>
           <button type="button" onClick={verifyPan} disabled={!panNumber || pan.status === "loading"} className={verifyBtnCls}>
             Verify PAN
@@ -102,7 +102,7 @@ export default function KycVerificationPanel({ token, userName, values, initialR
           <div className="bg-slate-50 rounded-xl p-3.5 flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Driving License</p>
-              <Badge status={dl.status} />
+              <Badge status={dl.status} message={dl.message} />
               {(!dlNumber || !dob) && <p className="text-[11px] text-slate-400 mt-0.5">Fill in license number and date of birth first</p>}
             </div>
             <button type="button" onClick={verifyDl} disabled={!dlNumber || !dob || dl.status === "loading"} className={verifyBtnCls}>
@@ -115,7 +115,7 @@ export default function KycVerificationPanel({ token, userName, values, initialR
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Aadhaar</p>
-              <Badge status={aadhaar.status === "loading" && !aadhaar.otpSent ? "loading" : (aadhaar.otpSent && aadhaar.status === "idle" ? "idle" : aadhaar.status)} />
+              <Badge status={aadhaar.status === "loading" && !aadhaar.otpSent ? "loading" : (aadhaar.otpSent && aadhaar.status === "idle" ? "idle" : aadhaar.status)} message={aadhaar.message} />
             </div>
             {!aadhaar.otpSent && (
               <button type="button" onClick={sendAadhaarOtp} disabled={!aadhaarNumber || aadhaar.status === "loading"} className={verifyBtnCls}>

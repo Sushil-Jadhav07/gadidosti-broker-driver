@@ -46,11 +46,11 @@ function StepShell({ icon: Icon, title, subtitle, children }) {
   );
 }
 
-function Badge({ status }) {
+function Badge({ status, message }) {
   if (status === "loading") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Loader2 size={13} className="animate-spin" /> Checking...</span>;
   if (status === "verified") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 size={13} /> Verified</span>;
   if (status === "failed") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600"><ShieldAlert size={13} /> Didn't match — check the details and try again</span>;
-  if (status === "error") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> Couldn't reach verification, try again</span>;
+  if (status === "error") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> {message || "Couldn't reach verification, try again"}</span>;
   return null;
 }
 
@@ -130,8 +130,8 @@ export default function Onboarding() {
       const res = await api.post("/api/kyc/verify/pan", { pan: values.pan_number, name: user?.name }, token);
       if (!res.success) throw new Error(res.message);
       setPan({ status: res.data.status });
-    } catch {
-      setPan({ status: "error" });
+    } catch (err) {
+      setPan({ status: "error", message: err.message });
     }
   };
 
@@ -142,8 +142,8 @@ export default function Onboarding() {
       const res = await api.post("/api/kyc/verify/driving-license", { dl_number: values.license_number, dob: values.date_of_birth }, token);
       if (!res.success) throw new Error(res.message);
       setDl({ status: res.data.status });
-    } catch {
-      setDl({ status: "error" });
+    } catch (err) {
+      setDl({ status: "error", message: err.message });
     }
   };
 
@@ -154,9 +154,9 @@ export default function Onboarding() {
     try {
       const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: cleaned }, token);
       if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId }));
-    } catch {
-      setAadhaar((a) => ({ ...a, status: "error" }));
+      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, message: null }));
+    } catch (err) {
+      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
 
@@ -167,8 +167,8 @@ export default function Onboarding() {
       const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaar.refId, otp: aadhaar.otp }, token);
       if (!res.success) throw new Error(res.message);
       setAadhaar((a) => ({ ...a, status: res.data.status }));
-    } catch {
-      setAadhaar((a) => ({ ...a, status: "error" }));
+    } catch (err) {
+      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
 
@@ -315,7 +315,7 @@ export default function Onboarding() {
                   onRemove={() => { setDocFiles((f) => ({ ...f, pan_number: null })); setDocUrls((u) => ({ ...u, pan_photo_url: null })); }}
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <Badge status={pan.status} />
+                  <Badge status={pan.status} message={pan.message} />
                   <button type="button" onClick={verifyPan} disabled={!values.pan_number || pan.status === "loading"}
                     className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
                     Verify PAN
@@ -342,7 +342,7 @@ export default function Onboarding() {
                 />
                 {!aadhaar.otpSent ? (
                   <div className="flex items-center justify-between gap-3">
-                    <Badge status={aadhaar.status} />
+                    <Badge status={aadhaar.status} message={aadhaar.message} />
                     <button type="button" onClick={sendAadhaarOtp} disabled={!values.aadhaar_number || aadhaar.status === "loading"}
                       className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
                       Send OTP
@@ -359,14 +359,14 @@ export default function Onboarding() {
                       </button>
                     </div>
                     <div className="flex items-center justify-between">
-                      <Badge status={aadhaar.status} />
+                      <Badge status={aadhaar.status} message={aadhaar.message} />
                       <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading"} className="text-xs text-primary font-semibold hover:underline">
                         Resend OTP
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <Badge status={aadhaar.status} />
+                  <Badge status={aadhaar.status} message={aadhaar.message} />
                 )}
               </div>
             </StepShell>
@@ -393,7 +393,7 @@ export default function Onboarding() {
                   onRemove={() => { setDocFiles((f) => ({ ...f, license_number: null })); setDocUrls((u) => ({ ...u, license_photo_url: null })); }}
                 />
                 <div className="flex items-center justify-between gap-3">
-                  <Badge status={dl.status} />
+                  <Badge status={dl.status} message={dl.message} />
                   <button type="button" onClick={verifyDl} disabled={!values.license_number || !values.date_of_birth || dl.status === "loading"}
                     className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
                     Verify License
