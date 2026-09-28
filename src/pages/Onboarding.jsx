@@ -51,7 +51,7 @@ function StepShell({ icon: Icon, title, subtitle, children }) {
 function Badge({ status, message }) {
   if (status === "loading") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Loader2 size={13} className="animate-spin" /> Checking...</span>;
   if (status === "verified") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 size={13} /> Verified</span>;
-  if (status === "failed") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600"><ShieldAlert size={13} /> Didn't match — check the details and try again</span>;
+  if (status === "failed") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600"><ShieldAlert size={13} /> {message || "Didn't match — check the details and try again"}</span>;
   if (status === "error") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> {message || "Couldn't reach verification, try again"}</span>;
   return null;
 }
@@ -178,7 +178,7 @@ export default function Onboarding() {
     try {
       const res = await api.post("/api/kyc/verify/pan", { pan: values.pan_number, name: user?.name }, token);
       if (!res.success) throw new Error(res.message);
-      setPan({ status: res.data.status });
+      setPan({ status: res.data.status, message: res.data.details?.message });
     } catch (err) {
       setPan({ status: "error", message: err.message });
     }
@@ -191,7 +191,7 @@ export default function Onboarding() {
     try {
       const res = await api.post("/api/kyc/verify/driving-license", { dl_number: values.license_number, dob: values.date_of_birth }, token);
       if (!res.success) throw new Error(res.message);
-      setDl({ status: res.data.status });
+      setDl({ status: res.data.status, message: res.data.details?.message });
     } catch (err) {
       setDl({ status: "error", message: err.message });
     }
@@ -220,7 +220,7 @@ export default function Onboarding() {
     try {
       const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaar.refId, otp: aadhaar.otp }, token);
       if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: res.data.status }));
+      setAadhaar((a) => ({ ...a, status: res.data.status, message: res.data.details?.message }));
     } catch (err) {
       setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
