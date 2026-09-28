@@ -9,7 +9,10 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
 import KycDocumentUpload from "../components/kyc/KycDocumentUpload";
-import OtpInput from "../components/kyc/OtpInput";
+
+// Typed-but-unsubmitted field values, stashed across the round trip to DigiLocker (see
+// startDigilocker / the prefill effect) — a full-page redirect would otherwise wipe them.
+const ONBOARDING_VALUES_KEY = "ssk_onboarding_values";
 
 // Step lists per role — 'welcome' and 'review' bookend a role-specific run of verification
 // steps. Broker has no driving license, driver has no GST/bank/business fields.
@@ -59,17 +62,17 @@ function Badge({ status, message }) {
 const inputCls = "input-field pl-9 pr-3 py-2.5 text-sm font-mono w-full";
 
 // What actually happens on this page, per role — no invented stats or certifications, just
-// the real checks (PAN via the Income Tax Department, Aadhaar via a UIDAI-issued OTP) and the
+// the real checks (PAN via the Income Tax Department, Aadhaar via DigiLocker) and the
 // real fallback (manual review) so the copy stays true regardless of who reads it.
 const TRUST_POINTS = {
   broker: [
     { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
-    { icon: Fingerprint, text: "Aadhaar is confirmed with a one-time password sent by UIDAI to your registered mobile number." },
+    { icon: Fingerprint, text: "Aadhaar is confirmed through DigiLocker, the government's own document service — you sign in there, we never see your login." },
     { icon: ShieldCheck, text: "Documents are used only to verify your identity and business — never shared beyond what's needed for compliance." },
   ],
   driver: [
     { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
-    { icon: Fingerprint, text: "Aadhaar is confirmed with a one-time password sent by UIDAI to your registered mobile number." },
+    { icon: Fingerprint, text: "Aadhaar is confirmed through DigiLocker, the government's own document service — you sign in there, we never see your login." },
     { icon: CreditCard, text: "Your driving license is verified against transport authority records before you can accept jobs." },
   ],
 };
@@ -91,25 +94,14 @@ export default function Onboarding() {
 
   const [pan, setPan] = useState({ status: "idle" });
   const [dl, setDl] = useState({ status: "idle" });
-  const [aadhaar, setAadhaar] = useState({ status: "idle", otpSent: false, refId: null, otp: "" });
+  const [aadhaar, setAadhaar] = useState({ status: "idle", digilockerId: null });
   const [skipped, setSkipped] = useState({});
-  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Tracks whether the PAN/license number or photo has changed since the last Verify attempt.
   // A failed check shouldn't let you just mash the same button again — it hides until you've
   // actually changed something (fixed the number, or re-uploaded a clearer photo).
   const [panDirty, setPanDirty] = useState(true);
   const [dlDirty, setDlDirty] = useState(true);
-
-  // Blocks rapid repeat Send/Resend clicks — Cashfree can issue a fresh OTP+ref_id on every
-  // request, so clicking Resend before the SMS for the previous one even arrives risks the code
-  // that shows up on the phone belonging to a different ref_id than the one this page ends up
-  // holding, and Cashfree fails it as invalid even though it matches a screen the user can see.
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [resendCooldown]);
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { autoVerified: bool } once submitted
@@ -134,6 +126,20 @@ export default function Onboarding() {
         if (vr.pan?.status) setPan({ status: vr.pan.status });
         if (vr.drivingLicense?.status) setDl({ status: vr.drivingLicense.status });
         if (vr.aadhaar?.status) setAadhaar((a) => ({ ...a, status: vr.aadhaar.status }));
+
+        // Coming back from DigiLocker: put the wizard back where they left it (typed values that
+        // never reached the server, and the Aadhaar step), strip the query param so a refresh
+        // doesn't re-trigger this, and resolve the result.
+        const returnedId = new URLSearchParams(window.location.search).get("verification_id");
+        if (returnedId) {
+          try {
+            const stored = JSON.parse(sessionStorage.getItem(ONBOARDING_VALUES_KEY) || "null");
+            if (stored) setValues({ ...docs, ...stored });
+          } catch { /* ignore a corrupt/blocked stash */ }
+          setStepIndex(Math.max(0, steps.indexOf("aadhaar")));
+          window.history.replaceState({}, "", window.location.pathname);
+          checkDigilockerStatus(returnedId);
+        }
       }
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -197,44 +203,43 @@ export default function Onboarding() {
     }
   };
 
-  const sendAadhaarOtp = async () => {
-    const cleaned = (values.aadhaar_number || "").replace(/-/g, "");
-    if (!cleaned || resendCooldown > 0) return;
-    setAadhaar((a) => ({ ...a, status: "loading" }));
+  // Aadhaar goes through DigiLocker (a redirect, not an inline OTP): start → the user leaves for
+  // DigiLocker → they land back on /onboarding?verification_id=… → checkDigilockerStatus resolves
+  // it. Typed-but-not-yet-submitted field values would be wiped by that full-page round trip, so
+  // they're stashed in sessionStorage first and restored on return (see the prefill effect).
+  const startDigilocker = async () => {
+    setAadhaar((a) => ({ ...a, status: "loading", message: null }));
     try {
-      const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: cleaned }, token);
+      try { sessionStorage.setItem(ONBOARDING_VALUES_KEY, JSON.stringify(values)); } catch { /* storage unavailable — worst case the user re-types */ }
+      const res = await api.post("/api/kyc/verify/aadhaar/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
       if (!res.success) throw new Error(res.message);
-      // A fresh OTP was just sent — clear whatever was typed from a previous one, so there's no
-      // chance of submitting a stale code against this new ref_id.
-      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, otp: "", message: null }));
-      setResendCooldown(30);
-    } catch (err) {
-      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
-      setResendCooldown(30);
-    }
-  };
-
-  const verifyAadhaarOtp = async () => {
-    if (!aadhaar.refId || !aadhaar.otp) return;
-    setAadhaar((a) => ({ ...a, status: "loading" }));
-    try {
-      const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaar.refId, otp: aadhaar.otp }, token);
-      if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: res.data.status, message: res.data.details?.message }));
+      window.location.href = res.data.url;
     } catch (err) {
       setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
   };
 
-  // All 6 boxes filled — submit automatically instead of making the user also hunt for a
-  // button, same as most OTP flows. Only fires on the transition into "complete" (the effect
-  // dependency is the otp string itself), so a failed attempt doesn't loop.
-  useEffect(() => {
-    if (aadhaar.otpSent && aadhaar.otp.length === 6 && aadhaar.status !== "loading" && aadhaar.status !== "verified") {
-      verifyAadhaarOtp();
+  // 'pending' means they haven't finished in DigiLocker yet — poll briefly (they're usually
+  // redirected back the instant they finish), then hand the retry to a manual button rather than
+  // spinning forever. digilockerId is kept so that button knows which session to re-check.
+  const checkDigilockerStatus = async (verificationId, attempt = 0) => {
+    setAadhaar((a) => ({ ...a, status: "loading", message: null, digilockerId: verificationId }));
+    try {
+      const res = await api.get(`/api/kyc/verify/aadhaar/digilocker/status?verification_id=${encodeURIComponent(verificationId)}`, token);
+      if (!res.success) throw new Error(res.message);
+      if (res.data.status === "pending") {
+        if (attempt < 4) {
+          setTimeout(() => checkDigilockerStatus(verificationId, attempt + 1), 3000);
+          return;
+        }
+        setAadhaar((a) => ({ ...a, status: "error", message: "DigiLocker hasn't confirmed yet. If you finished there, tap Check status; otherwise start again." }));
+        return;
+      }
+      setAadhaar((a) => ({ ...a, status: res.data.status, message: res.data.details?.message, digilockerId: null }));
+    } catch (err) {
+      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [aadhaar.otp]);
+  };
 
   const submitOnboarding = async () => {
     setSubmitting(true);
@@ -246,6 +251,7 @@ export default function Onboarding() {
       if (!res.success) throw new Error(res.message || "Submission failed");
       const autoVerified = res.data.kyc_status === "verified";
       updateUser({ kyc_status: res.data.kyc_status }, user.id);
+      try { sessionStorage.removeItem(ONBOARDING_VALUES_KEY); } catch { /* ignore */ }
       setResult({ autoVerified });
     } catch (err) {
       setSubmitError(err.message || "Something went wrong — please try again");
@@ -403,12 +409,12 @@ export default function Onboarding() {
           )}
 
           {currentStep === "aadhaar" && (
-            <StepShell icon={Fingerprint} title="Verify your Aadhaar" subtitle="We'll send a one-time password to the mobile number linked to this Aadhaar.">
+            <StepShell icon={Fingerprint} title="Verify your Aadhaar" subtitle="You'll confirm through DigiLocker, the government's document service. It opens in a moment and brings you straight back here.">
               <div className="space-y-4">
                 <div className="relative">
                   <Fingerprint size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input type="text" value={values.aadhaar_number || ""} onChange={(e) => setField("aadhaar_number", e.target.value)}
-                    placeholder="XXXX-XXXX-1234" disabled={aadhaar.otpSent} className={`${inputCls} disabled:opacity-60`} />
+                    placeholder="XXXX-XXXX-1234" className={inputCls} />
                 </div>
                 <KycDocumentUpload
                   label="Aadhaar Card Photo" icon={Fingerprint}
@@ -417,45 +423,30 @@ export default function Onboarding() {
                   onChange={(file) => handleFileChange("aadhaar_number", "aadhaar_photo_url", file)}
                   onRemove={() => clearDoc("aadhaar_number", "aadhaar_photo_url")}
                 />
-                {!aadhaar.otpSent ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <Badge status={aadhaar.status} message={aadhaar.message} />
-                    <button type="button" onClick={sendAadhaarOtp} disabled={!values.aadhaar_number || aadhaar.status === "loading" || resendCooldown > 0}
-                      className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
-                      Send OTP
-                    </button>
-                  </div>
-                ) : aadhaar.status !== "verified" ? (
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-600 mb-2">Enter the 6-digit code</p>
-                      <OtpInput
-                        value={aadhaar.otp}
-                        onChange={(otp) => setAadhaar((a) => ({ ...a, otp }))}
-                        disabled={aadhaar.status === "loading"}
-                        autoFocus
-                      />
-                    </div>
+                {aadhaar.status === "verified" ? (
+                  <Badge status="verified" />
+                ) : (
+                  <div className="space-y-2">
                     <div className="flex items-center justify-between gap-3">
                       <Badge status={aadhaar.status} message={aadhaar.message} />
                       <div className="flex items-center gap-3 flex-shrink-0">
-                        <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading" || resendCooldown > 0} className="text-xs text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline">
-                          {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend OTP"}
-                        </button>
-                        <button type="button" onClick={verifyAadhaarOtp} disabled={aadhaar.otp.length !== 6 || aadhaar.status === "loading"}
-                          className="btn-primary px-4 py-2 text-xs disabled:opacity-40">
-                          {aadhaar.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : "Verify"}
+                        {aadhaar.digilockerId && aadhaar.status === "error" && (
+                          <button type="button" onClick={() => checkDigilockerStatus(aadhaar.digilockerId)} className="text-xs text-primary font-semibold hover:underline">
+                            Check status
+                          </button>
+                        )}
+                        <button type="button" onClick={startDigilocker} disabled={!values.aadhaar_number || aadhaar.status === "loading"}
+                          className="btn-primary px-4 py-2 text-xs disabled:opacity-40 inline-flex items-center gap-1.5">
+                          {aadhaar.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : "Verify with DigiLocker"}
                         </button>
                       </div>
                     </div>
                     {aadhaar.status === "failed" && (
                       <p className="text-[11px] text-slate-400">
-                        Make sure you're entering the code from the most recent SMS — if you tapped Resend more than once, only the latest one is valid.
+                        DigiLocker didn't confirm this Aadhaar. Make sure you sign in with the Aadhaar-linked mobile number and allow access when asked, then try again.
                       </p>
                     )}
                   </div>
-                ) : (
-                  <Badge status={aadhaar.status} message={aadhaar.message} />
                 )}
               </div>
             </StepShell>

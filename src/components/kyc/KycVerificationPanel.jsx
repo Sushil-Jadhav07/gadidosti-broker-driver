@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { ShieldCheck, ShieldAlert, Loader2, ScanLine } from "lucide-react";
 import { api } from "../../services/api";
 
@@ -12,6 +12,9 @@ function Badge({ status, message }) {
 
 const verifyBtnCls = "flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
 
+// Same key pages/Onboarding.jsx reads back after the DigiLocker round trip.
+const ONBOARDING_VALUES_KEY = "ssk_onboarding_values";
+
 // Optional, assistive checks a driver/broker can run against their own document numbers before
 // submitting KYC — results are shown to the human reviewer alongside the documents, they don't
 // auto-approve/auto-reject anything. `values` mirrors KycSubmitForm's live (not-yet-submitted)
@@ -19,23 +22,7 @@ const verifyBtnCls = "flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounde
 export default function KycVerificationPanel({ token, userName, values, initialResults = {}, showDrivingLicense = false }) {
   const [pan, setPan] = useState({ status: initialResults.pan?.status || "idle" });
   const [dl, setDl] = useState({ status: initialResults.drivingLicense?.status || "idle" });
-  const [aadhaar, setAadhaar] = useState({
-    status: initialResults.aadhaar?.status || "idle",
-    otpSent: false,
-    refId: null,
-    otp: "",
-  });
-  const [resendCooldown, setResendCooldown] = useState(0);
-
-  // Blocks rapid repeat Send/Resend clicks — Cashfree can issue a fresh OTP+ref_id on every
-  // request, so clicking Resend before the SMS for the previous one even arrives risks the code
-  // that shows up on the phone belonging to a different ref_id than the one this page ends up
-  // holding, and Cashfree fails it as invalid even though it matches a screen the user can see.
-  useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setInterval(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(t);
-  }, [resendCooldown]);
+  const [aadhaar, setAadhaar] = useState({ status: initialResults.aadhaar?.status || "idle" });
 
   const panNumber = (values?.pan_number || "").trim();
   const dlNumber = (values?.license_number || "").trim();
@@ -66,29 +53,16 @@ export default function KycVerificationPanel({ token, userName, values, initialR
     }
   };
 
-  const sendAadhaarOtp = async () => {
-    if (!aadhaarNumber || resendCooldown > 0) return;
-    setAadhaar((a) => ({ ...a, status: "loading" }));
+  // Aadhaar is confirmed through DigiLocker — a redirect, not an inline check. The user comes
+  // back to /onboarding (which owns resolving the result, see Onboarding.jsx's
+  // checkDigilockerStatus), so the typed values are stashed for it to restore.
+  const startDigilocker = async () => {
+    setAadhaar((a) => ({ ...a, status: "loading", message: null }));
     try {
-      const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: aadhaarNumber }, token);
+      try { sessionStorage.setItem(ONBOARDING_VALUES_KEY, JSON.stringify(values || {})); } catch { /* ignore */ }
+      const res = await api.post("/api/kyc/verify/aadhaar/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
       if (!res.success) throw new Error(res.message);
-      // A fresh OTP was just sent — clear whatever was typed from a previous one, so there's no
-      // chance of submitting a stale code against this new ref_id.
-      setAadhaar((a) => ({ ...a, status: "idle", otpSent: true, refId: res.data.refId, otp: "", message: null }));
-      setResendCooldown(30);
-    } catch (err) {
-      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
-      setResendCooldown(30);
-    }
-  };
-
-  const verifyAadhaarOtp = async () => {
-    if (!aadhaar.refId || !aadhaar.otp) return;
-    setAadhaar((a) => ({ ...a, status: "loading" }));
-    try {
-      const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaar.refId, otp: aadhaar.otp }, token);
-      if (!res.success) throw new Error(res.message);
-      setAadhaar((a) => ({ ...a, status: res.data.status, message: res.data.details?.message }));
+      window.location.href = res.data.url;
     } catch (err) {
       setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
     }
@@ -126,42 +100,15 @@ export default function KycVerificationPanel({ token, userName, values, initialR
           </div>
         )}
 
-        <div className="bg-slate-50 rounded-xl p-3.5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Aadhaar</p>
-              <Badge status={aadhaar.status === "loading" && !aadhaar.otpSent ? "loading" : (aadhaar.otpSent && aadhaar.status === "idle" ? "idle" : aadhaar.status)} message={aadhaar.message} />
-            </div>
-            {!aadhaar.otpSent && (
-              <button type="button" onClick={sendAadhaarOtp} disabled={!aadhaarNumber || aadhaar.status === "loading" || resendCooldown > 0} className={verifyBtnCls}>
-                Send OTP
-              </button>
-            )}
+        <div className="bg-slate-50 rounded-xl p-3.5 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">Aadhaar</p>
+            <Badge status={aadhaar.status} message={aadhaar.message} />
           </div>
-          {aadhaar.otpSent && aadhaar.status !== "verified" && (
-            <>
-              <div className="flex items-center gap-2 mt-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={aadhaar.otp}
-                  onChange={(e) => setAadhaar((a) => ({ ...a, otp: e.target.value }))}
-                  placeholder="Enter OTP"
-                  className="input-field flex-1 py-2 text-sm font-mono"
-                />
-                <button type="button" onClick={verifyAadhaarOtp} disabled={!aadhaar.otp || aadhaar.status === "loading"} className={verifyBtnCls}>
-                  Verify OTP
-                </button>
-                <button type="button" onClick={sendAadhaarOtp} disabled={aadhaar.status === "loading" || resendCooldown > 0} className="text-xs text-primary font-semibold hover:underline disabled:opacity-40 disabled:no-underline flex-shrink-0">
-                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend"}
-                </button>
-              </div>
-              {aadhaar.status === "failed" && (
-                <p className="text-[11px] text-slate-400 mt-1.5">
-                  Make sure you're entering the code from the most recent SMS — if you tapped Resend more than once, only the latest one is valid.
-                </p>
-              )}
-            </>
+          {aadhaar.status !== "verified" && (
+            <button type="button" onClick={startDigilocker} disabled={!aadhaarNumber || aadhaar.status === "loading"} className={verifyBtnCls}>
+              Verify with DigiLocker
+            </button>
           )}
         </div>
       </div>
