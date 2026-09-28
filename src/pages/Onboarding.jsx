@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Truck, ShieldCheck, CreditCard, Fingerprint, Building2, FileText,
-  Calendar, CheckCircle2, ArrowRight, ArrowLeft, Loader2, ShieldAlert,
+  Calendar, CheckCircle2, ArrowRight, Loader2, ShieldAlert,
   Clock, PartyPopper, RefreshCw, AlertCircle, LayoutDashboard,
   Landmark, UserCheck, HelpCircle,
 } from "lucide-react";
@@ -14,66 +14,37 @@ import KycDocumentUpload from "../components/kyc/KycDocumentUpload";
 // startDigilocker / the prefill effect) — a full-page redirect would otherwise wipe them.
 const ONBOARDING_VALUES_KEY = "ssk_onboarding_values";
 
-// Step lists per role — 'welcome' and 'review' bookend a role-specific run of verification
-// steps. Broker has no driving license, driver has no GST/bank/business fields.
-const STEPS = {
-  driver: ["welcome", "pan", "aadhaar", "license", "vehicle", "review"],
-  broker: ["welcome", "pan", "aadhaar", "business", "review"],
+// Same keys as the backend's verification_results (see kyc.controller.js).
+const REQUIRED = {
+  driver: ["aadhaar", "pan", "drivingLicense"],
+  broker: ["aadhaar", "pan"],
 };
-
-const STEP_LABEL = {
-  welcome: "Start", pan: "PAN", aadhaar: "Aadhaar", license: "License",
-  vehicle: "Vehicle", business: "Business", review: "Review",
-};
-
-function ProgressBar({ steps, currentIndex }) {
-  return (
-    <div className="flex items-center gap-1.5 mb-8">
-      {steps.map((s, i) => (
-        <div key={s} className="flex-1">
-          <div className={`h-1.5 rounded-full transition-colors ${i <= currentIndex ? "bg-primary" : "bg-slate-200"}`} />
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StepShell({ icon: Icon, title, subtitle, children }) {
-  return (
-    <div>
-      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
-        <Icon size={22} className="text-primary" />
-      </div>
-      <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-      {subtitle && <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">{subtitle}</p>}
-      <div className="mt-6">{children}</div>
-    </div>
-  );
-}
+const DOC_LABEL = { aadhaar: "Aadhaar", pan: "PAN", drivingLicense: "Driving License" };
+const DOC_ICON = { aadhaar: Fingerprint, pan: Landmark, drivingLicense: CreditCard };
 
 function Badge({ status, message }) {
   if (status === "loading") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400"><Loader2 size={13} className="animate-spin" /> Checking...</span>;
   if (status === "verified") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600"><CheckCircle2 size={13} /> Verified</span>;
+  if (status === "missing") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> {message || "Not found in your DigiLocker"}</span>;
   if (status === "failed") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-red-600"><ShieldAlert size={13} /> {message || "Didn't match — check the details and try again"}</span>;
   if (status === "error") return <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-600"><ShieldAlert size={13} /> {message || "Couldn't reach verification, try again"}</span>;
-  return null;
+  return <span className="text-xs text-slate-400">Not verified yet</span>;
 }
 
 const inputCls = "input-field pl-9 pr-3 py-2.5 text-sm font-mono w-full";
 
-// What actually happens on this page, per role — no invented stats or certifications, just
-// the real checks (PAN via the Income Tax Department, Aadhaar via DigiLocker) and the
-// real fallback (manual review) so the copy stays true regardless of who reads it.
+// What actually happens on this page — no invented stats or certifications, just the real
+// checks and the real fallback (manual review), so the copy stays true for whoever reads it.
 const TRUST_POINTS = {
   broker: [
-    { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
-    { icon: Fingerprint, text: "Aadhaar is confirmed through DigiLocker, the government's own document service — you sign in there, we never see your login." },
+    { icon: Fingerprint, text: "You confirm through DigiLocker, the government's own document service — you sign in there, we never see your login." },
+    { icon: Landmark, text: "Your Aadhaar and PAN come straight from those government records, so there's nothing to type or photograph." },
     { icon: ShieldCheck, text: "Documents are used only to verify your identity and business — never shared beyond what's needed for compliance." },
   ],
   driver: [
-    { icon: Landmark, text: "Your PAN is checked directly against Income Tax Department records." },
-    { icon: Fingerprint, text: "Aadhaar is confirmed through DigiLocker, the government's own document service — you sign in there, we never see your login." },
-    { icon: CreditCard, text: "Your driving license is verified against transport authority records before you can accept jobs." },
+    { icon: Fingerprint, text: "You confirm through DigiLocker, the government's own document service — you sign in there, we never see your login." },
+    { icon: Landmark, text: "Your Aadhaar, PAN and driving license come straight from those government records, so there's nothing to type or photograph." },
+    { icon: CreditCard, text: "Your driving license is verified before you can accept jobs." },
   ],
 };
 
@@ -82,9 +53,8 @@ export default function Onboarding() {
   const navigate = useNavigate();
   const token = user?.tokens?.access_token;
   const role = user?.role === "driver" ? "driver" : "broker";
-  const steps = STEPS[role];
+  const required = REQUIRED[role];
 
-  const [stepIndex, setStepIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [rejectionReason, setRejectionReason] = useState("");
   const [values, setValues] = useState({});
@@ -92,70 +62,57 @@ export default function Onboarding() {
   const [docUrls, setDocUrls] = useState({});
   const [uploadingKey, setUploadingKey] = useState(null);
 
-  const [pan, setPan] = useState({ status: "idle" });
-  const [dl, setDl] = useState({ status: "idle" });
-  const [aadhaar, setAadhaar] = useState({ status: "idle", digilockerId: null });
-  const [skipped, setSkipped] = useState({});
-
-  // Tracks whether the PAN/license number or photo has changed since the last Verify attempt.
-  // A failed check shouldn't let you just mash the same button again — it hides until you've
-  // actually changed something (fixed the number, or re-uploaded a clearer photo).
-  const [panDirty, setPanDirty] = useState(true);
-  const [dlDirty, setDlDirty] = useState(true);
+  // Per-document result: { status: verified | missing | failed | error | loading, message }
+  const [docs, setDocs] = useState({});
+  const setDoc = (key, patch) => setDocs((d) => ({ ...d, [key]: { ...d[key], ...patch } }));
+  // The DigiLocker session as a whole: idle | loading | error, plus its id so a still-pending
+  // one can be re-checked by hand.
+  const [dg, setDg] = useState({ status: "idle", message: null, id: null });
 
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState(null); // { autoVerified: bool } once submitted
   const [submitError, setSubmitError] = useState("");
 
   // Prefill from whatever's already on file — a rejected resubmission, or a session they left
-  // mid-onboarding and came back to.
+  // and came back to — and, if they've just come back from DigiLocker, resolve that too.
   useEffect(() => {
     if (!token) return;
     api.get("/api/kyc/status", token).then((data) => {
       if (data.success) {
         const submission = data.data.submission;
-        const docs = submission?.documents || {};
-        setValues(docs);
+        const saved = submission?.documents || {};
+        setValues(saved);
         setDocUrls({
-          pan_photo_url: docs.pan_photo_url || null,
-          aadhaar_photo_url: docs.aadhaar_photo_url || null,
-          license_photo_url: docs.license_photo_url || null,
+          pan_photo_url: saved.pan_photo_url || null,
+          aadhaar_photo_url: saved.aadhaar_photo_url || null,
+          license_photo_url: saved.license_photo_url || null,
         });
         setRejectionReason(submission?.rejection_reason || "");
         const vr = submission?.verification_results || {};
-        if (vr.pan?.status) setPan({ status: vr.pan.status });
-        if (vr.drivingLicense?.status) setDl({ status: vr.drivingLicense.status });
-        if (vr.aadhaar?.status) setAadhaar((a) => ({ ...a, status: vr.aadhaar.status }));
+        const known = {};
+        for (const key of required) if (vr[key]?.status) known[key] = { status: vr[key].status };
+        setDocs(known);
 
-        // Coming back from DigiLocker: put the wizard back where they left it (typed values that
-        // never reached the server, and the Aadhaar step), strip the query param so a refresh
-        // doesn't re-trigger this, and resolve the result.
         const returnedId = new URLSearchParams(window.location.search).get("verification_id");
         if (returnedId) {
           try {
             const stored = JSON.parse(sessionStorage.getItem(ONBOARDING_VALUES_KEY) || "null");
-            if (stored) setValues({ ...docs, ...stored });
+            if (stored) setValues({ ...saved, ...stored });
           } catch { /* ignore a corrupt/blocked stash */ }
-          setStepIndex(Math.max(0, steps.indexOf("aadhaar")));
           window.history.replaceState({}, "", window.location.pathname);
-          checkDigilockerStatus(returnedId);
+          checkDigilocker(returnedId);
         }
       }
       setLoading(false);
     }).catch(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const setField = (key, val) => {
-    setValues((v) => ({ ...v, [key]: val }));
-    if (key === "pan_number") setPanDirty(true);
-    if (key === "license_number" || key === "date_of_birth") setDlDirty(true);
-  };
+  const setField = (key, val) => setValues((v) => ({ ...v, [key]: val }));
 
   const handleFileChange = async (key, documentKey, file) => {
     setDocFiles((f) => ({ ...f, [key]: file }));
     setUploadingKey(key);
-    if (key === "pan_number") setPanDirty(true);
-    if (key === "license_number") setDlDirty(true);
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -173,71 +130,80 @@ export default function Onboarding() {
   const clearDoc = (key, documentKey) => {
     setDocFiles((f) => ({ ...f, [key]: null }));
     setDocUrls((u) => ({ ...u, [documentKey]: null }));
-    if (key === "pan_number") setPanDirty(true);
-    if (key === "license_number") setDlDirty(true);
   };
 
+  // One DigiLocker sign-in covers every document this role needs (a redirect, not inline entry):
+  // start → the user leaves for DigiLocker → they land back on /onboarding?verification_id=… →
+  // checkDigilocker resolves it. The typed fallback fields would be wiped by that full-page round
+  // trip, so they're stashed in sessionStorage first and restored on return (see the prefill effect).
+  const startDigilocker = async () => {
+    setDg({ status: "loading", message: null, id: null });
+    try {
+      try { sessionStorage.setItem(ONBOARDING_VALUES_KEY, JSON.stringify(values)); } catch { /* storage unavailable — worst case the user re-types */ }
+      const res = await api.post("/api/kyc/verify/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
+      if (!res.success) throw new Error(res.message);
+      window.location.href = res.data.url;
+    } catch (err) {
+      setDg({ status: "error", message: err.message, id: null });
+    }
+  };
+
+  // 'pending' means they haven't finished in DigiLocker yet (or Cashfree is still processing) —
+  // poll briefly, then hand the retry to a manual button rather than spinning forever.
+  const checkDigilocker = async (verificationId, attempt = 0) => {
+    setDg({ status: "loading", message: null, id: verificationId });
+    try {
+      const res = await api.get(`/api/kyc/verify/digilocker/status?verification_id=${encodeURIComponent(verificationId)}`, token);
+      if (!res.success) throw new Error(res.message);
+      const { status, message, documents } = res.data;
+      if (status === "pending") {
+        if (attempt < 4) {
+          setTimeout(() => checkDigilocker(verificationId, attempt + 1), 3000);
+          return;
+        }
+        setDg({ status: "error", message: "DigiLocker hasn't confirmed yet. If you finished there, tap Check status; otherwise start again.", id: verificationId });
+        return;
+      }
+      if (status === "failed") {
+        setDg({ status: "error", message: message || "DigiLocker didn't complete — please start again.", id: null });
+        return;
+      }
+      // done: verified documents are settled; missing ones fall back to entering the number.
+      const next = {};
+      for (const key of required) {
+        const d = documents?.[key];
+        if (d?.status === "verified") next[key] = { status: "verified" };
+        else if (d?.status === "missing") next[key] = { status: "missing", message: d.details?.message };
+      }
+      setDocs((current) => ({ ...current, ...next }));
+      setDg({ status: "idle", message: null, id: null });
+    } catch (err) {
+      setDg({ status: "error", message: err.message, id: verificationId });
+    }
+  };
+
+  // Fallbacks for a document that isn't in the user's DigiLocker — verify just that one by number.
   const verifyPan = async () => {
     if (!values.pan_number) return;
-    setPan({ status: "loading" });
-    setPanDirty(false);
+    setDoc("pan", { status: "loading", message: null });
     try {
       const res = await api.post("/api/kyc/verify/pan", { pan: values.pan_number, name: user?.name }, token);
       if (!res.success) throw new Error(res.message);
-      setPan({ status: res.data.status, message: res.data.details?.message });
+      setDoc("pan", { status: res.data.status, message: res.data.details?.message });
     } catch (err) {
-      setPan({ status: "error", message: err.message });
+      setDoc("pan", { status: "error", message: err.message });
     }
   };
 
   const verifyDl = async () => {
     if (!values.license_number || !values.date_of_birth) return;
-    setDl({ status: "loading" });
-    setDlDirty(false);
+    setDoc("drivingLicense", { status: "loading", message: null });
     try {
       const res = await api.post("/api/kyc/verify/driving-license", { dl_number: values.license_number, dob: values.date_of_birth }, token);
       if (!res.success) throw new Error(res.message);
-      setDl({ status: res.data.status, message: res.data.details?.message });
+      setDoc("drivingLicense", { status: res.data.status, message: res.data.details?.message });
     } catch (err) {
-      setDl({ status: "error", message: err.message });
-    }
-  };
-
-  // Aadhaar goes through DigiLocker (a redirect, not an inline OTP): start → the user leaves for
-  // DigiLocker → they land back on /onboarding?verification_id=… → checkDigilockerStatus resolves
-  // it. Typed-but-not-yet-submitted field values would be wiped by that full-page round trip, so
-  // they're stashed in sessionStorage first and restored on return (see the prefill effect).
-  const startDigilocker = async () => {
-    setAadhaar((a) => ({ ...a, status: "loading", message: null }));
-    try {
-      try { sessionStorage.setItem(ONBOARDING_VALUES_KEY, JSON.stringify(values)); } catch { /* storage unavailable — worst case the user re-types */ }
-      const res = await api.post("/api/kyc/verify/aadhaar/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
-      if (!res.success) throw new Error(res.message);
-      window.location.href = res.data.url;
-    } catch (err) {
-      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
-    }
-  };
-
-  // 'pending' means they haven't finished in DigiLocker yet — poll briefly (they're usually
-  // redirected back the instant they finish), then hand the retry to a manual button rather than
-  // spinning forever. digilockerId is kept so that button knows which session to re-check.
-  const checkDigilockerStatus = async (verificationId, attempt = 0) => {
-    setAadhaar((a) => ({ ...a, status: "loading", message: null, digilockerId: verificationId }));
-    try {
-      const res = await api.get(`/api/kyc/verify/aadhaar/digilocker/status?verification_id=${encodeURIComponent(verificationId)}`, token);
-      if (!res.success) throw new Error(res.message);
-      if (res.data.status === "pending") {
-        if (attempt < 4) {
-          setTimeout(() => checkDigilockerStatus(verificationId, attempt + 1), 3000);
-          return;
-        }
-        setAadhaar((a) => ({ ...a, status: "error", message: "DigiLocker hasn't confirmed yet. If you finished there, tap Check status; otherwise start again." }));
-        return;
-      }
-      setAadhaar((a) => ({ ...a, status: res.data.status, message: res.data.details?.message, digilockerId: null }));
-    } catch (err) {
-      setAadhaar((a) => ({ ...a, status: "error", message: err.message }));
+      setDoc("drivingLicense", { status: "error", message: err.message });
     }
   };
 
@@ -275,19 +241,12 @@ export default function Onboarding() {
 
   const goToDashboard = () => navigate(role === "driver" ? "/driver" : "/broker", { replace: true });
 
-  const currentStep = steps[stepIndex];
-  const isLast = stepIndex === steps.length - 1;
-
-  const canAdvance = () => {
-    if (currentStep === "pan") return pan.status === "verified" || skipped.pan;
-    if (currentStep === "aadhaar") return aadhaar.status === "verified" || skipped.aadhaar;
-    if (currentStep === "license") return dl.status === "verified" || skipped.license;
-    return true;
-  };
-
-  const next = () => setStepIndex((i) => Math.min(i + 1, steps.length - 1));
-  const back = () => setStepIndex((i) => Math.max(i - 1, 0));
-  const skipThisStep = () => { setSkipped((s) => ({ ...s, [currentStep]: true })); next(); };
+  const allVerified = required.every((key) => docs[key]?.status === "verified");
+  // A document shows its number-entry fallback once DigiLocker couldn't supply it (or a number
+  // check on it just failed) — never up front, so the normal path has nothing to type at all.
+  // ("loading" is only ever set by these fallback checks themselves, so keeping the fields
+  // visible through it stops them vanishing mid-check.)
+  const needsFallback = (key) => ["missing", "failed", "error", "loading"].includes(docs[key]?.status);
 
   if (loading) {
     return (
@@ -340,7 +299,7 @@ export default function Onboarding() {
           <div className="flex items-center gap-2.5">
             <img src="/gadidost-logo.png" alt="GadiDost" className="h-7 w-auto" />
             <div className="hidden sm:block h-6 w-px bg-slate-200" />
-            <p className="hidden sm:block text-xs font-semibold text-slate-500">{role === "driver" ? "Driver Onboarding" : "Broker Onboarding"}</p>
+            <p className="hidden sm:block text-xs font-semibold text-slate-500">{role === "driver" ? "Driver Verification" : "Broker Verification"}</p>
           </div>
           <button
             onClick={goToDashboard}
@@ -352,236 +311,164 @@ export default function Onboarding() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 py-10 grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-card p-7 order-2 lg:order-1">
-          <ProgressBar steps={steps} currentIndex={stepIndex} />
+        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-card p-7 order-2 lg:order-1 space-y-7">
+          <div>
+            <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+              <ShieldCheck size={22} className="text-primary" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900">Let's get you verified, {user?.name?.split(" ")[0] || ""}</h2>
+            <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
+              {role === "driver"
+                ? "Sign in once with DigiLocker and we'll confirm your Aadhaar, PAN and driving license together. Nothing to type or photograph."
+                : "Sign in once with DigiLocker and we'll confirm your Aadhaar and PAN together. Nothing to type or photograph."}
+            </p>
+          </div>
 
-          {rejectionReason && stepIndex === 0 && (
-            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-6 text-xs text-red-600">
+          {rejectionReason && (
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-xs text-red-600">
               <AlertCircle size={14} className="flex-shrink-0 mt-0.5" />
               <span><span className="font-semibold">Previously rejected: </span>{rejectionReason}</span>
             </div>
           )}
 
-          {currentStep === "welcome" && (
-            <StepShell
-              icon={ShieldCheck}
-              title={`Let's get you verified, ${user?.name?.split(" ")[0] || ""}`}
-              subtitle={
-                role === "driver"
-                  ? "Before you can accept jobs, we need to confirm your PAN, Aadhaar, and driving license. It only takes a couple of minutes — most checks happen instantly."
-                  : "Before you can list trucks and accept jobs, we need to confirm your PAN and Aadhaar. It only takes a couple of minutes — most checks happen instantly."
-              }
-            >
-              <button onClick={next} className="btn-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2">
-                Get Started <ArrowRight size={15} />
-              </button>
-            </StepShell>
-          )}
+          <div className="space-y-3">
+            {required.map((key) => {
+              const Icon = DOC_ICON[key];
+              const d = docs[key] || { status: "idle" };
+              return (
+                <div key={key} className="bg-slate-50 rounded-xl px-4 py-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Icon size={15} className="text-slate-400" /> {DOC_LABEL[key]}</span>
+                    <Badge status={d.status} message={d.message} />
+                  </div>
 
-          {currentStep === "pan" && (
-            <StepShell icon={CreditCard} title="Verify your PAN" subtitle="Enter your PAN exactly as printed on your PAN card.">
-              <div className="space-y-4">
-                <div className="relative">
-                  <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.pan_number || ""} onChange={(e) => setField("pan_number", e.target.value.toUpperCase())}
-                    placeholder="ABCDE1234F" maxLength={10} className={inputCls} />
-                </div>
-                <KycDocumentUpload
-                  label="PAN Card Photo" icon={FileText}
-                  file={docFiles.pan_number} existingUrl={docUrls.pan_photo_url}
-                  uploading={uploadingKey === "pan_number"}
-                  onChange={(file) => handleFileChange("pan_number", "pan_photo_url", file)}
-                  onRemove={() => clearDoc("pan_number", "pan_photo_url")}
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <Badge status={pan.status} message={pan.message} />
-                  {pan.status === "verified" ? null : (pan.status !== "failed" && pan.status !== "error") || panDirty ? (
-                    <button type="button" onClick={verifyPan} disabled={!values.pan_number || pan.status === "loading"}
-                      className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
-                      Verify PAN
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-400 italic flex-shrink-0">Edit the number or re-upload the photo to try again</span>
-                  )}
-                </div>
-              </div>
-            </StepShell>
-          )}
-
-          {currentStep === "aadhaar" && (
-            <StepShell icon={Fingerprint} title="Verify your Aadhaar" subtitle="You'll confirm through DigiLocker, the government's document service. It opens in a moment and brings you straight back here.">
-              <div className="space-y-4">
-                <div className="relative">
-                  <Fingerprint size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.aadhaar_number || ""} onChange={(e) => setField("aadhaar_number", e.target.value)}
-                    placeholder="XXXX-XXXX-1234" className={inputCls} />
-                </div>
-                <KycDocumentUpload
-                  label="Aadhaar Card Photo" icon={Fingerprint}
-                  file={docFiles.aadhaar_number} existingUrl={docUrls.aadhaar_photo_url}
-                  uploading={uploadingKey === "aadhaar_number"}
-                  onChange={(file) => handleFileChange("aadhaar_number", "aadhaar_photo_url", file)}
-                  onRemove={() => clearDoc("aadhaar_number", "aadhaar_photo_url")}
-                />
-                {aadhaar.status === "verified" ? (
-                  <Badge status="verified" />
-                ) : (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <Badge status={aadhaar.status} message={aadhaar.message} />
-                      <div className="flex items-center gap-3 flex-shrink-0">
-                        {aadhaar.digilockerId && aadhaar.status === "error" && (
-                          <button type="button" onClick={() => checkDigilockerStatus(aadhaar.digilockerId)} className="text-xs text-primary font-semibold hover:underline">
-                            Check status
-                          </button>
-                        )}
-                        <button type="button" onClick={startDigilocker} disabled={!values.aadhaar_number || aadhaar.status === "loading"}
-                          className="btn-primary px-4 py-2 text-xs disabled:opacity-40 inline-flex items-center gap-1.5">
-                          {aadhaar.status === "loading" ? <Loader2 size={13} className="animate-spin" /> : "Verify with DigiLocker"}
-                        </button>
-                      </div>
+                  {needsFallback(key) && (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
+                      {key === "aadhaar" && (
+                        <>
+                          <p className="text-[11px] text-slate-400">Couldn't confirm this through DigiLocker — add the number and our team will review it (usually within 24-48 hours).</p>
+                          <div className="relative">
+                            <Fingerprint size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input type="text" value={values.aadhaar_number || ""} onChange={(e) => setField("aadhaar_number", e.target.value)} placeholder="XXXX-XXXX-1234" className={inputCls} />
+                          </div>
+                          <KycDocumentUpload
+                            label="Aadhaar Card Photo" icon={Fingerprint}
+                            file={docFiles.aadhaar_number} existingUrl={docUrls.aadhaar_photo_url}
+                            uploading={uploadingKey === "aadhaar_number"}
+                            onChange={(file) => handleFileChange("aadhaar_number", "aadhaar_photo_url", file)}
+                            onRemove={() => clearDoc("aadhaar_number", "aadhaar_photo_url")}
+                          />
+                        </>
+                      )}
+                      {key === "pan" && (
+                        <>
+                          <div className="relative">
+                            <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input type="text" value={values.pan_number || ""} onChange={(e) => setField("pan_number", e.target.value.toUpperCase())} placeholder="ABCDE1234F" maxLength={10} className={inputCls} />
+                          </div>
+                          <KycDocumentUpload
+                            label="PAN Card Photo" icon={FileText}
+                            file={docFiles.pan_number} existingUrl={docUrls.pan_photo_url}
+                            uploading={uploadingKey === "pan_number"}
+                            onChange={(file) => handleFileChange("pan_number", "pan_photo_url", file)}
+                            onRemove={() => clearDoc("pan_number", "pan_photo_url")}
+                          />
+                          <button type="button" onClick={verifyPan} disabled={!values.pan_number} className="btn-primary px-4 py-2 text-xs disabled:opacity-40">Verify PAN</button>
+                        </>
+                      )}
+                      {key === "drivingLicense" && (
+                        <>
+                          <div className="relative">
+                            <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input type="text" value={values.license_number || ""} onChange={(e) => setField("license_number", e.target.value)} placeholder="MH-2020123456789" className={inputCls} />
+                          </div>
+                          <div className="relative">
+                            <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                            <input type="date" value={values.date_of_birth || ""} onChange={(e) => setField("date_of_birth", e.target.value)} max={new Date().toISOString().slice(0, 10)} className={inputCls} />
+                          </div>
+                          <KycDocumentUpload
+                            label="Driving License Photo" icon={CreditCard}
+                            file={docFiles.license_number} existingUrl={docUrls.license_photo_url}
+                            uploading={uploadingKey === "license_number"}
+                            onChange={(file) => handleFileChange("license_number", "license_photo_url", file)}
+                            onRemove={() => clearDoc("license_number", "license_photo_url")}
+                          />
+                          <button type="button" onClick={verifyDl} disabled={!values.license_number || !values.date_of_birth} className="btn-primary px-4 py-2 text-xs disabled:opacity-40">Verify License</button>
+                        </>
+                      )}
                     </div>
-                    {aadhaar.status === "failed" && (
-                      <p className="text-[11px] text-slate-400">
-                        DigiLocker didn't confirm this Aadhaar. Make sure you sign in with the Aadhaar-linked mobile number and allow access when asked, then try again.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </StepShell>
-          )}
-
-          {currentStep === "license" && (
-            <StepShell icon={ShieldCheck} title="Verify your Driving License" subtitle="Enter your license number and date of birth exactly as on the license.">
-              <div className="space-y-4">
-                <div className="relative">
-                  <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.license_number || ""} onChange={(e) => setField("license_number", e.target.value)}
-                    placeholder="MH-2020123456789" className={inputCls} />
-                </div>
-                <div className="relative">
-                  <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
-                  <input type="date" value={values.date_of_birth || ""} onChange={(e) => setField("date_of_birth", e.target.value)}
-                    max={new Date().toISOString().slice(0, 10)} className={inputCls} />
-                </div>
-                <KycDocumentUpload
-                  label="Driving License Photo" icon={CreditCard}
-                  file={docFiles.license_number} existingUrl={docUrls.license_photo_url}
-                  uploading={uploadingKey === "license_number"}
-                  onChange={(file) => handleFileChange("license_number", "license_photo_url", file)}
-                  onRemove={() => clearDoc("license_number", "license_photo_url")}
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <Badge status={dl.status} message={dl.message} />
-                  {dl.status === "verified" ? null : (dl.status !== "failed" && dl.status !== "error") || dlDirty ? (
-                    <button type="button" onClick={verifyDl} disabled={!values.license_number || !values.date_of_birth || dl.status === "loading"}
-                      className="btn-primary px-4 py-2 text-xs disabled:opacity-40 flex-shrink-0">
-                      Verify License
-                    </button>
-                  ) : (
-                    <span className="text-[11px] text-slate-400 italic flex-shrink-0">Edit the details or re-upload the photo to try again</span>
                   )}
                 </div>
-              </div>
-            </StepShell>
-          )}
+              );
+            })}
+          </div>
 
-          {currentStep === "vehicle" && (
-            <StepShell icon={Truck} title="Vehicle details" subtitle="Optional — you can add or update these later from your profile too.">
-              <div className="space-y-4">
-                <div className="relative">
-                  <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.vehicle_registration_number || ""} onChange={(e) => setField("vehicle_registration_number", e.target.value)}
-                    placeholder="Vehicle Registration Number" className={inputCls} />
-                </div>
-                <div className="relative">
-                  <ShieldCheck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.vehicle_insurance_number || ""} onChange={(e) => setField("vehicle_insurance_number", e.target.value)}
-                    placeholder="Vehicle Insurance Number" className={inputCls} />
-                </div>
-              </div>
-            </StepShell>
-          )}
-
-          {currentStep === "business" && (
-            <StepShell icon={Building2} title="Business details" subtitle="Optional — you can add or update these later from your profile too.">
-              <div className="space-y-4">
-                <div className="relative">
-                  <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.gst_number || ""} onChange={(e) => setField("gst_number", e.target.value.toUpperCase())}
-                    placeholder="GST Number" className={inputCls} />
-                </div>
-                <div className="relative">
-                  <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.bank_account_number || ""} onChange={(e) => setField("bank_account_number", e.target.value)}
-                    placeholder="Bank Account Number" className={inputCls} />
-                </div>
-                <div className="relative">
-                  <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="text" value={values.business_registration_number || ""} onChange={(e) => setField("business_registration_number", e.target.value)}
-                    placeholder="Business Registration Number" className={inputCls} />
-                </div>
-              </div>
-            </StepShell>
-          )}
-
-          {currentStep === "review" && (
-            <StepShell icon={CheckCircle2} title="Review & finish" subtitle="Double-check everything below, then complete your onboarding.">
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                  <span className="text-xs font-semibold text-slate-500">PAN</span>
-                  <Badge status={pan.status === "verified" ? "verified" : (skipped.pan ? undefined : pan.status)} />
-                  {skipped.pan && pan.status !== "verified" && <span className="text-xs text-amber-600 font-semibold">Skipped — needs manual review</span>}
-                </div>
-                <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                  <span className="text-xs font-semibold text-slate-500">Aadhaar</span>
-                  <Badge status={aadhaar.status === "verified" ? "verified" : (skipped.aadhaar ? undefined : aadhaar.status)} />
-                  {skipped.aadhaar && aadhaar.status !== "verified" && <span className="text-xs text-amber-600 font-semibold">Skipped — needs manual review</span>}
-                </div>
-                {role === "driver" && (
-                  <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
-                    <span className="text-xs font-semibold text-slate-500">Driving License</span>
-                    <Badge status={dl.status === "verified" ? "verified" : (skipped.license ? undefined : dl.status)} />
-                    {skipped.license && dl.status !== "verified" && <span className="text-xs text-amber-600 font-semibold">Skipped — needs manual review</span>}
-                  </div>
-                )}
-              </div>
-
-              {submitError && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2.5 mt-4">
-                  <AlertCircle size={14} className="flex-shrink-0" /> {submitError}
+          {!allVerified && (
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={startDigilocker}
+                disabled={dg.status === "loading"}
+                className="btn-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {dg.status === "loading" ? <><Loader2 size={15} className="animate-spin" /> Working...</> : <>Verify with DigiLocker <ArrowRight size={15} /></>}
+              </button>
+              {dg.status === "error" && (
+                <div className="flex items-center justify-between gap-3 text-xs text-amber-600 font-semibold">
+                  <span className="inline-flex items-center gap-1.5"><ShieldAlert size={13} /> {dg.message}</span>
+                  {dg.id && (
+                    <button type="button" onClick={() => checkDigilocker(dg.id)} className="text-primary hover:underline flex-shrink-0">Check status</button>
+                  )}
                 </div>
               )}
-
-              <button onClick={submitOnboarding} disabled={submitting} className="btn-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 mt-6 disabled:opacity-60">
-                {submitting ? <><Loader2 size={15} className="animate-spin" /> Submitting...</> : <>Complete Onboarding <ArrowRight size={15} /></>}
-              </button>
-            </StepShell>
-          )}
-
-          {currentStep !== "welcome" && currentStep !== "review" && (
-            <div className="flex items-center justify-between mt-7">
-              <button onClick={back} className="text-xs font-semibold text-slate-400 hover:text-slate-600 inline-flex items-center gap-1">
-                <ArrowLeft size={13} /> Back
-              </button>
-              <div className="flex items-center gap-4">
-                {["pan", "aadhaar", "license"].includes(currentStep) && !canAdvance() && (
-                  <button onClick={skipThisStep} className="text-xs font-semibold text-slate-400 hover:text-slate-600">
-                    Skip for now
-                  </button>
-                )}
-                <button onClick={next} disabled={!canAdvance()} className="btn-primary px-5 py-2.5 text-xs disabled:opacity-40 inline-flex items-center gap-1.5">
-                  Continue <ArrowRight size={13} />
-                </button>
-              </div>
             </div>
           )}
 
-          {currentStep === "review" && stepIndex > 0 && (
-            <button onClick={back} className="text-xs font-semibold text-slate-400 hover:text-slate-600 inline-flex items-center gap-1 mt-4">
-              <ArrowLeft size={13} /> Back
-            </button>
+          <div className="border-t border-slate-100 pt-6">
+            <h3 className="text-sm font-bold text-slate-900">{role === "driver" ? "Vehicle details" : "Business details"}</h3>
+            <p className="text-xs text-slate-400 mt-0.5 mb-4">Optional — you can add or update these later from your profile too.</p>
+            <div className="space-y-3">
+              {role === "driver" ? (
+                <>
+                  <div className="relative">
+                    <Truck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={values.vehicle_registration_number || ""} onChange={(e) => setField("vehicle_registration_number", e.target.value)} placeholder="Vehicle Registration Number" className={inputCls} />
+                  </div>
+                  <div className="relative">
+                    <ShieldCheck size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={values.vehicle_insurance_number || ""} onChange={(e) => setField("vehicle_insurance_number", e.target.value)} placeholder="Vehicle Insurance Number" className={inputCls} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={values.gst_number || ""} onChange={(e) => setField("gst_number", e.target.value.toUpperCase())} placeholder="GST Number" className={inputCls} />
+                  </div>
+                  <div className="relative">
+                    <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={values.bank_account_number || ""} onChange={(e) => setField("bank_account_number", e.target.value)} placeholder="Bank Account Number" className={inputCls} />
+                  </div>
+                  <div className="relative">
+                    <FileText size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input type="text" value={values.business_registration_number || ""} onChange={(e) => setField("business_registration_number", e.target.value)} placeholder="Business Registration Number" className={inputCls} />
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {submitError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded-xl px-4 py-2.5">
+              <AlertCircle size={14} className="flex-shrink-0" /> {submitError}
+            </div>
+          )}
+
+          <button onClick={submitOnboarding} disabled={submitting} className={`w-full py-3 text-sm inline-flex items-center justify-center gap-2 disabled:opacity-60 ${allVerified ? "btn-primary" : "btn-ghost border border-slate-200"}`}>
+            {submitting ? <><Loader2 size={15} className="animate-spin" /> Submitting...</> : allVerified ? <>Finish <ArrowRight size={15} /></> : <>Submit for review</>}
+          </button>
+          {!allVerified && (
+            <p className="text-[11px] text-slate-400 -mt-4 text-center">Anything not verified above is checked manually by our team, usually within 24-48 hours.</p>
           )}
         </div>
 
@@ -605,11 +492,11 @@ export default function Onboarding() {
             <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center mb-3">
               <HelpCircle size={18} className="text-amber-600" />
             </div>
-            <h3 className="text-sm font-bold text-slate-900">If a document doesn't match</h3>
+            <h3 className="text-sm font-bold text-slate-900">If a document isn't in DigiLocker</h3>
             <p className="text-xs text-slate-500 leading-relaxed mt-2">
-              Double-check the number is typed exactly as printed, and that the photo is clear and unedited.
-              Still not matching? You can skip the step for now — our team reviews it manually and usually
-              clears it within 24-48 hours.
+              DigiLocker only returns documents that are in your account. If one is missing you'll be asked
+              to enter its details instead — or you can link it inside DigiLocker and try again. Anything
+              still unverified is reviewed by our team, usually within 24-48 hours.
             </p>
           </div>
 

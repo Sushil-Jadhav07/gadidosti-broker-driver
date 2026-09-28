@@ -27,7 +27,6 @@ export default function KycVerificationPanel({ token, userName, values, initialR
   const panNumber = (values?.pan_number || "").trim();
   const dlNumber = (values?.license_number || "").trim();
   const dob = (values?.date_of_birth || "").trim();
-  const aadhaarNumber = (values?.aadhaar_number || "").replace(/-/g, "").trim();
 
   const verifyPan = async () => {
     if (!panNumber) return;
@@ -53,14 +52,14 @@ export default function KycVerificationPanel({ token, userName, values, initialR
     }
   };
 
-  // Aadhaar is confirmed through DigiLocker — a redirect, not an inline check. The user comes
-  // back to /onboarding (which owns resolving the result, see Onboarding.jsx's
-  // checkDigilockerStatus), so the typed values are stashed for it to restore.
+  // One DigiLocker sign-in confirms Aadhaar, PAN and (for drivers) the driving license together —
+  // a redirect, not an inline check. The user comes back to /onboarding (which owns resolving the
+  // result, see Onboarding.jsx's checkDigilocker), so the typed values are stashed for it to restore.
   const startDigilocker = async () => {
     setAadhaar((a) => ({ ...a, status: "loading", message: null }));
     try {
       try { sessionStorage.setItem(ONBOARDING_VALUES_KEY, JSON.stringify(values || {})); } catch { /* ignore */ }
-      const res = await api.post("/api/kyc/verify/aadhaar/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
+      const res = await api.post("/api/kyc/verify/digilocker/start", { redirect_url: `${window.location.origin}/onboarding` }, token);
       if (!res.success) throw new Error(res.message);
       window.location.href = res.data.url;
     } catch (err) {
@@ -106,8 +105,8 @@ export default function KycVerificationPanel({ token, userName, values, initialR
             <Badge status={aadhaar.status} message={aadhaar.message} />
           </div>
           {aadhaar.status !== "verified" && (
-            <button type="button" onClick={startDigilocker} disabled={!aadhaarNumber || aadhaar.status === "loading"} className={verifyBtnCls}>
-              Verify with DigiLocker
+            <button type="button" onClick={startDigilocker} disabled={aadhaar.status === "loading"} className={verifyBtnCls}>
+              Verify all with DigiLocker
             </button>
           )}
         </div>
