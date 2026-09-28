@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { FileText, Fingerprint, Building2, CreditCard, FileCheck, UploadCloud, Info, Edit2, CheckCircle2, Eye } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../services/api";
@@ -26,12 +27,12 @@ const PHOTO_FIELDS = {
 };
 
 export default function KYCStatus() {
+  const navigate = useNavigate();
   const { user, updateUser } = useAuth();
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [docFiles, setDocFiles] = useState({ pan_number: null, aadhaar_number: null });
   const [docUrls, setDocUrls] = useState({ pan_number: null, aadhaar_number: null });
   const [uploadingKey, setUploadingKey] = useState(null);
@@ -102,13 +103,12 @@ export default function KYCStatus() {
       setSubmission(result.data.submission);
       updateUser({ kyc_status: "submitted" }, requestUserId);
       setJustSubmitted(true);
-      setEditing(false);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const showForm = kycStatus === "pending" || kycStatus === "rejected" || editing;
+  const showForm = kycStatus === "pending" || kycStatus === "rejected";
 
   return (
     <div className="space-y-5 w-full">
@@ -130,8 +130,7 @@ export default function KYCStatus() {
           initialValues={submission?.documents || {}}
           onSubmit={handleSubmit}
           submitting={submitting}
-          buttonLabel={kycStatus === "rejected" || editing ? "Resubmit for Review" : "Submit for Review"}
-          onCancel={editing ? () => setEditing(false) : undefined}
+          buttonLabel={kycStatus === "rejected" ? "Resubmit for Review" : "Submit for Review"}
           onValuesChange={setLiveValues}
         >
           <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
@@ -187,7 +186,7 @@ export default function KYCStatus() {
               <h3 className="font-bold text-slate-900 text-[15px]">Submitted Documents</h3>
             </div>
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => navigate("/onboarding")}
               className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
             >
               <Edit2 size={13} /> Edit

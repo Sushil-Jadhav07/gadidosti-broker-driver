@@ -129,7 +129,6 @@ function OnboardingRoute({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
   if (!["broker", "driver"].includes(user.role)) return <Navigate to="/" replace />;
-  if (user.kyc_status === "verified") return <Navigate to="/" replace />;
   return children;
 }
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { CreditCard, Fingerprint, Truck, ShieldCheck, UploadCloud, Info, Edit2, FileCheck, CheckCircle2, Eye, FileText, Calendar } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../services/api";
@@ -29,12 +30,12 @@ const PHOTO_FIELDS = {
 };
 
 export default function DriverKYC() {
+  const navigate = useNavigate();
   const { user, updateUser } = useAuth();
   const [submission, setSubmission] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [justSubmitted, setJustSubmitted] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [docFiles, setDocFiles] = useState({ license_number: null, aadhaar_number: null, pan_number: null });
   const [docUrls, setDocUrls] = useState({ license_number: null, aadhaar_number: null, pan_number: null });
   const [uploadingKey, setUploadingKey] = useState(null);
@@ -106,13 +107,12 @@ export default function DriverKYC() {
       setSubmission(result.data.submission);
       updateUser({ kyc_status: "submitted" }, requestUserId);
       setJustSubmitted(true);
-      setEditing(false);
     } finally {
       setSubmitting(false);
     }
   };
 
-  const showForm = kycStatus === "pending" || kycStatus === "rejected" || editing;
+  const showForm = kycStatus === "pending" || kycStatus === "rejected";
 
   return (
     <div className="space-y-5 w-full">
@@ -134,8 +134,7 @@ export default function DriverKYC() {
           initialValues={submission?.documents || {}}
           onSubmit={handleSubmit}
           submitting={submitting}
-          buttonLabel={kycStatus === "rejected" || editing ? "Resubmit for Review" : "Submit for Review"}
-          onCancel={editing ? () => setEditing(false) : undefined}
+          buttonLabel={kycStatus === "rejected" ? "Resubmit for Review" : "Submit for Review"}
           onValuesChange={setLiveValues}
         >
           <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6">
@@ -201,7 +200,7 @@ export default function DriverKYC() {
               <h3 className="font-bold text-slate-900 text-[15px]">Submitted Documents</h3>
             </div>
             <button
-              onClick={() => setEditing(true)}
+              onClick={() => navigate("/onboarding")}
               className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:bg-primary/5 px-3 py-1.5 rounded-lg transition-colors"
             >
               <Edit2 size={13} /> Edit
