@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   User, Mail, Phone, Building2, MapPin, Landmark, Lock,
   Save, ShieldCheck, ArrowRight, CalendarDays,
-  ChevronDown, LogOut,
+  ChevronDown, LogOut, Eye, EyeOff,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -24,6 +24,27 @@ const Field = ({ label, icon: Icon, value, onChange, type = "text", disabled = f
         placeholder={placeholder}
         className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none disabled:text-slate-400 placeholder:text-slate-300"
       />
+    </div>
+  </div>
+);
+
+// Same shape as Field above, but with a trailing show/hide toggle instead of a leading-only
+// icon — kept local rather than added to Field itself, since every other Field usage is plain
+// text/email and has no reason to grow a toggle it'll never pass props for.
+const PasswordField = ({ label, value, onChange, show, onToggleShow }) => (
+  <div>
+    <label className="block text-xs font-semibold text-slate-500 mb-1.5">{label}</label>
+    <div className="flex items-center gap-2.5 bg-slate-50 border-2 border-slate-100 rounded-xl px-3.5 py-2.5 transition-colors focus-within:border-primary">
+      <Lock size={15} className="text-slate-300 flex-shrink-0" />
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none"
+      />
+      <button type="button" onClick={onToggleShow} className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+        {show ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
     </div>
   </div>
 );
@@ -62,6 +83,7 @@ export default function Profile() {
   const [savingCity, setSavingCity] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
+  const [showPw, setShowPw] = useState({ current: false, next: false });
 
   // Read-only source of truth for GST / bank account — the canonical field names/location
   // per the KYC schema (kyc.validation.js). Edited via the KYC page, not here.
@@ -282,8 +304,16 @@ export default function Profile() {
 
             <AccordionRow id="password" icon={Lock} title="Change Password" isOpen={openSection === "password"} onToggle={toggleSection}>
               <div className="space-y-3 pt-3">
-                <Field label="Current Password" icon={Lock} type="password" value={passwordForm.current} onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))} />
-                <Field label="New Password" icon={Lock} type="password" value={passwordForm.next} onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))} />
+                <PasswordField
+                  label="Current Password" value={passwordForm.current}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))}
+                  show={showPw.current} onToggleShow={() => setShowPw((p) => ({ ...p, current: !p.current }))}
+                />
+                <PasswordField
+                  label="New Password" value={passwordForm.next}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
+                  show={showPw.next} onToggleShow={() => setShowPw((p) => ({ ...p, next: !p.next }))}
+                />
                 <button onClick={handleChangePassword} disabled={changingPw} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <ShieldCheck size={14} /> {changingPw ? "Updating..." : "Change Password"}
                 </button>

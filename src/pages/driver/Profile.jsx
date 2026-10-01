@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   User, Mail, Phone, Lock, Save, ShieldCheck, Truck, FileCheck,
   CalendarDays, ChevronDown, LogOut, IndianRupee, MessageCircle, QrCode, Upload, Trash2,
+  Eye, EyeOff,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -25,6 +26,27 @@ const Field = ({ label, icon: Icon, value, onChange, type = "text", disabled = f
         placeholder={placeholder}
         className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none disabled:text-slate-400 placeholder:text-slate-300"
       />
+    </div>
+  </div>
+);
+
+// Same shape as Field above, but with a trailing show/hide toggle instead of a leading-only
+// icon — kept local rather than added to Field itself, since every other Field usage is plain
+// text/email and has no reason to grow a toggle it'll never pass props for.
+const PasswordField = ({ label, value, onChange, show, onToggleShow }) => (
+  <div>
+    <label className="block text-xs font-semibold text-slate-500 mb-1.5">{label}</label>
+    <div className="flex items-center gap-2.5 bg-slate-50 border-2 border-slate-100 rounded-xl px-3.5 py-2.5 transition-colors focus-within:border-primary">
+      <Lock size={15} className="text-slate-300 flex-shrink-0" />
+      <input
+        type={show ? "text" : "password"}
+        value={value}
+        onChange={onChange}
+        className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none"
+      />
+      <button type="button" onClick={onToggleShow} className="text-slate-400 hover:text-slate-600 flex-shrink-0">
+        {show ? <EyeOff size={15} /> : <Eye size={15} />}
+      </button>
     </div>
   </div>
 );
@@ -69,6 +91,7 @@ export default function Profile() {
   const [form, setForm] = useState({ name: "", email: "" });
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
+  const [showPw, setShowPw] = useState({ current: false, next: false });
   const [upiId, setUpiId] = useState("");
   const [savingUpi, setSavingUpi] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
@@ -263,10 +286,10 @@ export default function Profile() {
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
       {/* Left — profile card, same dark-navy treatment as the client app */}
       <div className="lg:col-span-1 space-y-5">
-        <div className="bg-secondary rounded-2xl overflow-hidden relative">
+        <div className="bg-gradient-to-br from-primary to-primary-dark rounded-2xl overflow-hidden relative">
           <div
-            className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-15"
-            style={{ background: "radial-gradient(circle, rgba(25,118,255,0.5) 0%, transparent 70%)" }}
+            className="absolute top-0 right-0 w-48 h-48 pointer-events-none opacity-20"
+            style={{ background: "radial-gradient(circle, rgba(23,216,107,0.6) 0%, transparent 70%)" }}
           />
           <div className="relative z-10 p-6 text-center">
             <div className="w-20 h-20 rounded-full bg-primary/25 border-[3px] border-primary/40 flex items-center justify-center shadow-lg shadow-primary/30 mx-auto mb-4">
@@ -368,8 +391,16 @@ export default function Profile() {
 
             <AccordionRow id="password" icon={Lock} title="Change Password" isOpen={openSection === "password"} onToggle={toggleSection}>
               <div className="space-y-3 pt-3">
-                <Field label="Current Password" icon={Lock} type="password" value={passwordForm.current} onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))} />
-                <Field label="New Password" icon={Lock} type="password" value={passwordForm.next} onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))} />
+                <PasswordField
+                  label="Current Password" value={passwordForm.current}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, current: e.target.value }))}
+                  show={showPw.current} onToggleShow={() => setShowPw((p) => ({ ...p, current: !p.current }))}
+                />
+                <PasswordField
+                  label="New Password" value={passwordForm.next}
+                  onChange={(e) => setPasswordForm((f) => ({ ...f, next: e.target.value }))}
+                  show={showPw.next} onToggleShow={() => setShowPw((p) => ({ ...p, next: !p.next }))}
+                />
                 <button onClick={handleChangePassword} disabled={changingPw} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <ShieldCheck size={14} /> {changingPw ? "Updating..." : "Change Password"}
                 </button>
