@@ -21,7 +21,7 @@ const STATUS_META = {
 };
 const STATUS_OPTIONS = Object.keys(STATUS_META);
 const TRUCK_TYPES = TRUCK_TYPE_OPTIONS.map((t) => t.value);
-const EMPTY_FORM = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "", bodyType: "" };
+const EMPTY_FORM = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "", bodyType: "", capacityTons: "" };
 const BODY_TYPE_OPTIONS = [{ value: "", label: "Not specified" }, ...TRUCK_BODY_TYPES];
 const ITEMS_PER_PAGE = 9;
 const REGISTRATION_REGEX = /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/i;
@@ -116,6 +116,7 @@ export default function Trucks() {
       year: String(truck.year || ""),
       insuranceExpiry: truck.insuranceExpiry ? String(truck.insuranceExpiry).slice(0, 10) : "",
       bodyType: truck.bodyType || "",
+      capacityTons: truck.capacityTons != null ? String(truck.capacityTons) : "",
     });
     setSelectedTruck(null);
     setShowModal(true);
@@ -145,6 +146,7 @@ export default function Trucks() {
       year: Number(form.year) || null,
       insurance_expiry: form.insuranceExpiry || null,
       body_type: form.bodyType || null,
+      capacity_tons: form.capacityTons ? Number(form.capacityTons) : null,
     };
     const response = editTruck
       ? await api.patch(`/api/vehicles/trucks/${editTruck.id}`, payload, token)
@@ -457,6 +459,18 @@ export default function Trucks() {
               options={BODY_TYPE_OPTIONS}
               value={form.bodyType}
               onChange={(v) => setForm((current) => ({ ...current, bodyType: v }))}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Capacity (tons)</label>
+            <input
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={form.capacityTons}
+              onChange={(event) => setForm((current) => ({ ...current, capacityTons: event.target.value }))}
+              className="input-field px-3 py-2 w-full"
+              placeholder="e.g. 18"
             />
           </div>
           {saveError && <div className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{saveError}</div>}
