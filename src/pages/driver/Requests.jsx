@@ -21,6 +21,7 @@ const POLL_INTERVAL_MS = 30000;
 export default function DriverRequests() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const [activeTab, setActiveTab] = useState("direct");
   const [requests, setRequests] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -201,6 +202,32 @@ export default function DriverRequests() {
         </div>
       </div>
 
+      {/* Two genuinely different request types (negotiated driver_requests vs plain-accept
+          trip_join_requests) — separate tabs rather than one stacked page, so a driver with
+          several of each isn't stuck scrolling past one list to find the other. */}
+      <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("direct")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "direct" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Direct Requests
+          {requests.length > 0 && <span className="text-[10px] bg-slate-200 text-slate-600 rounded-full px-1.5 py-0.5">{requests.length}</span>}
+        </button>
+        <button
+          onClick={() => setActiveTab("partload")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "partload" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <PackagePlus size={13} className="text-teal-600" /> Part-Load Requests
+          {pendingJoinRequests.length > 0 && <span className="text-[10px] bg-teal-100 text-teal-700 rounded-full px-1.5 py-0.5">{pendingJoinRequests.length}</span>}
+        </button>
+      </div>
+
+      {activeTab === "direct" && (
+      <>
       {loading && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 flex justify-center">
           <div className="w-7 h-7 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
@@ -255,14 +282,21 @@ export default function DriverRequests() {
           </div>
         </div>
       )}
+      </>
+      )}
 
-      {!joinRequestsLoading && pendingJoinRequests.length > 0 && (
-        <div className="pt-2">
-          <div className="flex items-center gap-2 mb-3">
-            <PackagePlus size={16} className="text-teal-600" />
-            <h2 className="text-sm font-bold text-slate-800">Part-Load Requests</h2>
-            <span className="text-xs text-slate-400">— a client wants to add cargo to a trip you're already on</span>
+      {activeTab === "partload" && (
+        joinRequestsLoading ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 flex justify-center">
+            <div className="w-7 h-7 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
           </div>
+        ) : pendingJoinRequests.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-16 text-center">
+            <PackagePlus size={30} className="text-slate-300 mx-auto mb-4" />
+            <p className="font-bold text-slate-800 text-[15px]">No part-load requests</p>
+            <p className="text-sm text-slate-400 mt-1">Clients wanting to add cargo to a trip you're already on will show up here.</p>
+          </div>
+        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {pendingJoinRequests.map((req) => (
               <TripJoinRequestCard
@@ -274,7 +308,7 @@ export default function DriverRequests() {
               />
             ))}
           </div>
-        </div>
+        )
       )}
 
       <ConfirmDialog

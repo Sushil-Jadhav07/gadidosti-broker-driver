@@ -20,6 +20,7 @@ const POLL_INTERVAL_MS = 30000;
 export default function DriverRequests() {
   const { user } = useAuth();
   const { addToast } = useToast();
+  const [activeTab, setActiveTab] = useState("direct");
   const [requests, setRequests] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
@@ -197,6 +198,29 @@ export default function DriverRequests() {
         <p className="text-sm text-slate-500 mt-1">Requests your drivers didn&apos;t respond to within 2 minutes — you can now respond on their behalf.</p>
       </div>
 
+      <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setActiveTab("direct")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "direct" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          Direct Requests
+          {requests.length > 0 && <span className="text-[10px] bg-slate-200 text-slate-600 rounded-full px-1.5 py-0.5">{requests.length}</span>}
+        </button>
+        <button
+          onClick={() => setActiveTab("partload")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
+            activeTab === "partload" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <PackagePlus size={13} className="text-teal-600" /> Part-Load Requests
+          {pendingJoinRequests.length > 0 && <span className="text-[10px] bg-teal-100 text-teal-700 rounded-full px-1.5 py-0.5">{pendingJoinRequests.length}</span>}
+        </button>
+      </div>
+
+      {activeTab === "direct" && (
+      <>
       {loading && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading driver requests...</div>
       )}
@@ -247,14 +271,19 @@ export default function DriverRequests() {
           </div>
         </div>
       )}
+      </>
+      )}
 
-      {!joinRequestsLoading && pendingJoinRequests.length > 0 && (
-        <div className="pt-2">
-          <div className="flex items-center gap-2 mb-3">
-            <PackagePlus size={16} className="text-teal-600" />
-            <h2 className="text-sm font-bold text-slate-800">Part-Load Requests</h2>
-            <span className="text-xs text-slate-400">— your driver didn't respond in time</span>
+      {activeTab === "partload" && (
+        joinRequestsLoading ? (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading part-load requests...</div>
+        ) : pendingJoinRequests.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center">
+            <PackagePlus size={30} className="text-slate-300 mx-auto mb-3" />
+            <p className="font-semibold text-slate-800">Nothing to take over</p>
+            <p className="text-sm text-slate-400 mt-1">Part-load requests your drivers don't respond to in time will show up here.</p>
           </div>
+        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {pendingJoinRequests.map((req) => (
               <TripJoinRequestCard
@@ -266,7 +295,7 @@ export default function DriverRequests() {
               />
             ))}
           </div>
-        </div>
+        )
       )}
 
       <ConfirmDialog
