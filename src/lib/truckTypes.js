@@ -11,10 +11,19 @@ export const TRUCK_TYPES = [
   { value: "17ft", label: "17ft Truck", capacity: "4.5 Ton" },
   { value: "19ft", label: "19ft Truck", capacity: "6 Ton" },
   { value: "22ft", label: "22ft Truck", capacity: "7 Ton" },
+  { value: "32ft_sxl", label: "32ft SXL", capacity: "9 Ton" },
+  { value: "32ft_mxl", label: "32ft MXL", capacity: "18 Ton" },
 ];
 
 // Old category values that existing (not yet re-categorized) trucks may still carry — kept
 // selectable so an edit form doesn't reject a record it isn't trying to change.
 export const LEGACY_TRUCK_CATEGORIES = ["small", "medium", "large"];
+
+// A truck's body structure — independent of its size category. Set when a truck is
+// registered/edited; optional (a truck registered before this field existed has neither).
+export const TRUCK_BODY_TYPES = [
+  { value: "open", label: "Open Truck" },
+  { value: "closed", label: "Closed Truck" },
+];
 
 export const truckTypeLabel = (value) => TRUCK_TYPES.find((t) => t.value === value)?.label || value;

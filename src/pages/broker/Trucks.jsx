@@ -12,7 +12,7 @@ import SelectDropdown from "../../components/SelectDropdown";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { formatDate } from "../../utils";
-import { TRUCK_TYPES as TRUCK_TYPE_OPTIONS, truckTypeLabel } from "../../lib/truckTypes";
+import { TRUCK_TYPES as TRUCK_TYPE_OPTIONS, TRUCK_BODY_TYPES, truckTypeLabel } from "../../lib/truckTypes";
 
 const STATUS_META = {
   available: { label: "Available", variant: "success", color: "#17D86B", icon: CheckCircle2 },
@@ -21,7 +21,8 @@ const STATUS_META = {
 };
 const STATUS_OPTIONS = Object.keys(STATUS_META);
 const TRUCK_TYPES = TRUCK_TYPE_OPTIONS.map((t) => t.value);
-const EMPTY_FORM = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "" };
+const EMPTY_FORM = { registration: "", category: "14ft", capacity: TRUCK_TYPE_OPTIONS.find((t) => t.value === "14ft")?.capacity || "", make: "", year: "", insuranceExpiry: "", bodyType: "" };
+const BODY_TYPE_OPTIONS = [{ value: "", label: "Not specified" }, ...TRUCK_BODY_TYPES];
 const ITEMS_PER_PAGE = 9;
 const REGISTRATION_REGEX = /^[A-Z]{2}[-\s]?\d{1,2}[-\s]?[A-Z]{1,3}[-\s]?\d{1,4}$/i;
 
@@ -114,6 +115,7 @@ export default function Trucks() {
       make: truck.make || "",
       year: String(truck.year || ""),
       insuranceExpiry: truck.insuranceExpiry ? String(truck.insuranceExpiry).slice(0, 10) : "",
+      bodyType: truck.bodyType || "",
     });
     setSelectedTruck(null);
     setShowModal(true);
@@ -142,6 +144,7 @@ export default function Trucks() {
       make: form.make,
       year: Number(form.year) || null,
       insurance_expiry: form.insuranceExpiry || null,
+      body_type: form.bodyType || null,
     };
     const response = editTruck
       ? await api.patch(`/api/vehicles/trucks/${editTruck.id}`, payload, token)
@@ -386,6 +389,7 @@ export default function Trucks() {
               <div className="flex justify-between"><span className="text-slate-500">Make</span><span className="font-medium">{selectedTruck.make || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Year</span><span className="font-medium">{selectedTruck.year || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Capacity</span><span className="font-medium">{selectedTruck.capacity || "-"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Structure</span><span className="font-medium">{TRUCK_BODY_TYPES.find((b) => b.value === selectedTruck.bodyType)?.label || "Not specified"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Driver</span><span className="font-medium">{selectedTruck.driver || "Unassigned"}</span></div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Insurance Expiry</span>
@@ -447,6 +451,14 @@ export default function Trucks() {
               />
             </div>
           ))}
+          <div>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Truck Structure</label>
+            <SelectDropdown
+              options={BODY_TYPE_OPTIONS}
+              value={form.bodyType}
+              onChange={(v) => setForm((current) => ({ ...current, bodyType: v }))}
+            />
+          </div>
           {saveError && <div className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{saveError}</div>}
           <div className="col-span-2 flex gap-3 pt-1">
             <button onClick={() => setShowModal(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
