@@ -128,6 +128,17 @@ export const adaptDriverRequest = (request) => ({
   driverTimedOut: !!request.driverTimedOut,
 });
 
+// Part-load join requests (/api/trip-join-requests) — a driver/broker being asked to add a
+// second client's cargo onto a trip already in progress. Unlike adaptDriverRequest, v1 has no
+// negotiation (plain accept/decline only — see tripJoinRequest.model.js), so there's no
+// offerHistory/pendingConfirmationBy to adapt.
+export const adaptTripJoinRequest = (request) => ({
+  ...request,
+  status: formatBookingStatus(request.status),
+  amount: Number(request.amount || 0),
+  driverTimedOut: !!request.driverTimedOut,
+});
+
 export const adaptBooking = (booking) => ({
   ...booking,
   status: formatBookingStatus(booking.status),

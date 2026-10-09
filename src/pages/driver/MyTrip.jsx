@@ -36,7 +36,13 @@ const MECHANIC_STATUS_LABELS = {
 export default function MyTrip() {
   const { user } = useAuth();
   const { addToast } = useToast();
-  const [trip, setTrip] = useState(null);
+  // A driver can now have more than one simultaneously-active trip (part-load: a second
+  // booking sharing the same truck, see TruckModel.findOnTripForPartLoad / trip_join_requests).
+  // `trips` is the real list; `trip` (derived below, same name every existing handler already
+  // uses) is whichever one the tab picker has selected — every handler in this file keeps
+  // working completely unchanged since they all already key off `trip.id` dynamically.
+  const [trips, setTrips] = useState([]);
+  const [selectedTripId, setSelectedTripId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showSOS, setShowSOS] = useState(false);
@@ -67,21 +73,31 @@ export default function MyTrip() {
   const [submittingPickupOtp, setSubmittingPickupOtp] = useState(false);
   const [pickupOtpError, setPickupOtpError] = useState("");
 
-  const loadTrip = async () => {
+  const loadTrips = async (preferTripId) => {
     setLoading(true);
     setError(null);
     try {
       const response = await api.get("/api/trips/active", getToken());
-      const loadedTrip = response.data?.trip ? adaptTrip(response.data.trip) : null;
-      setTrip(loadedTrip);
-      setDeliveryFlowActive(loadedTrip?.rawStatus === "delivered");
+      // Newest-first from the API (see TripModel.findActiveTripsByDriver) — reversed so the
+      // original trip is always the first tab, any part-load join follows it.
+      const loadedTrips = (response.data?.trips || []).map(adaptTrip).reverse();
+      setTrips(loadedTrips);
 
-      if (loadedTrip) {
+      // Keep whatever was selected if it's still active; otherwise prefer the explicitly
+      // requested id (e.g. right after declining one, select whatever's left), else the first.
+      const stillThere = loadedTrips.find((t) => t.id === selectedTripId);
+      const chosen = stillThere || loadedTrips.find((t) => t.id === preferTripId) || loadedTrips[0] || null;
+      setSelectedTripId(chosen?.id || null);
+      setDeliveryFlowActive(chosen?.rawStatus === "delivered");
+
+      if (chosen) {
         try {
-          const incidentsRes = await api.get(`/api/trips/${loadedTrip.id}/incidents`, getToken());
+          const incidentsRes = await api.get(`/api/trips/${chosen.id}/incidents`, getToken());
           const unresolved = (incidentsRes.data?.incidents || []).find((i) => i.status !== "resolved");
           setActiveIncident(unresolved || null);
         } catch { /* non-critical — badge just won't show */ }
+      } else {
+        setActiveIncident(null);
       }
     } catch {
       setError("Failed to load trip. Please try again.");
@@ -91,31 +107,65 @@ export default function MyTrip() {
   };
 
   useEffect(() => {
-    loadTrip();
+    loadTrips();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Switching tabs needs the SAME incident/delivery-flow recompute loadTrips does on initial
+  // load — pulled out so selectTrip below doesn't have to re-fetch everything just to update
+  // these two derived bits for the newly-selected trip.
+  const selectTrip = async (tripId) => {
+    setSelectedTripId(tripId);
+    const next = trips.find((t) => t.id === tripId);
+    setDeliveryFlowActive(next?.rawStatus === "delivered");
+    setActiveIncident(null);
+    if (next) {
+      try {
+        const incidentsRes = await api.get(`/api/trips/${next.id}/incidents`, getToken());
+        const unresolved = (incidentsRes.data?.incidents || []).find((i) => i.status !== "resolved");
+        setActiveIncident(unresolved || null);
+      } catch { /* non-critical — badge just won't show */ }
+    }
+  };
+
+  // The tab-selected trip — every handler below keys off this exactly like the old single-trip
+  // version did, so none of them needed to change.
+  const trip = trips.find((t) => t.id === selectedTripId) || null;
+
   // Live push the moment the client pays via the app — without this the driver would only
   // find out at delivery-completion time (DeliveryCompletionFlow re-fetches then), which is
-  // too late to be useful mid-trip.
+  // too late to be useful mid-trip. Matches by bookingId against WHICHEVER trip in the list it
+  // belongs to, not just the currently-selected one — a payment can land for the trip the
+  // driver isn't currently looking at.
   useBookingPaymentSocket((payload) => {
-    setTrip((current) => {
-      if (!current || payload?.bookingId !== current.bookingId) return current;
-      return { ...current, paymentStatus: payload.paymentStatus };
-    });
+    if (!payload?.bookingId) return;
+    setTrips((current) => current.map((t) => (
+      t.bookingId === payload.bookingId ? { ...t, paymentStatus: payload.paymentStatus } : t
+    )));
     if (payload?.paymentStatus === "paid") {
       addToast(`Payment received for ${payload.bookingNumber || "this booking"} — no COD collection needed.`, "success");
     }
   });
 
-  // Live push the moment this trip's status changes — covers e.g. a broker completing delivery
-  // on this driver's behalf. A full reload (not a partial merge) since a status change can
-  // affect several derived things at once (deliveryFlowActive, timeline, stop checklist).
+  // Live push the moment any of this driver's active trips changes status — covers e.g. a
+  // broker completing delivery on this driver's behalf. A full reload (not a partial merge)
+  // since a status change can affect several derived things at once (deliveryFlowActive,
+  // timeline, stop checklist) — matches against the WHOLE list, not just the selected trip, so
+  // a background change to the other tab's trip is picked up too.
   useTripStatusSocket((updatedTrip) => {
-    if (updatedTrip?.id && updatedTrip.id === trip?.id) loadTrip();
+    if (updatedTrip?.id && trips.some((t) => t.id === updatedTrip.id)) loadTrips(selectedTripId);
   });
 
   const completedTimes = useMemo(() => Object.fromEntries((trip?.timeline || []).filter((step) => step.time).map((step) => [step.step, formatDateTime(step.time)])), [trip]);
+
+  // Replaces one trip's entry in the list with a fresh copy from the server — used after every
+  // mutation (status change, stop completion) instead of the old single-trip setTrip, so the
+  // OTHER tab's trip (if any) is left untouched.
+  const applyTripUpdate = (updatedTripRaw) => {
+    const updated = adaptTrip(updatedTripRaw);
+    setTrips((current) => current.map((t) => (t.id === updated.id ? updated : t)));
+    if (updated.id === selectedTripId) setDeliveryFlowActive(updated.rawStatus === "delivered");
+  };
 
   const handleStatusChange = async (nextStatus) => {
     if (!trip) return;
@@ -137,7 +187,7 @@ export default function MyTrip() {
     try {
       const response = await api.patch(`/api/trips/${trip.id}/status`, { status: nextStatus }, getToken());
       if (!response.success) throw new Error(response.message || "Failed to update trip status");
-      setTrip(adaptTrip(response.data?.trip));
+      applyTripUpdate(response.data?.trip);
     } catch (err) {
       addToast(err.message || "Failed to update trip status.", "error");
     }
@@ -154,7 +204,7 @@ export default function MyTrip() {
         getToken()
       );
       if (!response.success) throw new Error(response.message || "Failed to confirm pickup");
-      setTrip(adaptTrip(response.data?.trip));
+      applyTripUpdate(response.data?.trip);
       setShowPickupOtpPrompt(false);
     } catch (err) {
       // Stays open on a wrong code — the driver's meant to ask the client again and retry,
@@ -174,7 +224,7 @@ export default function MyTrip() {
     try {
       const response = await api.patch(`/api/trips/${trip.id}/stops/${index}/complete`, {}, getToken());
       if (!response.success) throw new Error(response.message || "Failed to complete stop");
-      setTrip(adaptTrip(response.data?.trip));
+      applyTripUpdate(response.data?.trip);
     } catch (err) {
       addToast(err.message || "Failed to complete stop.", "error");
     } finally {
@@ -221,7 +271,12 @@ export default function MyTrip() {
       const response = await api.post(`/api/trips/${trip.id}/decline`, null, getToken());
       if (!response.success) throw new Error(response.message || "Failed to decline trip");
       addToast("Trip declined. Your broker has been notified.", "success");
-      setTrip(null);
+      // Remove just this trip — if another is still active (part-load), the view should fall
+      // through to it, not blank out entirely.
+      const declinedId = trip.id;
+      const remaining = trips.filter((t) => t.id !== declinedId);
+      setTrips(remaining);
+      setSelectedTripId((current) => (current === declinedId ? (remaining[0]?.id || null) : current));
     } catch (err) {
       addToast(err.message || "Failed to decline trip.", "error");
     } finally {
@@ -235,7 +290,7 @@ export default function MyTrip() {
   if (!trip) return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">No active trip assigned.</div>;
 
   if (deliveryFlowActive) {
-    return <DeliveryCompletionFlow trip={trip} onExit={loadTrip} />;
+    return <DeliveryCompletionFlow trip={trip} onExit={() => loadTrips(trip.id)} />;
   }
 
   const statusKey = trip.rawStatus;
@@ -284,6 +339,23 @@ export default function MyTrip() {
 
   return (
     <div className="space-y-5">
+      {trips.length > 1 && (
+        <div className="flex items-center gap-2">
+          {trips.map((t, i) => (
+            <button
+              key={t.id}
+              onClick={() => selectTrip(t.id)}
+              className={`flex-1 text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
+                t.id === selectedTripId ? "border-primary bg-primary/5" : "border-slate-100 bg-white hover:border-slate-200"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trip {i + 1}{i === 0 ? " (original)" : " (part-load)"}</p>
+              <p className="text-xs font-bold text-slate-800 truncate">{bookingRef(t)}</p>
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
         <div className="mb-4">
           <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wide mb-2.5">{bookingRef(trip)}</p>

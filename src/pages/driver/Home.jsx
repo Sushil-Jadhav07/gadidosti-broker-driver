@@ -36,7 +36,12 @@ export default function Home() {
   // persisting in the top header on every page.
   const { online, toggleOnline, onlineToggleLocked } = useOutletContext();
   const firstName = (user?.name || "Driver").split(" ")[0];
-  const [activeTrip, setActiveTrip] = useState(null);
+  // A driver can now have more than one simultaneously-active trip (part-load: a second
+  // booking sharing the same truck, see TruckModel.findOnTripForPartLoad) — activeTrips is the
+  // real list, selectedTripIndex picks which one the Current Trip card below shows. Capped at 2
+  // in v1 (see trip_join_requests), so a simple tab picker is enough — no need for a scrollable list.
+  const [activeTrips, setActiveTrips] = useState([]);
+  const [selectedTripIndex, setSelectedTripIndex] = useState(0);
   const [upcomingTrip, setUpcomingTrip] = useState(null);
   const [summary, setSummary] = useState({ trips: 0, distance: 0, earnings: 0 });
   const [trend, setTrend] = useState({ trips: null, distance: null, earnings: null });
@@ -60,7 +65,11 @@ export default function Home() {
         ]);
         setAssignedTruck(truckRes.data?.truck || null);
         setProfile(profileRes.data?.user || profileRes.data || user || {});
-        setActiveTrip(activeRes.data?.trip ? adaptTrip(activeRes.data.trip) : null);
+        // API returns newest-first (see TripModel.findActiveTripsByDriver) — reversed here so
+        // index 0 is the oldest/original trip and any later part-load joins follow it, matching
+        // the "Trip 1 (original)" / "Trip 2 (part-load)" labels below.
+        setActiveTrips((activeRes.data?.trips || []).map(adaptTrip).reverse());
+        setSelectedTripIndex(0);
         setUpcomingTrip(upcomingRes.data?.trip ? adaptTrip(upcomingRes.data.trip) : null);
         setSummary({
           trips: Number(summaryRes.data?.trips || 0),
@@ -84,6 +93,7 @@ export default function Home() {
     return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>;
   }
 
+  const activeTrip = activeTrips[selectedTripIndex] || null;
   const pickup = splitLocationName(activeTrip?.pickup?.location);
   const drop = splitLocationName(activeTrip?.drop?.location);
   const pickupTime = formatTimeOnly(activeTrip?.pickup?.time);
@@ -127,6 +137,23 @@ export default function Home() {
       </div>
 
       <KycReminderBanner />
+
+      {assignedTruck && activeTrips.length > 1 && (
+        <div className="flex items-center gap-2">
+          {activeTrips.map((trip, i) => (
+            <button
+              key={trip.id}
+              onClick={() => setSelectedTripIndex(i)}
+              className={`flex-1 text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
+                i === selectedTripIndex ? "border-primary bg-primary/5" : "border-slate-100 bg-white hover:border-slate-200"
+              }`}
+            >
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Trip {i + 1}{i === 0 ? " (original)" : " (part-load)"}</p>
+              <p className="text-xs font-bold text-slate-800 truncate">{bookingRef(trip)}</p>
+            </button>
+          ))}
+        </div>
+      )}
 
       {assignedTruck && activeTrip && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
@@ -184,7 +211,7 @@ export default function Home() {
         </div>
       )}
 
-      {assignedTruck && !activeTrip && !upcomingTrip && (
+      {assignedTruck && activeTrips.length === 0 && !upcomingTrip && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-10 text-center text-slate-400">
           No active or upcoming trips right now.
         </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api, getToken } from "../services/api";
-import { adaptDriverRequest } from "../utils";
+import { adaptDriverRequest, adaptTripJoinRequest } from "../utils";
 import { useDriverRequestSocket } from "./useDriverRequestSocket";
+import { useTripJoinRequestSocket } from "./useTripJoinRequestSocket";
 
 const POLL_INTERVAL_MS = 20000;
 
@@ -17,10 +18,17 @@ export function useDriverSidebarCounts(enabled) {
 
   // "Requested" and not yet timed out — the driver's own actionable turn. A request that has
   // already timed out belongs to the broker now (see DriverRequestCard's locked state), so it
-  // shouldn't count as something the driver still needs to do.
+  // shouldn't count as something the driver still needs to do. Combines driver_requests and
+  // trip_join_requests (part-load) counts — both show up on the same "Requests" page
+  // (driver/Requests.jsx), so one badge covers both.
   const refreshRequests = async (token) => {
-    const res = await api.get("/api/driver-requests?limit=100", token);
-    setRequests((res.data?.requests || []).map(adaptDriverRequest).filter((r) => r.status === "Requested" && !r.driverTimedOut).length);
+    const [driverRes, joinRes] = await Promise.all([
+      api.get("/api/driver-requests?limit=100", token),
+      api.get("/api/trip-join-requests?limit=100", token),
+    ]);
+    const driverCount = (driverRes.data?.requests || []).map(adaptDriverRequest).filter((r) => r.status === "Requested" && !r.driverTimedOut).length;
+    const joinCount = (joinRes.data?.requests || []).map(adaptTripJoinRequest).filter((r) => r.status === "Requested" && !r.driverTimedOut).length;
+    setRequests(driverCount + joinCount);
   };
 
   useEffect(() => {
@@ -38,6 +46,12 @@ export function useDriverSidebarCounts(enabled) {
   }, [enabled]);
 
   useDriverRequestSocket((payload) => {
+    if (!enabled || !payload?.id) return;
+    const token = getToken();
+    if (token) refreshRequests(token).catch(() => {});
+  });
+
+  useTripJoinRequestSocket((payload) => {
     if (!enabled || !payload?.id) return;
     const token = getToken();
     if (token) refreshRequests(token).catch(() => {});

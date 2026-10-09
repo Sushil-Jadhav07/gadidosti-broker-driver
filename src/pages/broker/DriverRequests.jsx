@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle, Lock } from "lucide-react";
+import { CheckCircle, Lock, PackagePlus } from "lucide-react";
 import ConfirmDialog from "../../components/broker/ConfirmDialog";
 import DriverRequestCard from "../../components/DriverRequestCard";
+import TripJoinRequestCard from "../../components/TripJoinRequestCard";
 import KycGate from "../../components/kyc/KycGate";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
-import { adaptDriverRequest } from "../../utils";
+import { adaptDriverRequest, adaptTripJoinRequest } from "../../utils";
 import { useDriverRequestSocket } from "../../hooks/useDriverRequestSocket";
+import { useTripJoinRequestSocket } from "../../hooks/useTripJoinRequestSocket";
 
 const LIMIT = 10;
 // Live updates now arrive over the socket (useDriverRequestSocket) — polling stays on as a
@@ -116,6 +118,70 @@ export default function DriverRequests() {
     applyUpdate(id, res);
   };
 
+  // ── Part-load join requests this broker's drivers have timed out on — same endpoint as the
+  // driver app's Requests.jsx, server-scoped by role (findTimedOutByBroker, see
+  // tripJoinRequest.controller.js's listTripJoinRequests).
+  const [joinRequests, setJoinRequests] = useState([]);
+  const [joinRequestsLoading, setJoinRequestsLoading] = useState(true);
+  const [joinDeclineId, setJoinDeclineId] = useState(null);
+
+  const fetchJoinRequests = async () => {
+    const token = getToken();
+    const res = await api.get(`/api/trip-join-requests?limit=20`, token);
+    setJoinRequests((res.data?.requests || []).map(adaptTripJoinRequest));
+  };
+
+  useEffect(() => {
+    fetchJoinRequests().catch(() => {}).finally(() => setJoinRequestsLoading(false));
+    const interval = setInterval(() => fetchJoinRequests().catch(() => {}), POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  const applyJoinRequestUpdate = (id, res) => {
+    const payload = res.data?.request || res.data || {};
+    setJoinRequests((current) => current.map((r) => (r.id === id ? adaptTripJoinRequest({ ...r, ...payload }) : r)));
+  };
+
+  // Same "only insert if already timed out" scoping as the driver_requests socket handler above
+  // (this list is server-scoped to already-timed-out requests).
+  useTripJoinRequestSocket((payload) => {
+    if (!payload?.id) return;
+    setJoinRequests((current) => {
+      const exists = current.some((r) => r.id === payload.id);
+      if (!exists && !payload.driverTimedOut) return current;
+      const adapted = adaptTripJoinRequest(payload);
+      return exists ? current.map((r) => (r.id === payload.id ? adapted : r)) : [adapted, ...current];
+    });
+  });
+
+  const handleJoinAccept = async (id) => {
+    try {
+      const res = await api.patch(`/api/trip-join-requests/${id}/accept`, {}, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to accept request");
+      applyJoinRequestUpdate(id, res);
+      addToast("Load added to the driver's current trip.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to accept request.", "error");
+      fetchJoinRequests().catch(() => {});
+    }
+  };
+
+  const handleJoinDecline = async (id) => {
+    try {
+      const res = await api.patch(`/api/trip-join-requests/${id}/decline`, {}, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to decline request");
+      applyJoinRequestUpdate(id, res);
+      addToast("Request declined.", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to decline request.", "error");
+      fetchJoinRequests().catch(() => {});
+    } finally {
+      setJoinDeclineId(null);
+    }
+  };
+
+  const pendingJoinRequests = joinRequests.filter((r) => r.status === "Requested");
+
   if (user?.kyc_status !== "verified") {
     return (
       <div className="pt-6">
@@ -182,11 +248,41 @@ export default function DriverRequests() {
         </div>
       )}
 
+      {!joinRequestsLoading && pendingJoinRequests.length > 0 && (
+        <div className="pt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <PackagePlus size={16} className="text-teal-600" />
+            <h2 className="text-sm font-bold text-slate-800">Part-Load Requests</h2>
+            <span className="text-xs text-slate-400">— your driver didn't respond in time</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {pendingJoinRequests.map((req) => (
+              <TripJoinRequestCard
+                key={req.id}
+                req={req}
+                role="broker"
+                onAccept={handleJoinAccept}
+                onDecline={setJoinDeclineId}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       <ConfirmDialog
         isOpen={!!declineId} onClose={() => setDeclineId(null)}
         onConfirm={() => handleDecline(declineId)}
         title="Decline this request?"
         message="The client will need to pick a different truck. This action cannot be undone."
+        confirmText="Decline"
+        variant="danger"
+      />
+
+      <ConfirmDialog
+        isOpen={!!joinDeclineId} onClose={() => setJoinDeclineId(null)}
+        onConfirm={() => handleJoinDecline(joinDeclineId)}
+        title="Decline this part-load request?"
+        message="The client will need to look for a different truck. This action cannot be undone."
         confirmText="Decline"
         variant="danger"
       />
