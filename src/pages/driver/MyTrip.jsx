@@ -36,11 +36,12 @@ const MECHANIC_STATUS_LABELS = {
 export default function MyTrip() {
   const { user } = useAuth();
   const { addToast } = useToast();
-  // A driver can now have more than one simultaneously-active trip (part-load: a second
-  // booking sharing the same truck, see TruckModel.findOnTripForPartLoad / trip_join_requests).
-  // `trips` is the real list; `trip` (derived below, same name every existing handler already
-  // uses) is whichever one the tab picker has selected — every handler in this file keeps
-  // working completely unchanged since they all already key off `trip.id` dynamically.
+  // A driver can now have more than one simultaneously-active trip (part-load: further bookings
+  // sharing the same truck once Part Truck mode is on, see TruckModel.findPartTruckCandidates —
+  // no cap on count beyond real spare capacity_tons). `trips` is the real list; `trip` (derived
+  // below, same name every existing handler already uses) is whichever one the tab picker has
+  // selected — every handler in this file keeps working completely unchanged since they all
+  // already key off `trip.id` dynamically.
   const [trips, setTrips] = useState([]);
   const [selectedTripId, setSelectedTripId] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -339,13 +340,16 @@ export default function MyTrip() {
 
   return (
     <div className="space-y-5">
+      {/* No cap on how many bookings a truck can be carrying at once anymore — scrolls
+          horizontally instead of a fixed-width layout that would squeeze unreadable past two
+          or three trips. */}
       {trips.length > 1 && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {trips.map((t, i) => (
             <button
               key={t.id}
               onClick={() => selectTrip(t.id)}
-              className={`flex-1 text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
+              className={`flex-shrink-0 min-w-[150px] text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
                 t.id === selectedTripId ? "border-primary bg-primary/5" : "border-slate-100 bg-white hover:border-slate-200"
               }`}
             >

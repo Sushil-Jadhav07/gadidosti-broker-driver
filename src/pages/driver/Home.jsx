@@ -38,11 +38,11 @@ export default function Home() {
   const { online, toggleOnline, onlineToggleLocked } = useOutletContext();
   const { addToast } = useToast();
   const firstName = (user?.name || "Driver").split(" ")[0];
-  // A driver can now have more than one simultaneously-active trip (part-load: a second booking
+  // A driver can now have more than one simultaneously-active trip (part-load: further bookings
   // sharing the same truck, matched via the Part Truck toggle below — see
   // TruckModel.findPartTruckCandidates) — activeTrips is the real list, selectedTripIndex picks
-  // which one the Current Trip card below shows. Capped at 2 in v1, so a simple tab picker is
-  // enough — no need for a scrollable list.
+  // which one the Current Trip card below shows. No cap on count (only real spare capacity_tons
+  // limits how many), so the tab picker below scrolls horizontally rather than assuming two.
   const [activeTrips, setActiveTrips] = useState([]);
   const [selectedTripIndex, setSelectedTripIndex] = useState(0);
   const [upcomingTrip, setUpcomingTrip] = useState(null);
@@ -182,34 +182,21 @@ export default function Home() {
       <KycReminderBanner />
 
       {assignedTruck && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${assignedTruck.partTruckMode ? "bg-teal-50" : "bg-primary/10"}`}>
-              {assignedTruck.partTruckMode ? <PackagePlus size={19} className="text-teal-600" /> : <Truck size={19} className="text-primary" />}
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${assignedTruck.partTruckMode ? "bg-teal-50" : "bg-primary/10"}`}>
+                {assignedTruck.partTruckMode ? <PackagePlus size={19} className="text-teal-600" /> : <Truck size={19} className="text-primary" />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900 text-[15px]">{assignedTruck.partTruckMode ? "Part Truck mode" : "Full Truck mode"}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {assignedTruck.partTruckMode
+                    ? "Your truck can keep picking up smaller loads as long as it has spare capacity."
+                    : "Your truck only ever carries one booking at a time."}
+                </p>
+              </div>
             </div>
-            <div className="min-w-0">
-              <p className="font-bold text-slate-900 text-[15px]">{assignedTruck.partTruckMode ? "Part Truck mode" : "Full Truck mode"}</p>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {assignedTruck.partTruckMode
-                  ? "Your truck can be matched to a second, smaller load while on a trip."
-                  : "Your truck only ever carries one booking at a time."}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            {assignedTruck.partTruckMode && (
-              <button
-                onClick={handleAcceptingLoadsToggle}
-                disabled={togglingLoads}
-                title={assignedTruck.acceptingLoads ? "Pause new part-load requests" : "Resume accepting new part-load requests"}
-                className={`flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors disabled:opacity-50 ${
-                  assignedTruck.acceptingLoads ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${assignedTruck.acceptingLoads ? "bg-emerald-500" : "bg-amber-500"}`} />
-                {assignedTruck.acceptingLoads ? "Accepting Loads" : "Paused"}
-              </button>
-            )}
             <button
               type="button"
               role="switch"
@@ -222,16 +209,40 @@ export default function Home() {
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${assignedTruck.partTruckMode ? "translate-x-5" : ""}`} />
             </button>
           </div>
+
+          {/* The real "stop loading more" control — there's no limit on how many Part Truck
+              bookings can stack up besides actual spare capacity_tons, so this is how a driver
+              who's physically out of room (regardless of what the numbers say) draws the line,
+              without fully exiting Part Truck mode or affecting a booking already assigned. */}
+          {assignedTruck.partTruckMode && (
+            <div className="mt-4 pt-4 border-t border-slate-100">
+              <button
+                onClick={handleAcceptingLoadsToggle}
+                disabled={togglingLoads}
+                className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-colors disabled:opacity-50 ${
+                  assignedTruck.acceptingLoads
+                    ? "border-2 border-slate-200 text-slate-600 hover:border-amber-300 hover:text-amber-700 hover:bg-amber-50"
+                    : "bg-amber-500 text-white hover:bg-amber-600"
+                }`}
+              >
+                <PackagePlus size={16} className="flex-shrink-0" />
+                {assignedTruck.acceptingLoads ? "Mark Truck as Full" : "Truck is Full — Tap to Accept More Loads"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Trip picker — no limit on how many bookings a truck can be carrying at once anymore
+          (see the truck-mode card above), so this scrolls horizontally instead of a fixed-width
+          layout that would squeeze unreadable once there are more than two or three. */}
       {assignedTruck && activeTrips.length > 1 && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {activeTrips.map((trip, i) => (
             <button
               key={trip.id}
               onClick={() => setSelectedTripIndex(i)}
-              className={`flex-1 text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
+              className={`flex-shrink-0 min-w-[150px] text-left px-4 py-2.5 rounded-xl border-2 transition-colors ${
                 i === selectedTripIndex ? "border-primary bg-primary/5" : "border-slate-100 bg-white hover:border-slate-200"
               }`}
             >
