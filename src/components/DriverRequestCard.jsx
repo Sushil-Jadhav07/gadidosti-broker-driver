@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Clock, Phone, XCircle, IndianRupee, History, Lock, CheckCircle2, Truck, User, Route, Package, ArrowRight, Plus, Minus, Handshake } from "lucide-react";
+import { Clock, Phone, XCircle, IndianRupee, History, Lock, CheckCircle2, Truck, User, Route, Package, ArrowRight, Plus, Minus, Handshake, PackagePlus } from "lucide-react";
 import { useToast } from "../hooks/useToast";
 import { formatCurrency, bookingRef } from "../utils";
 import SwipeDecideBar from "./SwipeDecideBar";
@@ -116,7 +116,14 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
               <span className="text-[11px] font-mono text-slate-400">{bookingRef(req)}</span>
-              {req.truckType && (
+              {req.isPartLoad ? (
+                <span
+                  className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  title="A second, smaller load — sharing spare capacity on a truck that may already be on a trip."
+                >
+                  <PackagePlus size={10} /> Part Truck
+                </span>
+              ) : req.truckType && (
                 <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-600 text-[10px] font-semibold px-2 py-0.5 rounded-full">
                   <Truck size={10} /> {req.truckType}
                 </span>

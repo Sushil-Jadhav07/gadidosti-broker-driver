@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { Navigation, Gauge, Wallet, Clock, TrendingUp, Truck } from "lucide-react";
+import { Navigation, Gauge, Wallet, Clock, TrendingUp, Truck, PackagePlus } from "lucide-react";
 import Badge from "../../components/driver/Badge";
 import RouteMapPanel from "../../components/driver/RouteMapPanel";
 import KycReminderBanner from "../../components/kyc/KycReminderBanner";
 import { useAuth } from "../../hooks/useAuth";
+import { useToast } from "../../hooks/useToast";
 import { api, getToken } from "../../services/api";
 import { adaptTrip, formatCurrency, bookingRef, splitLocationName } from "../../utils";
 
@@ -35,11 +36,13 @@ export default function Home() {
   // between driver pages — the toggle itself only shows here, on the dashboard, instead of
   // persisting in the top header on every page.
   const { online, toggleOnline, onlineToggleLocked } = useOutletContext();
+  const { addToast } = useToast();
   const firstName = (user?.name || "Driver").split(" ")[0];
-  // A driver can now have more than one simultaneously-active trip (part-load: a second
-  // booking sharing the same truck, see TruckModel.findOnTripForPartLoad) — activeTrips is the
-  // real list, selectedTripIndex picks which one the Current Trip card below shows. Capped at 2
-  // in v1 (see trip_join_requests), so a simple tab picker is enough — no need for a scrollable list.
+  // A driver can now have more than one simultaneously-active trip (part-load: a second booking
+  // sharing the same truck, matched via the Part Truck toggle below — see
+  // TruckModel.findPartTruckCandidates) — activeTrips is the real list, selectedTripIndex picks
+  // which one the Current Trip card below shows. Capped at 2 in v1, so a simple tab picker is
+  // enough — no need for a scrollable list.
   const [activeTrips, setActiveTrips] = useState([]);
   const [selectedTripIndex, setSelectedTripIndex] = useState(0);
   const [upcomingTrip, setUpcomingTrip] = useState(null);
@@ -49,6 +52,8 @@ export default function Home() {
   const [assignedTruck, setAssignedTruck] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [togglingMode, setTogglingMode] = useState(false);
+  const [togglingLoads, setTogglingLoads] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -85,6 +90,44 @@ export default function Home() {
     };
     load();
   }, [user]);
+
+  // Full Truck / Part Truck toggle — can be flipped any time, including mid-trip (turning it ON
+  // while already on a trip is exactly the "share my spare capacity" case). Turning it OFF never
+  // touches a part-load booking already assigned, it only stops the truck matching NEW ones.
+  const handleTruckModeToggle = async () => {
+    if (!assignedTruck || togglingMode) return;
+    const nextMode = !assignedTruck.partTruckMode;
+    setTogglingMode(true);
+    try {
+      const res = await api.patch("/api/vehicles/drivers/me/truck-mode", { part_truck_mode: nextMode }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to update truck mode");
+      setAssignedTruck(res.data?.truck || { ...assignedTruck, partTruckMode: nextMode });
+      addToast(nextMode ? "Part Truck mode is on" : "Switched to Full Truck", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to update truck mode", "error");
+    } finally {
+      setTogglingMode(false);
+    }
+  };
+
+  // Separate pause — only shown/meaningful while Part Truck mode is on. Stops the truck from
+  // being matched to any NEW part-load request (e.g. physically full right now) without fully
+  // exiting Part Truck mode, and without affecting a booking already assigned.
+  const handleAcceptingLoadsToggle = async () => {
+    if (!assignedTruck || togglingLoads) return;
+    const nextAccepting = !assignedTruck.acceptingLoads;
+    setTogglingLoads(true);
+    try {
+      const res = await api.patch("/api/vehicles/drivers/me/accepting-loads", { accepting_loads: nextAccepting }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to update");
+      setAssignedTruck(res.data?.truck || { ...assignedTruck, acceptingLoads: nextAccepting });
+      addToast(nextAccepting ? "Accepting new loads" : "Paused — no new loads until you turn this back on", "success");
+    } catch (err) {
+      addToast(err.message || "Failed to update", "error");
+    } finally {
+      setTogglingLoads(false);
+    }
+  };
 
   if (loading) {
     return <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading dashboard...</div>;
@@ -137,6 +180,50 @@ export default function Home() {
       </div>
 
       <KycReminderBanner />
+
+      {assignedTruck && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-5 flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${assignedTruck.partTruckMode ? "bg-teal-50" : "bg-primary/10"}`}>
+              {assignedTruck.partTruckMode ? <PackagePlus size={19} className="text-teal-600" /> : <Truck size={19} className="text-primary" />}
+            </div>
+            <div className="min-w-0">
+              <p className="font-bold text-slate-900 text-[15px]">{assignedTruck.partTruckMode ? "Part Truck mode" : "Full Truck mode"}</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {assignedTruck.partTruckMode
+                  ? "Your truck can be matched to a second, smaller load while on a trip."
+                  : "Your truck only ever carries one booking at a time."}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {assignedTruck.partTruckMode && (
+              <button
+                onClick={handleAcceptingLoadsToggle}
+                disabled={togglingLoads}
+                title={assignedTruck.acceptingLoads ? "Pause new part-load requests" : "Resume accepting new part-load requests"}
+                className={`flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                  assignedTruck.acceptingLoads ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${assignedTruck.acceptingLoads ? "bg-emerald-500" : "bg-amber-500"}`} />
+                {assignedTruck.acceptingLoads ? "Accepting Loads" : "Paused"}
+              </button>
+            )}
+            <button
+              type="button"
+              role="switch"
+              aria-checked={assignedTruck.partTruckMode}
+              onClick={handleTruckModeToggle}
+              disabled={togglingMode}
+              title={assignedTruck.partTruckMode ? "Switch to Full Truck" : "Switch to Part Truck"}
+              className={`relative w-11 h-6 rounded-full flex-shrink-0 transition-colors disabled:opacity-50 ${assignedTruck.partTruckMode ? "bg-teal-500" : "bg-slate-200"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${assignedTruck.partTruckMode ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {assignedTruck && activeTrips.length > 1 && (
         <div className="flex items-center gap-2">
