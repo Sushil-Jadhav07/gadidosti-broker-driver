@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   User, Mail, Phone, Lock, Save, ShieldCheck, Truck, FileCheck,
   CalendarDays, ChevronDown, LogOut, IndianRupee, MessageCircle, QrCode, Upload, Trash2,
-  Eye, EyeOff,
+  Eye, EyeOff, UserX,
 } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { useToast } from "../../hooks/useToast";
@@ -100,6 +100,10 @@ export default function Profile() {
   const [deletingQr, setDeletingQr] = useState(false);
   const [brokerThreadId, setBrokerThreadId] = useState(null);
   const [showBrokerChat, setShowBrokerChat] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const [deleteRequested, setDeleteRequested] = useState(false);
   const [openingBrokerChat, setOpeningBrokerChat] = useState(false);
 
   const toggleSection = (id) => setOpenSection((current) => (current === id ? null : id));
@@ -270,6 +274,24 @@ export default function Profile() {
   const handleLogout = async () => {
     await logout();
     navigate("/login");
+  };
+
+  // Name/email/phone aren't sent here — the backend reads the verified account straight off the
+  // auth token (POST /api/account-deletion-requests/me), so there's nothing to type except,
+  // optionally, why. Only ever logs a request for an admin to review; nothing here deletes or
+  // touches any account data itself.
+  const handleRequestDeletion = async () => {
+    setDeletingAccount(true);
+    try {
+      const res = await api.post("/api/account-deletion-requests/me", { reason: deleteReason.trim() || undefined }, getToken());
+      if (!res?.success) throw new Error(res?.message || "Failed to submit request");
+      setDeleteRequested(true);
+      addToast("Request received — our team will follow up shortly.", "success");
+    } catch (err) {
+      addToast(err?.message || "Failed to submit request", "error");
+    } finally {
+      setDeletingAccount(false);
+    }
   };
 
   if (loading) {
@@ -539,10 +561,56 @@ export default function Profile() {
           <LogOut className="w-[18px] h-[18px]" strokeWidth={1.8} />
           Sign Out
         </button>
+
+        <button
+          onClick={() => { setDeleteReason(""); setDeleteRequested(false); setShowDeleteModal(true); }}
+          className="w-full flex items-center justify-center gap-2 bg-red-50/60 border border-red-100 rounded-xl h-11 text-xs font-semibold text-danger/80 hover:bg-red-50 transition-colors"
+        >
+          <UserX className="w-4 h-4" strokeWidth={1.8} />
+          Request Account Deletion
+        </button>
       </div>
 
       <Modal isOpen={showBrokerChat} onClose={() => setShowBrokerChat(false)} title="Message My Broker" size="sm">
         {brokerThreadId && <ChatWindow threadId={brokerThreadId} currentUserId={user?.id} />}
+      </Modal>
+
+      <Modal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} title="Request Account Deletion" size="sm">
+        {deleteRequested ? (
+          <div className="text-center py-2">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
+              <UserX className="w-7 h-7 text-emerald-600" />
+            </div>
+            <h3 className="font-bold text-slate-900 mb-1">Request Received</h3>
+            <p className="text-sm text-slate-400 mb-6">Our team will follow up by email or phone to verify and complete your request.</p>
+            <button onClick={() => setShowDeleteModal(false)} className="w-full bg-white border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors">
+              Close
+            </button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-slate-500 mb-4">
+              This sends a request to our team — your account isn't deleted immediately. See our{" "}
+              <a href="/legal/driver/account_deletion" target="_blank" rel="noreferrer" className="text-primary hover:underline">Account Deletion policy</a> for what's retained and why.
+            </p>
+            <label className="text-xs font-semibold text-slate-500 mb-1.5 block">Reason (optional)</label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value.slice(0, 2000))}
+              rows={3}
+              placeholder="Let us know why you're leaving (optional)..."
+              className="w-full resize-none rounded-lg border border-slate-200 p-3 text-sm text-slate-700 placeholder:text-slate-300 outline-none focus:border-primary mb-5"
+            />
+            <div className="flex gap-2.5">
+              <button onClick={() => setShowDeleteModal(false)} disabled={deletingAccount} className="flex-1 bg-white border border-slate-200 text-slate-700 font-medium py-2.5 rounded-lg hover:bg-slate-50 transition-colors disabled:opacity-60">
+                Cancel
+              </button>
+              <button onClick={handleRequestDeletion} disabled={deletingAccount} className="flex-1 bg-danger text-white font-medium py-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60">
+                {deletingAccount ? "Submitting..." : "Submit Request"}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
