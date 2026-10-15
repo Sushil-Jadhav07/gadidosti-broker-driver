@@ -49,6 +49,8 @@ import Onboarding from "./pages/Onboarding";
 import NotificationsPage from "./pages/NotificationsPage";
 import ChatList   from "./pages/ChatList";
 import ChatDetail from "./pages/ChatDetail";
+import LegalIndex from "./pages/legal/LegalIndex";
+import LegalPage  from "./pages/legal/LegalPage";
 
 // ────── Broker Layout ──────
 function BrokerAppLayout({ children }) {
@@ -160,6 +162,12 @@ export default function App() {
             <Route path="/login"    element={<PublicRoute><Login /></PublicRoute>} />
             <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
             <Route path="/onboarding" element={<OnboardingRoute><Onboarding /></OnboardingRoute>} />
+            {/* Public legal/compliance pages (Privacy Policy, Terms, Account Deletion, etc.) —
+                no PrivateRoute/layout wrapper at all, same reasoning gadidosti-client's
+                /t/:token uses: app-store listing links need these reachable with no login.
+                :audience is "driver" or "broker" since this one app serves both roles. */}
+            <Route path="/legal/:audience" element={<LegalIndex />} />
+            <Route path="/legal/:audience/:pageKey" element={<LegalPage />} />
             <Route path="/"         element={<RootRedirect />} />
 
             {/* Broker routes */}

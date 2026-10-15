@@ -360,6 +360,13 @@ export default function Profile() {
         </div>
 
         <button
+          onClick={() => navigate("/legal/broker")}
+          className="w-full flex items-center justify-center gap-2 bg-white border border-slate-100 rounded-xl h-12 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+        >
+          Legal & Support
+        </button>
+
+        <button
           onClick={handleLogout}
           className="w-full flex items-center justify-center gap-2 bg-white border border-slate-100 rounded-xl h-14 text-sm font-semibold text-danger hover:bg-red-50 transition-colors"
         >
