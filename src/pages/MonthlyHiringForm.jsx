@@ -76,7 +76,7 @@ export default function MonthlyHiringForm() {
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-8">
       <div className="flex items-center gap-3 mb-6">
-        <button
+        <button 
           onClick={() => navigate(basePath)}
           className="w-9 h-9 flex items-center justify-center rounded-xl bg-white border border-slate-100 shadow-card text-slate-500 hover:text-slate-700 transition-colors flex-shrink-0"
         >
