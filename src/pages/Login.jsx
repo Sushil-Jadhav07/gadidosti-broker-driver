@@ -323,13 +323,13 @@ export default function Login() {
 
             {/* Demo credentials — same centered, plain look and position (below Google
                 sign-in) as the client portal's login; still tappable to auto-fill above. */}
-            <button type="button" onClick={autofill}
+            {/* <button type="button" onClick={autofill}
               className="w-full mt-4 bg-primary-50 hover:bg-primary-100 active:bg-primary/20 border border-primary-100 rounded-xl p-3 transition-all text-center">
               <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Demo Credentials</p>
               <p className="text-xs font-mono text-primary">
                 {CREDS[role].email} <span className="text-primary/40 mx-1.5">|</span> {CREDS[role].password}
               </p>
-            </button>
+            </button> */}
 
             <div className="mt-4 pt-4 border-t border-slate-100 text-center">
               <p className="text-sm text-slate-500 font-inter">
