@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { CreditCard, Fingerprint, Truck, ShieldCheck, UploadCloud, Info, Edit2, FileCheck, CheckCircle2, Eye, FileText, Calendar } from "lucide-react";
+import { CreditCard, Fingerprint, Truck, ShieldCheck, UploadCloud, Info, Edit2, FileCheck, CheckCircle2, Eye, FileText, Calendar, Receipt } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 import { api } from "../../services/api";
 import KycStatusCard from "../../components/kyc/KycStatusCard";
@@ -15,6 +15,8 @@ const FIELDS = [
   { key: "vehicle_insurance_number", label: "Vehicle Insurance Number", placeholder: "INS-2024-567890", icon: ShieldCheck },
   // Optional — a driver's PAN wasn't collected at all before Cashfree verification was added.
   { key: "pan_number", label: "PAN Number", placeholder: "ABCDE1234F", icon: FileText, optional: true },
+  // GST joined the required-check suite (REQUIRED_CHECKS_BY_ROLE.driver) alongside PAN/Aadhaar/DL.
+  { key: "gst_number", label: "GST Number", placeholder: "27ABCDE1234F1Z5", icon: Receipt, optional: true },
   { key: "date_of_birth", label: "Date of Birth", icon: Calendar, type: "date", optional: true },
 ];
 
@@ -188,6 +190,7 @@ export default function DriverKYC() {
             values={liveValues}
             initialResults={submission?.verification_results || {}}
             showDrivingLicense
+            showGst
           />
         </KycSubmitForm>
       ) : (

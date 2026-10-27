@@ -19,12 +19,14 @@ const ONBOARDING_VALUES_KEY = "ssk_onboarding_values";
 // submitting KYC — results are shown to the human reviewer alongside the documents, they don't
 // auto-approve/auto-reject anything. `values` mirrors KycSubmitForm's live (not-yet-submitted)
 // field values via its onValuesChange prop.
-export default function KycVerificationPanel({ token, userName, values, initialResults = {}, showDrivingLicense = false }) {
+export default function KycVerificationPanel({ token, userName, values, initialResults = {}, showDrivingLicense = false, showGst = false }) {
   const [pan, setPan] = useState({ status: initialResults.pan?.status || "idle" });
+  const [gst, setGst] = useState({ status: initialResults.gst?.status || "idle" });
   const [dl, setDl] = useState({ status: initialResults.drivingLicense?.status || "idle" });
   const [aadhaar, setAadhaar] = useState({ status: initialResults.aadhaar?.status || "idle" });
 
   const panNumber = (values?.pan_number || "").trim();
+  const gstNumber = (values?.gst_number || "").trim();
   const dlNumber = (values?.license_number || "").trim();
   const dob = (values?.date_of_birth || "").trim();
 
@@ -37,6 +39,18 @@ export default function KycVerificationPanel({ token, userName, values, initialR
       setPan({ status: res.data.status, message: res.data.details?.message });
     } catch (err) {
       setPan({ status: "error", message: err.message });
+    }
+  };
+
+  const verifyGst = async () => {
+    if (!gstNumber) return;
+    setGst({ status: "loading" });
+    try {
+      const res = await api.post("/api/kyc/verify/gst", { gstin: gstNumber }, token);
+      if (!res.success) throw new Error(res.message);
+      setGst({ status: res.data.status, message: res.data.details?.message });
+    } catch (err) {
+      setGst({ status: "error", message: err.message });
     }
   };
 
@@ -85,6 +99,19 @@ export default function KycVerificationPanel({ token, userName, values, initialR
             Verify PAN
           </button>
         </div>
+
+        {showGst && (
+          <div className="bg-slate-50 rounded-xl p-3.5 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-1">GST</p>
+              <Badge status={gst.status} message={gst.message} />
+              {!gstNumber && <p className="text-[11px] text-slate-400 mt-0.5">Fill in your GST number first</p>}
+            </div>
+            <button type="button" onClick={verifyGst} disabled={!gstNumber || gst.status === "loading"} className={verifyBtnCls}>
+              Verify GST
+            </button>
+          </div>
+        )}
 
         {showDrivingLicense && (
           <div className="bg-slate-50 rounded-xl p-3.5 flex items-center justify-between gap-3">

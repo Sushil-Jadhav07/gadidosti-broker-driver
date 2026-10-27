@@ -174,6 +174,7 @@ export default function KYCStatus() {
             userName={user?.name}
             values={liveValues}
             initialResults={submission?.verification_results || {}}
+            showGst
           />
         </KycSubmitForm>
       ) : (
