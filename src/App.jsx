@@ -23,6 +23,7 @@ import JobHistory     from "./pages/broker/JobHistory";
 import JobDetail      from "./pages/broker/JobDetail";
 import TripHistoryPage from "./pages/broker/TripHistoryPage";
 import Earnings       from "./pages/broker/Earnings";
+import BrokerWallet   from "./pages/broker/Wallet";
 import KYCStatus      from "./pages/broker/KYCStatus";
 import BrokerProfile  from "./pages/broker/Profile";
 import Settings       from "./pages/broker/Settings";
@@ -40,6 +41,7 @@ import TripHistory      from "./pages/driver/TripHistory";
 import TripDetail       from "./pages/driver/TripDetail";
 import DriverKYC        from "./pages/driver/KYC";
 import DriverEarnings   from "./pages/driver/Earnings";
+import DriverWallet     from "./pages/driver/Wallet";
 import DriverProfile    from "./pages/driver/Profile";
 
 // Shared
@@ -183,6 +185,7 @@ export default function App() {
             <Route path="/job-history"  element={<PrivateRoute role="broker"><BrokerAppLayout><JobHistory /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/job-history/:id" element={<PrivateRoute role="broker"><BrokerAppLayout><JobDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/earnings"     element={<PrivateRoute role="broker"><BrokerAppLayout><Earnings /></BrokerAppLayout></PrivateRoute>} />
+            <Route path="/wallet"       element={<PrivateRoute role="broker"><BrokerAppLayout><BrokerWallet /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats"        element={<PrivateRoute role="broker"><BrokerAppLayout><ChatList /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats/direct/:threadId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
             <Route path="/chats/:bookingId" element={<PrivateRoute role="broker"><BrokerAppLayout><ChatDetail /></BrokerAppLayout></PrivateRoute>} />
@@ -205,6 +208,7 @@ export default function App() {
               <Route path="/driver/chats/:bookingId" element={<ChatDetail />} />
               <Route path="/driver/kyc"      element={<DriverKYC />} />
               <Route path="/driver/earnings"         element={<DriverEarnings />} />
+              <Route path="/driver/wallet"           element={<DriverWallet />} />
               <Route path="/driver/profile"          element={<DriverProfile />} />
               <Route path="/driver/notifications"    element={<NotificationsPage />} />
               <Route path="/driver/monthly-hiring"   element={<MonthlyHiring />} />
