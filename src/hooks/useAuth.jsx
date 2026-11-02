@@ -113,6 +113,23 @@ export function AuthProvider({ children }) {
   // backward-compat alias
   const login = loginBroker;
 
+  // Phone + OTP login — a second way in alongside email+password and Google, for either role.
+  // Same POST /api/auth/otp/send /verify pair, purpose: "login" (already supported server-side).
+  const sendLoginOtp = useCallback(async (phone) => {
+    const data = await api.post("/api/auth/otp/send", { phone, purpose: "login" });
+    if (!data.success) throw new Error(data.message || "Failed to send OTP");
+    return data.data;
+  }, []);
+
+  const verifyLoginOtp = useCallback(async (phone, otp, role) => {
+    const data = await api.post("/api/auth/otp/verify", { phone, otp, purpose: "login" });
+    if (!data.success) throw new Error(data.message || "Invalid or expired OTP");
+    if (data.data.user.role !== role) throw new Error(`Not a ${role} account`);
+    persistSession(data.data.user, data.data.tokens);
+    if (data.data.user.role === "driver") forceDriverOnline();
+    return data.data.user;
+  }, [persistSession]);
+
   const registerUser = useCallback(async ({ name, email, phone, password, role, business_name }) => {
     const payload = { name, email, phone, password, role };
     if (business_name) payload.business_name = business_name;
@@ -202,7 +219,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, registerUser, registerDriver, updateUser, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, sendLoginOtp, verifyLoginOtp, registerUser, registerDriver, updateUser, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );
