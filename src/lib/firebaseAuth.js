@@ -26,24 +26,21 @@ const getAuthInstance = () => {
 };
 
 // reCAPTCHA (invisible) is mandatory for Firebase Phone Auth — Google's own bot-prevention
-// requirement. One verifier is reused across send attempts on the same page load;
-// resetRecaptcha() below clears it after a failed send, since an already-solved/expired
-// challenge can't be reused for a retry.
+// requirement.
 let recaptchaVerifier = null;
-const ensureRecaptcha = (containerId) => {
-  const auth = getAuthInstance();
-  if (!auth) return null;
-  if (!recaptchaVerifier) {
-    recaptchaVerifier = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
-  }
-  return recaptchaVerifier;
-};
 
+// Tears down both Firebase's reference AND the actual rendered widget markup. .clear() alone
+// isn't reliable enough on its own across browsers — a leftover rendered widget in the
+// container is exactly what makes the NEXT `new RecaptchaVerifier(...)` throw "reCAPTCHA has
+// already been rendered in this element" on a retry after a failed send (e.g. the SMS region
+// policy error), which is what was happening before this explicit DOM reset was added.
 export const resetRecaptcha = () => {
   if (recaptchaVerifier) {
     try { recaptchaVerifier.clear(); } catch { /* already torn down */ }
     recaptchaVerifier = null;
   }
+  const container = document.getElementById("recaptcha-container");
+  if (container) container.innerHTML = "";
 };
 
 // phone10Digit: plain 10-digit Indian number (no +91), same format used everywhere else in
@@ -52,6 +49,11 @@ export const resetRecaptcha = () => {
 export const sendFirebaseOtp = async (phone10Digit, containerId = "recaptcha-container") => {
   const auth = getAuthInstance();
   if (!auth) throw new Error("Phone verification is not configured in this environment");
-  const verifier = ensureRecaptcha(containerId);
-  return signInWithPhoneNumber(auth, `+91${phone10Digit}`, verifier);
+  // Always start from a clean slate rather than reusing a verifier across requests — an
+  // already-solved/expired invisible challenge can't be reused for a retry anyway, and this is
+  // what actually prevents the "already rendered" error instead of just reacting to it after
+  // the fact.
+  resetRecaptcha();
+  recaptchaVerifier = new RecaptchaVerifier(auth, containerId, { size: "invisible" });
+  return signInWithPhoneNumber(auth, `+91${phone10Digit}`, recaptchaVerifier);
 };
