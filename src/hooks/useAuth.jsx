@@ -113,17 +113,13 @@ export function AuthProvider({ children }) {
   // backward-compat alias
   const login = loginBroker;
 
-  // Phone + OTP login — a second way in alongside email+password and Google, for either role.
-  // Same POST /api/auth/otp/send /verify pair, purpose: "login" (already supported server-side).
-  const sendLoginOtp = useCallback(async (phone) => {
-    const data = await api.post("/api/auth/otp/send", { phone, purpose: "login" });
-    if (!data.success) throw new Error(data.message || "Failed to send OTP");
-    return data.data;
-  }, []);
-
-  const verifyLoginOtp = useCallback(async (phone, otp, role) => {
-    const data = await api.post("/api/auth/otp/verify", { phone, otp, purpose: "login" });
-    if (!data.success) throw new Error(data.message || "Invalid or expired OTP");
+  // Phone + OTP login via Firebase Phone Authentication — a second way in alongside
+  // email+password and Google, for either role. Firebase's own SDK (see lib/firebaseAuth.js's
+  // sendFirebaseOtp) sends and verifies the OTP entirely client-side; this just hands the
+  // resulting ID token to the backend, which checks it and issues a normal session.
+  const firebaseLogin = useCallback(async (idToken, role) => {
+    const data = await api.post("/api/auth/firebase-login", { id_token: idToken });
+    if (!data.success) throw new Error(data.message || "Login failed");
     if (data.data.user.role !== role) throw new Error(`Not a ${role} account`);
     persistSession(data.data.user, data.data.tokens);
     if (data.data.user.role === "driver") forceDriverOnline();
@@ -219,7 +215,7 @@ export function AuthProvider({ children }) {
   }, [user, persistSession, clearSession]);
 
   return (
-    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, sendLoginOtp, verifyLoginOtp, registerUser, registerDriver, updateUser, logout, refreshTokens }}>
+    <AuthContext.Provider value={{ user, login, loginBroker, loginDriver, googleLogin, firebaseLogin, registerUser, registerDriver, updateUser, logout, refreshTokens }}>
       {children}
     </AuthContext.Provider>
   );
