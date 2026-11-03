@@ -126,8 +126,10 @@ export function AuthProvider({ children }) {
     return data.data.user;
   }, [persistSession]);
 
-  const registerUser = useCallback(async ({ name, email, phone, password, role, business_name }) => {
-    const payload = { name, email, phone, password, role };
+  // id_token: the Firebase ID token from verifying `phone` via OTP (see Register.jsx's
+  // handleVerifyOtp) — now required server-side, phone verification isn't optional anymore.
+  const registerUser = useCallback(async ({ name, email, phone, password, role, business_name, id_token }) => {
+    const payload = { name, email, phone, password, role, id_token };
     if (business_name) payload.business_name = business_name;
     const data = await api.post("/api/auth/register", payload);
     if (!data.success) throw new Error(data.message || "Registration failed");
@@ -140,12 +142,13 @@ export function AuthProvider({ children }) {
   // /api/auth/register, which never accepted truck fields at all.
   const registerDriver = useCallback(async ({
     name, email, phone, password, confirmPassword,
-    registration, category, capacity, make, year, insuranceExpiry,
+    registration, category, capacity, make, year, insuranceExpiry, id_token,
   }) => {
     const payload = {
       name, phone, email, password,
       confirm_password: confirmPassword,
       registration, category, capacity,
+      id_token,
     };
     if (make) payload.make = make;
     if (year) payload.year = Number(year);

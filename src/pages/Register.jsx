@@ -1,11 +1,12 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import SelectDropdown from "../components/SelectDropdown";
 import { TRUCK_TYPES as TRUCK_TYPE_OPTIONS, truckTypeLabel } from "../lib/truckTypes";
+import { sendFirebaseOtp, resetRecaptcha } from "../lib/firebaseAuth";
 import {
   Truck, User, Eye, EyeOff, CheckCircle, ArrowLeft, ArrowRight, Building2, Lock, FileText, AlertCircle, Mail, Gauge, Calendar,
-  ShieldCheck, IndianRupee, BarChart3,
+  ShieldCheck, IndianRupee, BarChart3, KeyRound,
 } from "lucide-react";
 
 const TRUCK_TYPES = TRUCK_TYPE_OPTIONS.map((t) => t.value);
@@ -35,14 +36,93 @@ export default function Register() {
   const [truck, setTruck] = useState(EMPTY_TRUCK);
   const [truckError, setTruckError] = useState("");
 
+  // Phone verification — mandatory now (backend rejects registration without it). Firebase's
+  // own SDK sends/verifies the OTP client-side; once confirmed, the phone field locks and
+  // firebaseIdToken is sent along with the rest of the form on final submit.
+  const [otpStage, setOtpStage] = useState("idle"); // idle -> sent -> verified
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [otpError, setOtpError] = useState("");
+  const [firebaseIdToken, setFirebaseIdToken] = useState(null);
+  const firebaseConfirmationRef = useRef(null);
+  const otpCodeInputRef = useRef(null);
+
   const { registerUser, registerDriver } = useAuth();
   const navigate = useNavigate();
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setTruckField = (k) => (e) => setTruck((t) => ({ ...t, [k]: e.target.value }));
 
+  const firebaseOtpErrorMessage = (err) => {
+    switch (err?.code) {
+      case "auth/invalid-phone-number": return "Enter a valid 10-digit phone number.";
+      case "auth/too-many-requests": return "Too many attempts — please wait a while before trying again.";
+      case "auth/invalid-verification-code": return "That code isn't right. Please check and try again.";
+      case "auth/code-expired": return "This code has expired — request a new one.";
+      default: return err?.message || "Something went wrong. Please try again.";
+    }
+  };
+
+  const handleSendOtp = async () => {
+    setOtpError("");
+    setOtpSending(true);
+    try {
+      firebaseConfirmationRef.current = await sendFirebaseOtp(form.phone);
+      setOtpStage("sent");
+      setTimeout(() => otpCodeInputRef.current?.focus(), 50);
+    } catch (err) {
+      resetRecaptcha();
+      setOtpError(firebaseOtpErrorMessage(err));
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    setOtpError("");
+    setOtpVerifying(true);
+    try {
+      if (!firebaseConfirmationRef.current) throw new Error("Please request a new OTP.");
+      const result = await firebaseConfirmationRef.current.confirm(otpCode);
+      const idToken = await result.user.getIdToken();
+      setFirebaseIdToken(idToken);
+      setOtpStage("verified");
+    } catch (err) {
+      setOtpError(firebaseOtpErrorMessage(err));
+    } finally {
+      setOtpVerifying(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setOtpError("");
+    setOtpSending(true);
+    try {
+      resetRecaptcha();
+      firebaseConfirmationRef.current = await sendFirebaseOtp(form.phone);
+    } catch (err) {
+      setOtpError(firebaseOtpErrorMessage(err));
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  // Editing the phone after verifying it invalidates that verification — the Firebase token
+  // proved ownership of the OLD number, not whatever's typed now.
+  const handlePhoneChange = (e) => {
+    const next = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setForm((f) => ({ ...f, phone: next }));
+    if (otpStage !== "idle") {
+      setOtpStage("idle");
+      setOtpCode("");
+      setFirebaseIdToken(null);
+      resetRecaptcha();
+    }
+  };
+
   const passwordsMatch = form.password === form.confirm || form.confirm === "";
   const canSubmitAccount = form.name && form.email && form.phone && form.password && form.confirm &&
-    form.password === form.confirm &&
+    form.password === form.confirm && otpStage === "verified" &&
     (role === "broker" ? form.businessName : true);
 
   const doRegister = async () => {
@@ -62,6 +142,7 @@ export default function Register() {
           make: truck.make.trim() || undefined,
           year: truck.year || undefined,
           insuranceExpiry: truck.insuranceExpiry || undefined,
+          id_token: firebaseIdToken,
         });
       } else {
         await registerUser({
@@ -71,6 +152,7 @@ export default function Register() {
           password: form.password,
           role,
           business_name: form.businessName,
+          id_token: firebaseIdToken,
         });
       }
       setStep("done");
@@ -255,13 +337,55 @@ export default function Register() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 mb-1.5">Phone Number</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">+91</span>
-                        <input type="tel" value={form.phone} onChange={set("phone")} inputMode="numeric"
-                          className="input-field pl-11 pr-3 py-2.5" placeholder="10-digit number" required />
+                      <div className="flex gap-2">
+                        <div className="relative flex-1 min-w-0">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm select-none">+91</span>
+                          <input type="tel" value={form.phone} onChange={handlePhoneChange} inputMode="numeric"
+                            disabled={otpStage === "verified"}
+                            className="input-field pl-11 pr-3 py-2.5 disabled:bg-slate-50 disabled:text-slate-500" placeholder="10-digit number" required />
+                        </div>
+                        {otpStage === "verified" ? (
+                          <span className="flex items-center gap-1.5 px-3 text-emerald-600 text-sm font-semibold whitespace-nowrap">
+                            <CheckCircle size={14} /> Verified
+                          </span>
+                        ) : (
+                          <button type="button" onClick={handleSendOtp} disabled={otpSending || form.phone.length !== 10}
+                            className="px-3 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-50 whitespace-nowrap">
+                            {otpSending ? "Sending..." : otpStage === "sent" ? "Resend" : "Send OTP"}
+                          </button>
+                        )}
                       </div>
+
+                      {otpStage === "sent" && (
+                        <div className="mt-2.5 flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                          <KeyRound size={14} className="text-slate-300 flex-shrink-0" />
+                          <input
+                            ref={otpCodeInputRef}
+                            type="text"
+                            inputMode="numeric"
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                            placeholder="6-digit code"
+                            className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-300 tracking-widest"
+                          />
+                          <button type="button" onClick={handleVerifyOtp} disabled={otpVerifying || otpCode.length !== 6}
+                            className="px-3 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">
+                            {otpVerifying ? "Verifying..." : "Verify"}
+                          </button>
+                        </div>
+                      )}
+                      {otpStage === "sent" && (
+                        <button type="button" onClick={handleResendOtp} disabled={otpSending}
+                          className="text-xs font-semibold text-primary hover:underline mt-1.5 disabled:opacity-50">
+                          Resend OTP
+                        </button>
+                      )}
+                      {otpError && <p className="text-[11px] text-red-500 mt-1.5">{otpError}</p>}
                     </div>
                   </div>
+
+                  {/* Firebase Phone Auth's required reCAPTCHA host — invisible, never shown. */}
+                  <div id="recaptcha-container" />
 
                   <div>
                     <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email Address</label>
