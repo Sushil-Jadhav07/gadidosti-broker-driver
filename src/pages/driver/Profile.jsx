@@ -88,7 +88,7 @@ export default function Profile() {
   const [stats, setStats] = useState({ trips: 0, distance: 0, earnings: 0 });
   const [openSection, setOpenSection] = useState(null);
 
-  const [form, setForm] = useState({ name: "", email: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "" });
   const [passwordForm, setPasswordForm] = useState({ current: "", next: "" });
   const [changingPw, setChangingPw] = useState(false);
   const [showPw, setShowPw] = useState({ current: false, next: false });
@@ -124,7 +124,7 @@ export default function Profile() {
         ]);
         const data = profileRes.data?.user || profileRes.data || user || {};
         setProfile(data);
-        setForm({ name: data.name || "", email: data.email || "" });
+        setForm({ name: data.name || "", email: data.email || "", phone: data.phone || "" });
         setKyc(kycRes.data || null);
         setAssignedTruck(truckRes.data?.truck || null);
         setUpiId(upiRes.data?.upiId || "");
@@ -171,10 +171,14 @@ export default function Profile() {
   }, [qrCodeUrl]);
 
   const handleSaveProfile = async () => {
+    if (form.phone && !/^\d{10}$/.test(form.phone)) {
+      addToast("Phone number must be exactly 10 digits", "error");
+      return;
+    }
     const requestUserId = user?.id;
     setSaving(true);
     try {
-      const res = await api.patch("/api/users/profile", { name: form.name, email: form.email }, getToken());
+      const res = await api.patch("/api/users/profile", { name: form.name, email: form.email, phone: form.phone }, getToken());
       if (!res.success) throw new Error(res.message || "Failed to update profile");
       const updated = res.data?.user || res.data || {};
       setProfile((p) => ({ ...p, ...updated }));
@@ -404,7 +408,13 @@ export default function Profile() {
               <div className="space-y-3 pt-3">
                 <Field label="Full Name" icon={User} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
                 <Field label="Email" icon={Mail} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                <Field label="Phone" icon={Phone} value={profile.phone} disabled />
+                <Field
+                  label="Phone"
+                  icon={Phone}
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                />
                 <button onClick={handleSaveProfile} disabled={saving} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <Save size={14} /> {saving ? "Saving..." : "Save Changes"}
                 </button>

@@ -75,7 +75,7 @@ export default function Profile() {
   const [openSection, setOpenSection] = useState(null);
 
   // Backend-modeled fields
-  const [form, setForm] = useState({ name: "", email: "", address: "", company_name: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", address: "", company_name: "" });
   // city IS backend-modeled — broker_profiles.service_city, via GET/PATCH /api/broker/*
   // below — it's what narrows which new bookings this broker gets broadcast (or shown to a
   // client picking a broker) for. state/pincode still aren't modeled anywhere; local-only.
@@ -109,6 +109,7 @@ export default function Profile() {
         setForm({
           name: data.name || "",
           email: data.email || "",
+          phone: data.phone || "",
           address: data.address || "",
           company_name: data.company_name || "",
         });
@@ -133,12 +134,17 @@ export default function Profile() {
   }, [user]);
 
   const handleSaveProfile = async () => {
+    if (form.phone && !/^\d{10}$/.test(form.phone)) {
+      addToast("Phone number must be exactly 10 digits", "error");
+      return;
+    }
     const requestUserId = user?.id;
     setSaving(true);
     try {
       const res = await api.patch("/api/users/profile", {
         name: form.name,
         email: form.email,
+        phone: form.phone,
         address: form.address,
         company_name: form.company_name,
       }, getToken());
@@ -294,7 +300,13 @@ export default function Profile() {
               <div className="space-y-3 pt-3">
                 <Field label="Full Name" icon={User} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
                 <Field label="Email" icon={Mail} type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                <Field label="Phone" icon={Phone} value={profile.phone} disabled />
+                <Field
+                  label="Phone"
+                  icon={Phone}
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
+                />
                 <Field label="Business Name" icon={Building2} value={form.company_name} onChange={(e) => setForm((f) => ({ ...f, company_name: e.target.value }))} />
                 <button onClick={handleSaveProfile} disabled={saving} className="btn-primary px-4 py-2.5 text-sm flex items-center gap-2 disabled:opacity-60">
                   <Save size={14} /> {saving ? "Saving..." : "Save Changes"}
