@@ -318,13 +318,23 @@ export default function Profile() {
             style={{ background: "radial-gradient(circle, rgba(23,216,107,0.6) 0%, transparent 70%)" }}
           />
           <div className="relative z-10 p-6 text-center">
-            <div className="w-20 h-20 rounded-full bg-primary/25 border-[3px] border-primary/40 flex items-center justify-center shadow-lg shadow-primary/30 mx-auto mb-4">
-              <span className="font-bold text-2xl text-white">{(profile.name || "D")[0]}</span>
+            <div className="w-20 h-20 rounded-full bg-primary/25 border-[3px] border-primary/40 flex items-center justify-center shadow-lg shadow-primary/30 mx-auto mb-4 overflow-hidden">
+              {profile.profile_image ? (
+                <img src={profile.profile_image} alt={profile.name || "Profile"} className="w-full h-full object-cover" />
+              ) : (
+                <span className="font-bold text-2xl text-white">{(profile.name || "D")[0]}</span>
+              )}
             </div>
             <h2 className="font-semibold text-xl text-white mb-1 truncate">{profile.name || "Driver"}</h2>
-            <div className="flex items-center justify-center gap-1.5 mb-1">
-              <Phone className="w-3 h-3 text-white/50" />
-              <span className="text-xs text-white/50">{profile.phone || "Not provided"}</span>
+            <div className="space-y-1 mb-1">
+              <div className="flex items-center justify-center gap-1.5">
+                <Phone className="w-3 h-3 text-white/50" />
+                <span className="text-xs text-white/50">{profile.phone || "Not provided"}</span>
+              </div>
+              <div className="flex items-center justify-center gap-1.5">
+                <Mail className="w-3 h-3 text-white/50" />
+                <span className="text-xs text-white/50">{profile.email || "Not provided"}</span>
+              </div>
             </div>
             <div className="flex items-center justify-center gap-2 flex-wrap">
               {isVerified && (
