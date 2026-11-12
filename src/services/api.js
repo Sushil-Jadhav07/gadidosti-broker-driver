@@ -1,6 +1,29 @@
 const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 export const API_BASE = BASE;
 
+// Plain `fetch` has no timeout of its own — if the backend is slow to respond or briefly
+// unreachable (a cold DB connection, a deploy in progress, a flaky mobile network), a request
+// just hangs forever with no error and no way out, which is exactly what "stuck on the login
+// screen" turned out to be: the login button's loading spinner never clears because the
+// underlying fetch() never resolves OR rejects. Wrapping every call in an AbortController-based
+// timeout guarantees it does one or the other within a bounded time. Uploads get a longer budget
+// since a KYC document/QR photo can legitimately take longer than a plain JSON call, especially
+// on a driver's mobile connection.
+const DEFAULT_TIMEOUT_MS = 20000;
+const UPLOAD_TIMEOUT_MS = 60000;
+const fetchWithTimeout = async (url, options = {}, timeoutMs = DEFAULT_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (err.name === 'AbortError') throw new Error('Request timed out — please check your connection and try again.');
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 // Fires once on the first 401 seen for an already-authenticated call (force-logout, a naturally
 // expired access token, anything that makes the current session invalid) — useAuth.jsx's
 // AuthProvider registers the actual clear-session-and-redirect-to-login handler. Before this,
@@ -26,7 +49,7 @@ const withValidationDetail = (data) => {
 };
 
 const request = async (method, path, body, token) => {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithTimeout(`${BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -45,11 +68,11 @@ const request = async (method, path, body, token) => {
 // Multipart upload — no Content-Type set manually so the browser fills in the
 // multipart boundary itself (setting it here would break the upload).
 const uploadFile = async (path, formData, token) => {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetchWithTimeout(`${BASE}${path}`, {
     method: 'POST',
     headers: { ...(token && { Authorization: `Bearer ${token}` }) },
     body: formData,
-  });
+  }, UPLOAD_TIMEOUT_MS);
   const data = withValidationDetail(await res.json());
   if (res.status === 401 && token) unauthorizedHandler?.(data.message);
   return data;
@@ -59,7 +82,7 @@ const uploadFile = async (path, formData, token) => {
 // a local blob URL — needed because the file-serving routes require a Bearer token, so a
 // plain <img src="..."> can't load them directly.
 const getFileBlobUrl = async (url, token) => {
-  const res = await fetch(url, { headers: { ...(token && { Authorization: `Bearer ${token}` }) } });
+  const res = await fetchWithTimeout(url, { headers: { ...(token && { Authorization: `Bearer ${token}` }) } });
   if (!res.ok) throw new Error(`Failed to load file (${res.status})`);
   const blob = await res.blob();
   return URL.createObjectURL(blob);
@@ -69,7 +92,7 @@ const getFileBlobUrl = async (url, token) => {
 // Web Share API (sharing to WhatsApp etc. with the actual PDF attached), where an object URL
 // string isn't usable.
 const getFileBlob = async (url, token) => {
-  const res = await fetch(url, { headers: { ...(token && { Authorization: `Bearer ${token}` }) } });
+  const res = await fetchWithTimeout(url, { headers: { ...(token && { Authorization: `Bearer ${token}` }) } });
   if (!res.ok) throw new Error(`Failed to load file (${res.status})`);
   return res.blob();
 };
