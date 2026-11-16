@@ -4,7 +4,7 @@ import {
   Truck, ShieldCheck, CreditCard, Fingerprint, Building2, FileText,
   Calendar, CheckCircle2, ArrowRight, Loader2, ShieldAlert,
   Clock, PartyPopper, RefreshCw, AlertCircle, LayoutDashboard,
-  Landmark, UserCheck, HelpCircle,
+  Landmark, UserCheck, HelpCircle, LogOut,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
@@ -49,7 +49,7 @@ const TRUST_POINTS = {
 };
 
 export default function Onboarding() {
-  const { user, updateUser } = useAuth();
+  const { user, updateUser, logout } = useAuth();
   const navigate = useNavigate();
   const token = user?.tokens?.access_token;
   const role = user?.role === "driver" ? "driver" : "broker";
@@ -241,6 +241,15 @@ export default function Onboarding() {
 
   const goToDashboard = () => navigate(role === "driver" ? "/driver" : "/broker", { replace: true });
 
+  // Someone stuck on the "Almost there" (pending manual review) screen below had no way off it
+  // at all before this — no header/nav on that screen, and the only button was "Check Status" —
+  // so there was no way back to the dashboard (to keep using whatever the account already has
+  // access to) or to sign out, short of closing the tab.
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
+
   const allVerified = required.every((key) => docs[key]?.status === "verified");
   // A document shows its number-entry fallback once DigiLocker couldn't supply it (or a number
   // check on it just failed) — never up front, so the normal path has nothing to type at all.
@@ -284,6 +293,12 @@ export default function Onboarding() {
               </p>
               <button onClick={recheckStatus} disabled={submitting} className="btn-ghost mt-7 px-6 py-3 text-sm border border-slate-200 inline-flex items-center gap-2 w-full justify-center disabled:opacity-50">
                 {submitting ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />} Check Status
+              </button>
+              <button onClick={goToDashboard} className="btn-primary mt-3 px-6 py-3 text-sm inline-flex items-center gap-2 w-full justify-center">
+                <LayoutDashboard size={15} /> Back to Dashboard
+              </button>
+              <button onClick={handleLogout} className="mt-3 px-6 py-3 text-sm inline-flex items-center gap-2 w-full justify-center text-slate-500 hover:text-red-600 font-semibold transition-colors">
+                <LogOut size={15} /> Log Out
               </button>
             </>
           )}
