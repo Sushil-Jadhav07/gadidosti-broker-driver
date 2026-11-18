@@ -4,7 +4,7 @@ import {
   Truck, ShieldCheck, CreditCard, Fingerprint, Building2, FileText,
   Calendar, CheckCircle2, ArrowRight, Loader2, ShieldAlert,
   Clock, PartyPopper, RefreshCw, AlertCircle, LayoutDashboard,
-  Landmark, UserCheck, HelpCircle, LogOut,
+  Landmark, UserCheck, HelpCircle, LogOut, KeyRound,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../services/api";
@@ -73,6 +73,20 @@ export default function Onboarding() {
   const [result, setResult] = useState(null); // { autoVerified: bool } once submitted
   const [submitError, setSubmitError] = useState("");
 
+  // Either (Aadhaar + PAN) together, or GST alone, satisfies KYC for a broker (isKycSatisfied in
+  // the backend's kyc.controller.js) — not all three. Driver has no such choice (no GST concept
+  // for an individual driver), so this tab toggle only ever shows for role === "broker".
+  const [activeTab, setActiveTab] = useState("identity"); // "identity" | "gst"
+
+  // Aadhaar OTP fallback (to the Aadhaar-linked mobile) — replaces what used to be a manual
+  // number+photo submission for admin to review within 24-48 hours. That path could never
+  // auto-verify on its own; this one does, the same instant way the client app's Aadhaar
+  // fallback already works.
+  const [aadhaarOtpStage, setAadhaarOtpStage] = useState("idle"); // idle -> sent
+  const [aadhaarOtpCode, setAadhaarOtpCode] = useState("");
+  const [aadhaarRefId, setAadhaarRefId] = useState(null);
+  const [sendingAadhaarOtp, setSendingAadhaarOtp] = useState(false);
+
   // Prefill from whatever's already on file — a rejected resubmission, or a session they left
   // and came back to — and, if they've just come back from DigiLocker, resolve that too.
   useEffect(() => {
@@ -90,7 +104,10 @@ export default function Onboarding() {
         setRejectionReason(submission?.rejection_reason || "");
         const vr = submission?.verification_results || {};
         const known = {};
-        for (const key of required) if (vr[key]?.status) known[key] = { status: vr[key].status };
+        // 'gst' is checked even though it's not in `required` (that list is the DigiLocker/
+        // identity path only) — a broker's GST result, if any, is hydrated the same way so a
+        // returning user who already verified it sees that reflected instead of a blank badge.
+        for (const key of [...required, 'gst']) if (vr[key]?.status) known[key] = { status: vr[key].status, message: vr[key].details?.message };
         setDocs(known);
 
         const returnedId = new URLSearchParams(window.location.search).get("verification_id");
@@ -207,6 +224,47 @@ export default function Onboarding() {
     }
   };
 
+  const verifyGstNumber = async () => {
+    if (!values.gst_number) return;
+    setDoc("gst", { status: "loading", message: null });
+    try {
+      const res = await api.post("/api/kyc/verify/gst", { gstin: values.gst_number }, token);
+      if (!res.success) throw new Error(res.message);
+      setDoc("gst", { status: res.data.status, message: res.data.details?.message });
+    } catch (err) {
+      setDoc("gst", { status: "error", message: err.message });
+    }
+  };
+
+  const sendAadhaarOtp = async () => {
+    if (!values.aadhaar_number || values.aadhaar_number.length !== 12) return;
+    setSendingAadhaarOtp(true);
+    try {
+      const res = await api.post("/api/kyc/verify/aadhaar/send-otp", { aadhaar_number: values.aadhaar_number }, token);
+      if (!res.success) throw new Error(res.message);
+      setAadhaarRefId(res.data.refId);
+      setAadhaarOtpStage("sent");
+    } catch (err) {
+      setDoc("aadhaar", { status: "error", message: err.message });
+    } finally {
+      setSendingAadhaarOtp(false);
+    }
+  };
+
+  const verifyAadhaarOtpCode = async () => {
+    if (!aadhaarOtpCode.trim()) return;
+    setDoc("aadhaar", { status: "loading", message: null });
+    try {
+      const res = await api.post("/api/kyc/verify/aadhaar/verify-otp", { ref_id: aadhaarRefId, otp: aadhaarOtpCode.trim() }, token);
+      if (!res.success) throw new Error(res.message);
+      setDoc("aadhaar", { status: res.data.status, message: res.data.details?.message });
+      setAadhaarOtpStage("idle");
+      setAadhaarOtpCode("");
+    } catch (err) {
+      setDoc("aadhaar", { status: "error", message: err.message });
+    }
+  };
+
   const submitOnboarding = async () => {
     setSubmitting(true);
     setSubmitError("");
@@ -250,7 +308,9 @@ export default function Onboarding() {
     navigate("/login");
   };
 
-  const allVerified = required.every((key) => docs[key]?.status === "verified");
+  const allVerified = role === "broker" && activeTab === "gst"
+    ? docs.gst?.status === "verified"
+    : required.every((key) => docs[key]?.status === "verified");
   // A document shows its number-entry fallback once DigiLocker couldn't supply it (or a number
   // check on it just failed) — never up front, so the normal path has nothing to type at all.
   // ("loading" is only ever set by these fallback checks themselves, so keeping the fields
@@ -335,7 +395,9 @@ export default function Onboarding() {
             <p className="text-sm text-slate-500 mt-1.5 leading-relaxed">
               {role === "driver"
                 ? "Sign in once with DigiLocker and we'll confirm your Aadhaar, PAN and driving license together. Nothing to type or photograph."
-                : "Sign in once with DigiLocker and we'll confirm your Aadhaar and PAN together. Nothing to type or photograph."}
+                : activeTab === "gst"
+                  ? "Verify your GST number below — that's enough on its own, no need for Aadhaar or PAN too."
+                  : "Sign in once with DigiLocker and we'll confirm your Aadhaar and PAN together. Nothing to type or photograph."}
             </p>
           </div>
 
@@ -346,6 +408,24 @@ export default function Onboarding() {
             </div>
           )}
 
+          {role === "broker" && (
+            <div className="flex rounded-xl bg-slate-100 p-1 gap-1">
+              {[
+                { id: "identity", label: "Aadhaar + PAN" },
+                { id: "gst", label: "GST" },
+              ].map(({ id, label }) => (
+                <button key={id} type="button" onClick={() => setActiveTab(id)}
+                  className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+                    activeTab === id ? "bg-white shadow text-primary" : "text-slate-500 hover:text-slate-700"
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!(role === "broker" && activeTab === "gst") && (
+          <>
           <div className="space-y-3">
             {required.map((key) => {
               const Icon = DOC_ICON[key];
@@ -361,13 +441,35 @@ export default function Onboarding() {
                     <div className="mt-3 pt-3 border-t border-slate-200 space-y-3">
                       {key === "aadhaar" && (
                         <>
-                          <p className="text-[11px] text-slate-400">Couldn't confirm this through DigiLocker — add the number and our team will review it (usually within 24-48 hours).</p>
-                          <div className="relative">
-                            <Fingerprint size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input type="text" value={values.aadhaar_number || ""} onChange={(e) => setField("aadhaar_number", e.target.value)} placeholder="XXXX-XXXX-1234" className={inputCls} />
-                          </div>
+                          <p className="text-[11px] text-slate-400">Couldn't confirm this through DigiLocker — verify it instantly with an OTP instead.</p>
+                          {aadhaarOtpStage === "idle" ? (
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1 min-w-0">
+                                <Fingerprint size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                <input type="text" value={values.aadhaar_number || ""} onChange={(e) => setField("aadhaar_number", e.target.value.replace(/\D/g, "").slice(0, 12))} placeholder="12-digit Aadhaar number" maxLength={12} className={inputCls} />
+                              </div>
+                              <button type="button" onClick={sendAadhaarOtp} disabled={!values.aadhaar_number || values.aadhaar_number.length !== 12 || sendingAadhaarOtp} className="btn-primary px-4 py-2.5 text-xs disabled:opacity-40 whitespace-nowrap">
+                                {sendingAadhaarOtp ? "Sending..." : "Send OTP"}
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <p className="text-[11px] text-slate-400">OTP sent to the mobile number linked to this Aadhaar.</p>
+                                <button type="button" onClick={() => { setAadhaarOtpStage("idle"); setAadhaarOtpCode(""); }} className="text-xs font-semibold text-primary hover:underline flex-shrink-0">Change number</button>
+                              </div>
+                              <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5">
+                                <KeyRound size={14} className="text-slate-300 flex-shrink-0" />
+                                <input type="text" inputMode="numeric" value={aadhaarOtpCode} onChange={(e) => setAadhaarOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="6-digit OTP" className="flex-1 min-w-0 bg-transparent text-sm text-slate-800 outline-none placeholder:text-slate-300 tracking-widest" />
+                                <button type="button" onClick={verifyAadhaarOtpCode} disabled={aadhaarOtpCode.length !== 6 || docs.aadhaar?.status === "loading"} className="px-3 py-1.5 bg-primary hover:bg-primary-dark text-white text-xs font-semibold rounded-lg transition-all disabled:opacity-50 whitespace-nowrap">Verify</button>
+                              </div>
+                              <button type="button" onClick={sendAadhaarOtp} disabled={sendingAadhaarOtp} className="text-xs font-semibold text-primary hover:underline disabled:opacity-50">
+                                {sendingAadhaarOtp ? "Resending..." : "Resend OTP"}
+                              </button>
+                            </>
+                          )}
                           <KycDocumentUpload
-                            label="Aadhaar Card Photo" icon={Fingerprint}
+                            label="Aadhaar Card Photo (optional)" icon={Fingerprint}
                             file={docFiles.aadhaar_number} existingUrl={docUrls.aadhaar_photo_url}
                             uploading={uploadingKey === "aadhaar_number"}
                             onChange={(file) => handleFileChange("aadhaar_number", "aadhaar_photo_url", file)}
@@ -438,6 +540,8 @@ export default function Onboarding() {
               )}
             </div>
           )}
+          </>
+          )}
 
           <div className="border-t border-slate-100 pt-6">
             <h3 className="text-sm font-bold text-slate-900">{role === "driver" ? "Vehicle details" : "Business details"}</h3>
@@ -456,9 +560,15 @@ export default function Onboarding() {
                 </>
               ) : (
                 <>
-                  <div className="relative">
-                    <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input type="text" value={values.gst_number || ""} onChange={(e) => setField("gst_number", e.target.value.toUpperCase())} placeholder="GST Number" className={inputCls} />
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1 min-w-0">
+                        <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                        <input type="text" value={values.gst_number || ""} onChange={(e) => { setField("gst_number", e.target.value.toUpperCase()); setDoc("gst", { status: "idle" }); }} placeholder="GST Number" className={inputCls} />
+                      </div>
+                      <button type="button" onClick={verifyGstNumber} disabled={!values.gst_number || docs.gst?.status === "loading"} className="btn-primary px-4 py-2.5 text-xs disabled:opacity-40 whitespace-nowrap">Verify GST</button>
+                    </div>
+                    {docs.gst?.status && docs.gst.status !== "idle" && <div className="mt-1.5"><Badge status={docs.gst.status} message={docs.gst.message} /></div>}
                   </div>
                   <div className="relative">
                     <CreditCard size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
