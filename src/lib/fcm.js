@@ -33,6 +33,20 @@ const getMessagingInstance = async () => {
   return messagingPromise;
 };
 
+// Exported and called unconditionally from main.jsx (not just from registerFcmToken below) —
+// Chrome's install-as-PWA prompt needs an active service worker controlling the page, and that
+// shouldn't depend on whether the user is logged in or has granted notification permission yet.
+// Registering this same URL again later (inside registerFcmToken) is a no-op that returns the
+// existing registration rather than installing a second worker.
+export const registerServiceWorker = async () => {
+  if (!isConfigured() || !("serviceWorker" in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+  } catch {
+    return null;
+  }
+};
+
 // Call once right after login, and again on every app load while logged in — FCM tokens can
 // rotate, and POST /api/users/device-token upserts, so calling it unconditionally is safe.
 // Only actually prompts for notification permission if the user hasn't already answered.
@@ -47,7 +61,8 @@ export const registerFcmToken = async (accessToken, platform = "web") => {
     }
     if (Notification.permission !== "granted") return null;
 
-    const registration = await navigator.serviceWorker.register("/firebase-messaging-sw.js");
+    const registration = await registerServiceWorker();
+    if (!registration) return null;
     const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: registration });
     if (!token) return null;
 
