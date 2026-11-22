@@ -54,10 +54,16 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
   const isDriver = role === "driver";
   const locked = isDriver && req.status === "Requested" && req.driverTimedOut;
   const canAct = req.status === "Requested" && !locked;
-  // Broker-assign origin (job_request_id/jobRequestId set) — the price was already agreed
-  // with the broker via JobRequests.jsx's "Assign Driver & Truck" flow, so the backend rejects
-  // counter-offers here with a 409 (see driverRequest.controller.js). Only accept/decline apply.
-  const isBrokerAssigned = !!(req.jobRequestId || req.job_request_id);
+  // Two distinct no-negotiation origins, same treatment: broker-assign (job_request_id/
+  // jobRequestId set — the price was already agreed with the broker via JobRequests.jsx's
+  // "Assign Driver & Truck" flow) and admin-assign (isAdminAssigned — admin picked this driver
+  // directly, no broker involved at all). Either way the backend rejects counter-offers with a
+  // 409 (see driverRequest.controller.js's isDirectAssignment) — only accept/decline apply.
+  // req.noNegotiation is the backend's own OR of both, preferred when present; the raw fields
+  // are kept as a fallback for any cached/older payload shape.
+  const noNegotiation = req.noNegotiation ?? !!(req.jobRequestId || req.job_request_id || req.isAdminAssigned);
+  const isBrokerAssigned = noNegotiation && !req.isAdminAssigned;
+  const isAdminAssigned = !!req.isAdminAssigned;
   // Mutual-confirmation: one side already accepted, the other must now confirm/decline — no
   // more countering past here. "client" pending means the client already committed and it's
   // this driver/broker's turn; "respondent" pending means the reverse (this app already
@@ -128,7 +134,14 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
                   <Truck size={10} /> {req.truckType}
                 </span>
               )}
-              {isBrokerAssigned && (
+              {isAdminAssigned ? (
+                <span
+                  className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                  title="Assigned directly by admin — accept or decline, no counter-offers."
+                >
+                  <Handshake size={10} /> Admin-assigned
+                </span>
+              ) : isBrokerAssigned && (
                 <span
                   className="inline-flex items-center gap-1 bg-teal-50 text-teal-700 text-[10px] font-semibold px-2 py-0.5 rounded-full"
                   title="This price was already agreed with the broker — accept or decline, no counter-offers."
@@ -206,7 +219,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
             <StatusBanner tone="locked" icon={Lock}>You didn&apos;t respond in time — your broker has taken over this request.</StatusBanner>
           )}
 
-          {canAct && !isBrokerAssigned && showCounter && (
+          {canAct && !noNegotiation && showCounter && (
             <div className="space-y-3">
               <div>
                 <label className="text-[11px] font-semibold text-slate-500 mb-1.5 block">Your Offer</label>
@@ -265,7 +278,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
 
           {canAct && !showCounter && (
             <>
-              {isBrokerAssigned || respondentCounterLimitReached ? (
+              {noNegotiation || respondentCounterLimitReached ? (
                 // Nothing left to negotiate — plain two-button layout, no swipe.
                 <div className="flex items-center gap-2">
                   <button onClick={() => onAccept(req.id)} className="flex-1 py-2.5 text-xs font-bold rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-emerald-500/20">
@@ -288,7 +301,9 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
               {role === "broker" && (
                 <p className="text-[11px] text-amber-600 text-center mt-2 font-medium">Driver timed out — you&apos;re responding on their behalf.</p>
               )}
-              {isBrokerAssigned ? (
+              {isAdminAssigned ? (
+                <p className="text-[11px] text-slate-400 text-center mt-2">Assigned directly by admin — accept or decline, no negotiation.</p>
+              ) : isBrokerAssigned ? (
                 <p className="text-[11px] text-slate-400 text-center mt-2">Already agreed with the broker — accept or decline, no negotiation.</p>
               ) : respondentCounterLimitReached ? (
                 <p className="text-[11px] text-slate-400 text-center mt-2">You've used both your counter-offers — accept or decline instead.</p>
