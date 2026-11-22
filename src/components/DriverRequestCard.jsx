@@ -299,7 +299,7 @@ export default function DriverRequestCard({ req, role, onAccept, onDecline, onCo
                 </div>
               )}
               {role === "broker" && (
-                <p className="text-[11px] text-amber-600 text-center mt-2 font-medium">Driver timed out — you&apos;re responding on their behalf.</p>
+                <p className="text-[11px] text-amber-600 text-center mt-2 font-medium">Lorry timed out — you&apos;re responding on their behalf.</p>
               )}
               {isAdminAssigned ? (
                 <p className="text-[11px] text-slate-400 text-center mt-2">Assigned directly by admin — accept or decline, no negotiation.</p>

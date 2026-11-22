@@ -11,11 +11,11 @@ import {
 
 const NAV = [
   { label: "MAIN", items: [{ label: "Dashboard", icon: LayoutDashboard, path: "/broker" }] },
-  { label: "FLEET", items: [{ label: "My Trucks", icon: Truck, path: "/trucks" }, { label: "Drivers", icon: Users, path: "/drivers" }] },
+  { label: "FLEET", items: [{ label: "My Trucks", icon: Truck, path: "/trucks" }, { label: "Lorries", icon: Users, path: "/drivers" }] },
   {
     label: "JOBS", items: [
       { label: "Job Requests", icon: Inbox, path: "/job-requests" },
-      { label: "Driver Requests", icon: UserCog, path: "/driver-requests" },
+      { label: "Lorry Requests", icon: UserCog, path: "/driver-requests" },
       { label: "Active Jobs", icon: ClipboardList, path: "/active-jobs" },
       { label: "Job History", icon: History, path: "/job-history" },
       { label: "Monthly Hiring", icon: CalendarClock, path: "/monthly-hiring" },

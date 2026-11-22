@@ -614,7 +614,7 @@ export default function MyTrip() {
         onClose={() => setShowDeclineConfirm(false)}
         onConfirm={handleDeclineTrip}
         title="Decline this trip?"
-        message="Your broker will be notified and can assign the trip to another driver. This action cannot be undone."
+        message="Your broker will be notified and can assign the trip to another lorry. This action cannot be undone."
         confirmText={declining ? "Declining..." : "Decline Trip"}
         variant="danger"
       />

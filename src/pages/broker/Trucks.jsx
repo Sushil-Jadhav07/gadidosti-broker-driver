@@ -177,7 +177,7 @@ export default function Trucks() {
 
   const handleAssignDriver = async () => {
     if (!assignDriverId) {
-      setAssignError("Select a driver to assign.");
+      setAssignError("Select a lorry to assign.");
       return;
     }
     setAssigning(true);
@@ -185,10 +185,10 @@ export default function Trucks() {
     const response = await api.post(`/api/vehicles/trucks/${assignTruck.id}/assign-driver`, { driver_id: assignDriverId }, getToken());
     setAssigning(false);
     if (!response?.success) {
-      setAssignError(response?.message || "Failed to assign driver. Please try again.");
+      setAssignError(response?.message || "Failed to assign lorry. Please try again.");
       return;
     }
-    addToast(response.message || "Driver assigned to truck.", "success");
+    addToast(response.message || "Lorry assigned to truck.", "success");
     setAssignTruck(null);
     loadTrucks().catch(() => {});
   };
@@ -244,7 +244,7 @@ export default function Trucks() {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by registration, make, driver..."
+              placeholder="Search by registration, make, lorry..."
               value={search}
               onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); }}
               className="input-field pl-9 pr-3 py-2 w-full"
@@ -304,7 +304,7 @@ export default function Trucks() {
 
                     <div className="space-y-2 text-sm border-t border-slate-100 pt-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-slate-400">Driver</span>
+                        <span className="text-xs text-slate-400">Lorry</span>
                         {truck.driver ? (
                           <span className="flex items-center gap-1.5 min-w-0">
                             <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold flex-shrink-0">{truck.driver[0]}</span>
@@ -333,7 +333,7 @@ export default function Trucks() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-slate-100">
-                      {["Registration", "Type", "Capacity", "Make", "Year", "Insurance Expiry", "Status", "Driver"].map((heading) => (
+                      {["Registration", "Type", "Capacity", "Make", "Year", "Insurance Expiry", "Status", "Lorry"].map((heading) => (
                         <th key={heading} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{heading}</th>
                       ))}
                     </tr>
@@ -392,7 +392,7 @@ export default function Trucks() {
               <div className="flex justify-between"><span className="text-slate-500">Year</span><span className="font-medium">{selectedTruck.year || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Capacity</span><span className="font-medium">{selectedTruck.capacity || "-"}</span></div>
               <div className="flex justify-between"><span className="text-slate-500">Structure</span><span className="font-medium">{TRUCK_BODY_TYPES.find((b) => b.value === selectedTruck.bodyType)?.label || "Not specified"}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Driver</span><span className="font-medium">{selectedTruck.driver || "Unassigned"}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Lorry</span><span className="font-medium">{selectedTruck.driver || "Unassigned"}</span></div>
               <div className="flex justify-between">
                 <span className="text-slate-500">Insurance Expiry</span>
                 <span className={`font-medium ${isInsuranceExpiring(selectedTruck.insuranceExpiry) ? "text-red-500" : ""}`}>{formatDate(selectedTruck.insuranceExpiry)}</span>
@@ -481,7 +481,7 @@ export default function Trucks() {
         </div>
       </Modal>
 
-      <Modal isOpen={!!assignTruck} onClose={() => setAssignTruck(null)} title="Assign Driver" size="sm">
+      <Modal isOpen={!!assignTruck} onClose={() => setAssignTruck(null)} title="Assign Lorry" size="sm">
         {assignTruck && (
           <div className="space-y-4">
             <div className="bg-slate-50 rounded-xl p-3">
@@ -489,17 +489,17 @@ export default function Trucks() {
               <p className="text-sm font-mono font-semibold text-slate-800">{assignTruck.registration}</p>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Driver</label>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5">Lorry</label>
               {loadingDrivers ? (
-                <div className="text-sm text-slate-400 py-2">Loading active drivers...</div>
+                <div className="text-sm text-slate-400 py-2">Loading active lorries...</div>
               ) : (
-                <DriverDropdown drivers={activeDrivers} value={assignDriverId} onChange={setAssignDriverId} placeholder="Select an active driver" />
+                <DriverDropdown drivers={activeDrivers} value={assignDriverId} onChange={setAssignDriverId} placeholder="Select an active lorry" />
               )}
               {assignError && <p className="text-xs text-red-500 mt-1.5">{assignError}</p>}
             </div>
             <div className="flex gap-3 pt-1">
               <button onClick={() => setAssignTruck(null)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
-              <button onClick={handleAssignDriver} disabled={assigning} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{assigning ? "Assigning..." : "Assign Driver"}</button>
+              <button onClick={handleAssignDriver} disabled={assigning} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{assigning ? "Assigning..." : "Assign Lorry"}</button>
             </div>
           </div>
         )}

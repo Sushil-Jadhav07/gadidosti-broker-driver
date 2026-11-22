@@ -102,7 +102,7 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard icon={Truck} iconBg="#F0FDF4" iconColor="#166534" label="Total Fleet" value={trucks.length} subtext={`${availableTrucks} available`} trend={8} />
-        <StatCard icon={Users} iconBg="#F0FDF4" iconColor="#17D86B" label="Active Drivers" value={activeDrivers} subtext={`Out of ${drivers.length} total`} trend={0} />
+        <StatCard icon={Users} iconBg="#F0FDF4" iconColor="#17D86B" label="Active Lorries" value={activeDrivers} subtext={`Out of ${drivers.length} total`} trend={0} />
         <StatCard icon={Inbox} iconBg="#FFFBEB" iconColor="#F59E0B" label="Pending Requests" value={jobRequests.length} subtext="Need attention" />
         <StatCard icon={ClipboardList} iconBg="#F0FDF4" iconColor="#166534" label="Active Jobs" value={activeJobs.length} subtext={`${onTripTrucks} trucks on road`} trend={12} />
       </div>

@@ -17,7 +17,7 @@ const FEATURES = [
   { icon: BarChart3, label: "Earnings Analytics", sub: "Deep revenue insights at a glance" },
 ];
 
-const STATS = ["500+ Brokers", "2,000+ Drivers", "Rs 50Cr+ Transactions"];
+const STATS = ["500+ Brokers", "2,000+ Lorries", "Rs 50Cr+ Transactions"];
 
 const CREDS = {
   broker: { email: "broker@ssklogistics.in", password: "Admin@123456" },
@@ -272,7 +272,7 @@ export default function Login() {
             India&apos;s Smartest<br />Logistics Platform
           </h1>
           <p className="text-white/70 font-inter text-[15px] mb-10 leading-relaxed">
-            Connect brokers and drivers seamlessly. Manage fleets, track jobs,<br />and grow your business — all in one place.
+            Connect brokers and lorries seamlessly. Manage fleets, track jobs,<br />and grow your business — all in one place.
           </p>
           <div className="space-y-4">
             {FEATURES.map(({ icon: Icon, label, sub }) => (
@@ -321,7 +321,7 @@ export default function Login() {
             <div className="flex rounded-xl bg-slate-100 p-1 mb-5 gap-1">
               {[
                 { id: "broker", label: "Broker", icon: Truck },
-                { id: "driver", label: "Driver", icon: User },
+                { id: "driver", label: "Lorry", icon: User },
               ].map(({ id, label, icon: Icon }) => (
                 <button key={id} onClick={() => handleRoleSwitch(id)}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all ${
@@ -329,7 +329,7 @@ export default function Login() {
                       ? "bg-white shadow text-primary"
                       : "text-slate-500 hover:text-slate-700"
                   }`}>
-                  <Icon size={15} />
+                  <Icon size={15} /> 
                   {label}
                 </button>
               ))}

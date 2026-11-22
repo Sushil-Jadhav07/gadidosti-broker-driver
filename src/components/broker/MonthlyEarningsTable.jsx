@@ -47,7 +47,7 @@ export default function MonthlyEarningsTable({ rows = [] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-100">
-              {["Booking", "Route", "Truck", "Driver", "Date", "Amount", "Platform Fee", "Net", "Status", ""].map((label) => (
+              {["Booking", "Route", "Truck", "Lorry", "Date", "Amount", "Platform Fee", "Net", "Status", ""].map((label) => (
                 <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{label}</th>
               ))}
             </tr>

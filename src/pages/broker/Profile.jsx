@@ -264,7 +264,7 @@ export default function Profile() {
               </div>
               <div className="border-x border-white/10">
                 <p className="font-bold text-lg text-white">{stats.drivers}</p>
-                <p className="text-[10px] text-white/40 mt-0.5">Drivers</p>
+                <p className="text-[10px] text-white/40 mt-0.5">Lorries</p>
               </div>
               <div>
                 <p className="font-bold text-lg text-white">{formatCurrency(stats.earnings)}</p>

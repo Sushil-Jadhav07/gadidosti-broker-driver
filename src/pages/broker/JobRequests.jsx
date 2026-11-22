@@ -159,15 +159,15 @@ export default function JobRequests() {
         driverId: assignForm.driverId,
         truckId: assignForm.truckId,
       }, getToken());
-      if (!res?.success) throw new Error(res?.message || "Failed to assign driver");
+      if (!res?.success) throw new Error(res?.message || "Failed to assign lorry");
       // Card stays in the list, now showing a "waiting on driver" state — see pendingAssignments.
       if (res.data?.request) {
         setPendingAssignments((current) => ({ ...current, [assignRequest.id]: res.data.request }));
       }
-      addToast("Offer sent to the driver — waiting for their response.", "success");
+      addToast("Offer sent to the lorry — waiting for their response.", "success");
       setAssignRequest(null);
     } catch (err) {
-      addToast(err.message || "Failed to assign driver.", "error");
+      addToast(err.message || "Failed to assign lorry.", "error");
     } finally {
       setAssigning(false);
     }
@@ -186,7 +186,7 @@ export default function JobRequests() {
         delete next[payload.jobRequestId];
         return next;
       });
-      addToast(`${payload.driverName || "The driver"} declined — pick a different driver for this job.`, "error");
+      addToast(`${payload.driverName || "The lorry"} declined — pick a different lorry for this job.`, "error");
     } else if (payload.status === "accepted") {
       dismissedIdsRef.current.add(payload.jobRequestId);
       setRequests((current) => current.filter((request) => request.id !== payload.jobRequestId));
@@ -195,7 +195,7 @@ export default function JobRequests() {
         delete next[payload.jobRequestId];
         return next;
       });
-      addToast(`${payload.driverName || "The driver"} confirmed — trip created at ${formatCurrency(payload.amount)}.`, "success");
+      addToast(`${payload.driverName || "The lorry"} confirmed — trip created at ${formatCurrency(payload.amount)}.`, "success");
     } else {
       setPendingAssignments((current) => ({ ...current, [payload.jobRequestId]: payload }));
     }
@@ -299,17 +299,17 @@ export default function JobRequests() {
                   <div className="w-full bg-teal-50 border border-teal-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-teal-700 flex items-center justify-center gap-2">
                     <Clock size={13} />
                     {pendingAssignments[req.id].status === "countered"
-                      ? `${pendingAssignments[req.id].driverName || "Driver"} countered — respond from Driver Requests`
+                      ? `${pendingAssignments[req.id].driverName || "Lorry"} countered — respond from Lorry Requests`
                       : pendingAssignments[req.id].driverTimedOut
-                      ? `${pendingAssignments[req.id].driverName || "Driver"} hasn't responded — respond on their behalf from Driver Requests`
-                      : `Waiting for ${pendingAssignments[req.id].driverName || "the driver"} to respond`}
+                      ? `${pendingAssignments[req.id].driverName || "Lorry"} hasn't responded — respond on their behalf from Lorry Requests`
+                      : `Waiting for ${pendingAssignments[req.id].driverName || "the lorry"} to respond`}
                   </div>
                 ) : req.status === "Accepted" ? (
                   <button
                     onClick={() => { setAssignForm({ driverId: "", truckId: "" }); setAssignRequest(req); }}
                     className="w-full btn-primary py-2.5 text-sm flex items-center justify-center gap-2"
                   >
-                    <Truck size={15} /> Assign Driver &amp; Truck
+                    <Truck size={15} /> Assign Lorry &amp; Truck
                   </button>
                 ) : req.status === "Countered" ? (
                   <div className="w-full bg-amber-50 border border-amber-200 rounded-lg py-2.5 px-3 text-center text-xs font-semibold text-amber-700 flex items-center justify-center gap-2">
@@ -365,12 +365,12 @@ export default function JobRequests() {
         variant="danger"
       />
 
-      <Modal isOpen={!!assignRequest} onClose={() => setAssignRequest(null)} title="Assign Driver & Truck" size="sm">
+      <Modal isOpen={!!assignRequest} onClose={() => setAssignRequest(null)} title="Assign Lorry & Truck" size="sm">
         {assignRequest && (
           <div className="space-y-4">
-            <p className="text-sm text-slate-500">Booking <span className="font-mono text-slate-700">{bookingRef(assignRequest)}</span> — pick an available driver and truck to create the trip.</p>
+            <p className="text-sm text-slate-500">Booking <span className="font-mono text-slate-700">{bookingRef(assignRequest)}</span> — pick an available lorry and truck to create the trip.</p>
             <div>
-              <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Driver</label>
+              <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Lorry</label>
               <DriverDropdown
                 drivers={drivers}
                 value={assignForm.driverId}
@@ -382,7 +382,7 @@ export default function JobRequests() {
                   const driver = drivers.find((d) => (d.id || d.user_id) === id);
                   setAssignForm((f) => ({ ...f, driverId: id, truckId: driver?.truckId || f.truckId }));
                 }}
-                placeholder="Select driver"
+                placeholder="Select lorry"
               />
             </div>
             <div>

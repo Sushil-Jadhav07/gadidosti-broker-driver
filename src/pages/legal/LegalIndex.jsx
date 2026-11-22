@@ -12,7 +12,7 @@ const PAGES = [
   { key: "safety_policy", label: "Safety Policy", icon: ShieldAlert },
 ];
 
-const AUDIENCE_LABELS = { driver: "Driver", broker: "Broker" };
+const AUDIENCE_LABELS = { driver: "Lorry", broker: "Broker" };
 
 export default function LegalIndex() {
   const { audience } = useParams();

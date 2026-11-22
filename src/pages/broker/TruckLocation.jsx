@@ -74,7 +74,7 @@ export default function TruckLocation() {
               </div>
               <div>
                 <h1 className="text-lg font-bold text-slate-900 font-mono">{truck.registration}</h1>
-                <p className="text-xs text-slate-400">{truck.driver ? `Driver: ${truck.driver}` : "Unassigned"}</p>
+                <p className="text-xs text-slate-400">{truck.driver ? `Lorry: ${truck.driver}` : "Unassigned"}</p>
               </div>
             </div>
             {truck.lastLocationAt && (

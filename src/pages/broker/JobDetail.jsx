@@ -385,7 +385,7 @@ export default function JobDetail() {
               <button onClick={handleToggleOverride} className="w-full flex items-center justify-between p-4 text-left">
                 <span className="flex items-center gap-2">
                   <AlertTriangle size={15} className="text-amber-500 flex-shrink-0" />
-                  <span className="text-sm font-semibold text-slate-800">Driver unreachable? Take over this trip</span>
+                  <span className="text-sm font-semibold text-slate-800">Lorry unreachable? Take over this trip</span>
                 </span>
                 <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 flex-shrink-0">
                   {overrideOpen ? "Hide" : "Show"}
@@ -396,8 +396,8 @@ export default function JobDetail() {
               {overrideOpen && (
                 <div className="px-4 pb-4 pt-1 border-t border-slate-50 space-y-4">
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    Use this only if the driver's phone is dead, their app crashed, or they've lost signal and can't update the trip themselves.
-                    Actions here happen directly on the driver's behalf.
+                    Use this only if the lorry's phone is dead, their app crashed, or they've lost signal and can't update the trip themselves.
+                    Actions here happen directly on the lorry's behalf.
                   </p>
 
                   {loadingOverrideTrip ? (
@@ -478,8 +478,8 @@ export default function JobDetail() {
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">Job Details</p>
               <div>
                 <DetailRow icon={Truck} label="Truck" value={booking.truckReg || "—"} />
-                <DetailRow icon={User} label="Driver" value={booking.driver?.name || "—"} />
-                {booking.driver?.phone && <DetailRow icon={Phone} label="Driver Phone" value={booking.driver.phone} />}
+                <DetailRow icon={User} label="Lorry" value={booking.driver?.name || "—"} />
+                {booking.driver?.phone && <DetailRow icon={Phone} label="Lorry Phone" value={booking.driver.phone} />}
                 <DetailRow icon={Calendar} label="Date" value={formatDate(booking.date || booking.createdAt)} />
                 <DetailRow icon={Ruler} label="Distance" value={booking.distance ? `${booking.distance} km` : "—"} />
                 <DetailRow icon={Package} label="Cargo" value={`${booking.material || "—"} · ${booking.weight ? `${booking.weight} ${booking.weightUnit || ""}`.trim() : "—"}`} />
@@ -576,7 +576,7 @@ export default function JobDetail() {
                     <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Client approved</span>
                   )}
                   {booking.podStatus === "rejected" && (
-                    <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Client rejected — driver re-uploading</span>
+                    <span className="ml-auto normal-case text-[11px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600">Client rejected — lorry re-uploading</span>
                   )}
                 </p>
                 <PodGallery media={booking.podMedia} token={getToken()} />
@@ -622,7 +622,7 @@ export default function JobDetail() {
             isOpen={forceStatusConfirmOpen} onClose={() => setForceStatusConfirmOpen(false)}
             onConfirm={handleForceStatus}
             title={`Force status to "${formatBookingStatus(effectiveForceStatus)}"?`}
-            message="This will override the driver's own status update. Use this only if the driver can't act themselves."
+            message="This will override the lorry's own status update. Use this only if the lorry can't act themselves."
             confirmText={applyingForceStatus ? "Applying..." : "Force Status"}
             variant={effectiveForceStatus === "cancelled" ? "danger" : "warning"}
           />

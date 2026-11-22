@@ -15,7 +15,7 @@ const STATUS_LABEL = {
 // rather than living inside the trigger's own DOM subtree. Otherwise, when this sits inside
 // a scrollable modal body, the panel's height gets counted toward that container's scroll
 // area and produces a stray scrollbar on the modal itself.
-export default function DriverDropdown({ drivers = [], value, onChange, placeholder = "Select a driver" }) {
+export default function DriverDropdown({ drivers = [], value, onChange, placeholder = "Select a lorry" }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState(null);
   const wrapRef = useRef(null);
@@ -73,7 +73,7 @@ export default function DriverDropdown({ drivers = [], value, onChange, placehol
         >
           {!drivers.length && (
             <div className="px-3 py-3 text-xs text-slate-400 flex items-center gap-2">
-              <User size={14} className="opacity-40" /> No drivers found
+              <User size={14} className="opacity-40" /> No lorries found
             </div>
           )}
           {drivers.map((driver) => {

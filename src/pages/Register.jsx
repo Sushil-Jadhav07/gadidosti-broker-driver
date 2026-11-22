@@ -242,7 +242,7 @@ export default function Register() {
             Join India&apos;s Leading<br />Logistics Network
           </h1>
           <p className="text-white/70 font-inter text-[15px] mb-10 leading-relaxed">
-            Register as a broker managing a fleet, or a driver ready to hit<br />the road — set up your account in minutes.
+            Register as a broker managing a fleet, or a lorry ready to hit<br />the road — set up your account in minutes.
           </p>
           <div className="space-y-4">
             {FEATURES.map(({ icon: Icon, label, sub }) => (
@@ -294,7 +294,7 @@ export default function Register() {
               <div className="flex gap-1 bg-slate-100 p-1 rounded-lg mb-6">
                 {[
                   { id: "broker", label: "Broker", icon: Truck },
-                  { id: "driver", label: "Driver", icon: User },
+                  { id: "driver", label: "Lorry", icon: User },
                 ].map(({ id, label, icon: Icon }) => (
                   <button key={id} type="button" onClick={() => setRole(id)}
                     className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold transition-all ${

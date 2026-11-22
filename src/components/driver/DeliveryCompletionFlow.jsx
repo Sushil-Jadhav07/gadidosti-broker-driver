@@ -287,7 +287,7 @@ function PaymentsStep({ trip, onCollect, collecting, onVerifiedPaid }) {
   const [qrSource, setQrSource] = useState(() => availableSources[0] || "personal");
   const activeSource = availableSources.includes(qrSource) ? qrSource : (availableSources[0] || "personal");
   const activeUpiId = activeSource === "company" ? trip.companyUpiId : trip.driverUpiId;
-  const activePayeeName = activeSource === "company" ? (trip.companyUpiName || "GadiDost Logistics") : (trip.driverName || "Driver");
+  const activePayeeName = activeSource === "company" ? (trip.companyUpiName || "GadiDost Logistics") : (trip.driverName || "Lorry");
 
   // Razorpay-verified QR: fetched from the backend (not generated client-side), and polled so
   // the flow can auto-advance once Razorpay confirms the customer actually paid — no button tap

@@ -60,7 +60,7 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
         <div className="bg-white rounded-md px-2 py-1 flex-shrink-0">
           <img src="/gadidost-logo.png" alt="GadiDost" className="h-6 w-auto" />
         </div>
-        <p className="text-[11px] text-white/70 truncate">Driver Portal</p>
+        <p className="text-[11px] text-white/70 truncate">Lorry Portal</p>
         <button onClick={onMobileClose} className="lg:hidden ml-auto p-1.5 rounded-lg text-white/70 hover:text-primary hover:bg-white flex-shrink-0">
           <X size={16} />
         </button>
@@ -123,7 +123,7 @@ export default function DriverSidebar({ mobileOpen, onMobileClose }) {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white truncate leading-tight">{user?.name || "Ramesh Singh"}</p>
-            <p className="text-[10px] text-white/40 truncate">Driver</p>
+            <p className="text-[10px] text-white/40 truncate">Lorry</p>
           </div>
         </div>
         <button

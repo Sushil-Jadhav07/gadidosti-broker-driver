@@ -60,7 +60,7 @@ export default function Earnings() {
     <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Earnings</h1>
-        <p className="text-sm text-slate-500 mt-1">Driver earnings from completed trips.</p>
+        <p className="text-sm text-slate-500 mt-1">Lorry earnings from completed trips.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

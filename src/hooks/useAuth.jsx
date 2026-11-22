@@ -92,7 +92,7 @@ export function AuthProvider({ children }) {
   const loginDriver = useCallback(async (email, password) => {
     const data = await api.post("/api/auth/login", { email, password });
     if (!data.success) throw new Error(data.message || "Login failed");
-    if (data.data.user.role !== "driver") throw new Error("Not a driver account");
+    if (data.data.user.role !== "driver") throw new Error("Not a lorry account");
     persistSession(data.data.user, data.data.tokens);
     forceDriverOnline();
     return data.data.user;

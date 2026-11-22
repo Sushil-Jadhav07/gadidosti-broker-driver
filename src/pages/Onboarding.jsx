@@ -374,7 +374,7 @@ export default function Onboarding() {
           <div className="flex items-center gap-2.5">
             <img src="/gadidost-logo.png" alt="GadiDost" className="h-7 w-auto" />
             <div className="hidden sm:block h-6 w-px bg-slate-200" />
-            <p className="hidden sm:block text-xs font-semibold text-slate-500">{role === "driver" ? "Driver Verification" : "Broker Verification"}</p>
+            <p className="hidden sm:block text-xs font-semibold text-slate-500">{role === "driver" ? "Lorry Verification" : "Broker Verification"}</p>
           </div>
           <button
             onClick={goToDashboard}
@@ -627,7 +627,7 @@ export default function Onboarding() {
 
           <div className="flex items-center gap-2 text-[11px] text-slate-400 px-1">
             <UserCheck size={13} className="flex-shrink-0" />
-            Signed in as {user?.name || (role === "driver" ? "Driver" : "Broker")}
+            Signed in as {user?.name || (role === "driver" ? "Lorry" : "Broker")}
           </div>
         </div>
       </div>

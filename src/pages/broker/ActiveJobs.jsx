@@ -267,13 +267,13 @@ export default function ActiveJobs() {
         { driverId: reassignDriverId, truckId: job.truckId, reason: reassignReason.trim() || undefined },
         getToken()
       );
-      if (!response.success) throw new Error(response.message || "Failed to reassign driver");
-      addToast("Driver reassigned.", "success");
+      if (!response.success) throw new Error(response.message || "Failed to reassign lorry");
+      addToast("Lorry reassigned.", "success");
       setSelectedJob(null);
       setReassignJob(null);
       load();
     } catch (err) {
-      addToast(err.message || "Failed to reassign driver.", "error");
+      addToast(err.message || "Failed to reassign lorry.", "error");
     } finally {
       setReassigning(false);
     }
@@ -346,7 +346,7 @@ export default function ActiveJobs() {
               <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-2">
                 <User size={15} className="text-primary flex-shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Driver</p>
+                  <p className="text-[10px] text-slate-400 font-semibold uppercase">Lorry</p>
                   <p className="text-sm font-semibold text-slate-800">{job.driver?.name || "Not Assigned"}</p>
                 </div>
               </div>
@@ -374,7 +374,7 @@ export default function ActiveJobs() {
                   onClick={() => openReassign(job)}
                   className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
                 >
-                  <Repeat size={12} /> Reassign Driver
+                  <Repeat size={12} /> Reassign Lorry
                 </button>
                 <button
                   onClick={() => navigate(`/job-history/${job.id}`)}
@@ -488,8 +488,8 @@ export default function ActiveJobs() {
                 </div>
 
                 <div className="pt-3 border-t border-slate-100">
-                  <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Reassign to a different driver</label>
-                  <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select driver" />
+                  <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Reassign to a different lorry</label>
+                  <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select lorry" />
                   <input
                     type="text"
                     value={reassignReason}
@@ -502,7 +502,7 @@ export default function ActiveJobs() {
                     disabled={!reassignDriverId || reassigning}
                     className="mt-2 w-full py-2.5 text-sm rounded-lg font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
                   >
-                    {reassigning ? "Reassigning..." : "Reassign Driver"}
+                    {reassigning ? "Reassigning..." : "Reassign Lorry"}
                   </button>
                 </div>
               </>
@@ -562,7 +562,7 @@ export default function ActiveJobs() {
         {chatJob && <ChatWindow bookingId={chatJob.id} currentUserId={user?.id} />}
       </Modal>
 
-      <Modal isOpen={!!reassignJob} onClose={() => setReassignJob(null)} title="Reassign Driver" size="sm">
+      <Modal isOpen={!!reassignJob} onClose={() => setReassignJob(null)} title="Reassign Lorry" size="sm">
         {reassignJob && (
           <div className="space-y-4">
             <p className="text-xs text-slate-400">{reassignJob.pickup} to {reassignJob.drop}</p>
@@ -575,7 +575,7 @@ export default function ActiveJobs() {
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 flex items-center gap-1.5"><User size={13} /> Reassign to</label>
-              <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select driver" />
+              <DriverDropdown drivers={drivers} value={reassignDriverId} onChange={setReassignDriverId} placeholder="Select lorry" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 mb-1.5 block">Reason (optional)</label>
@@ -583,7 +583,7 @@ export default function ActiveJobs() {
                 value={reassignReason}
                 onChange={(e) => setReassignReason(e.target.value)}
                 rows={2}
-                placeholder="e.g. Driver unavailable, vehicle breakdown, better route fit..."
+                placeholder="e.g. Lorry unavailable, vehicle breakdown, better route fit..."
                 className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-primary transition-colors"
               />
             </div>
@@ -592,7 +592,7 @@ export default function ActiveJobs() {
               disabled={!reassignDriverId || reassigning}
               className="w-full py-2.5 text-sm rounded-lg font-semibold text-white bg-primary hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {reassigning ? "Reassigning..." : "Reassign Driver"}
+              {reassigning ? "Reassigning..." : "Reassign Lorry"}
             </button>
           </div>
         )}

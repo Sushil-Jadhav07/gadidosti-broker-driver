@@ -41,7 +41,7 @@ export default function DriverRequests() {
     try {
       await fetchPage(pageNum);
     } catch {
-      setError("Failed to load driver requests. Please try again.");
+      setError("Failed to load lorry requests. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -127,12 +127,12 @@ export default function DriverRequests() {
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Driver Requests</h1>
-        <p className="text-sm text-slate-500 mt-1">Requests your drivers didn&apos;t respond to within 2 minutes — you can now respond on their behalf.</p>
+        <h1 className="text-2xl font-bold text-slate-900">Lorry Requests</h1>
+        <p className="text-sm text-slate-500 mt-1">Requests your lorries didn&apos;t respond to within 2 minutes — you can now respond on their behalf.</p>
       </div>
 
       {loading && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading driver requests...</div>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-slate-400">Loading lorry requests...</div>
       )}
       {!loading && error && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center text-red-500">{error}</div>
@@ -141,7 +141,7 @@ export default function DriverRequests() {
         <div className="bg-white rounded-xl border border-slate-100 shadow-card p-12 text-center">
           <Lock size={36} className="mx-auto mb-3 text-slate-300" />
           <p className="font-semibold text-slate-800">Nothing to take over</p>
-          <p className="text-sm text-slate-400 mt-1">Your drivers are responding to requests on their own — nothing here yet.</p>
+          <p className="text-sm text-slate-400 mt-1">Your lorries are responding to requests on their own — nothing here yet.</p>
         </div>
       )}
 

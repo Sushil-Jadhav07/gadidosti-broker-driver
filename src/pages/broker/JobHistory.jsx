@@ -117,7 +117,7 @@ export default function JobHistory() {
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
-            placeholder="Search bookings, routes, drivers..."
+            placeholder="Search bookings, routes, lorries..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="input-field pl-9 pr-3 py-2 w-full"
@@ -160,7 +160,7 @@ export default function JobHistory() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Booking ID", "Route", "Truck", "Driver", "Date", "Amount", "Fee", "Net", "Payment", "Time Taken", "Status", "Actions"].map((label) => (
+                  {["Booking ID", "Route", "Truck", "Lorry", "Date", "Amount", "Fee", "Net", "Payment", "Time Taken", "Status", "Actions"].map((label) => (
                     <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{label}</th>
                   ))}
                 </tr>

@@ -31,7 +31,7 @@ export default function TripHistoryPage({ mode }) {
           api.get(entityPath, getToken()),
           api.get(`/api/trips?${tripsQuery}&limit=100`, getToken()),
         ]);
-        if (!entityRes?.success) throw new Error(entityRes?.message || `${mode === "truck" ? "Truck" : "Driver"} not found`);
+        if (!entityRes?.success) throw new Error(entityRes?.message || `${mode === "truck" ? "Truck" : "Lorry"} not found`);
         setEntity(entityRes.data?.[mode]);
         setTrips((tripsRes.data?.trips || []).map(adaptTrip));
       } catch (err) {
@@ -59,12 +59,12 @@ export default function TripHistoryPage({ mode }) {
 
   const backPath = mode === "truck" ? "/trucks" : "/drivers";
   const title = mode === "truck" ? entity?.registration : entity?.name;
-  const subtitle = mode === "truck" ? (entity?.driver || "No driver assigned") : (entity?.truckReg || "No truck assigned");
+  const subtitle = mode === "truck" ? (entity?.driver || "No lorry assigned") : (entity?.truckReg || "No truck assigned");
 
   return (
     <div className="space-y-4">
       <button onClick={() => navigate(backPath)} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors">
-        <ArrowLeft size={15} /> Back to {mode === "truck" ? "Trucks" : "Drivers"}
+        <ArrowLeft size={15} /> Back to {mode === "truck" ? "Trucks" : "Lorries"}
       </button>
 
       {loading ? (
@@ -99,7 +99,7 @@ export default function TripHistoryPage({ mode }) {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {["Trip", "Route", mode === "truck" ? "Driver" : "Broker", "Status", "Distance", "Time Taken", "Earnings", "Date"].map((label) => (
+                  {["Trip", "Route", mode === "truck" ? "Lorry" : "Broker", "Status", "Distance", "Time Taken", "Earnings", "Date"].map((label) => (
                     <th key={label} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{label}</th>
                   ))}
                 </tr>

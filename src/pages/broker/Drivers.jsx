@@ -236,7 +236,7 @@ export default function Drivers() {
       setDrivers(driverRes.data?.drivers || []);
       setTrucks(truckRes.data?.trucks || []);
     } catch {
-      setError("Failed to load drivers. Please try again.");
+      setError("Failed to load lorries. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -321,11 +321,11 @@ export default function Drivers() {
     setLookupError(null);
     try {
       const res = await api.get(`/api/vehicles/drivers/lookup?phone=${digits}`, getToken());
-      if (!res.success) throw new Error(res.message || "Driver not found");
+      if (!res.success) throw new Error(res.message || "Lorry not found");
       setForm((f) => ({ ...f, foundDriver: res.data.driver }));
     } catch (err) {
       setForm((f) => ({ ...f, foundDriver: null }));
-      setLookupError(err.message || "Driver not found.");
+      setLookupError(err.message || "Lorry not found.");
     } finally {
       setLooking(false);
     }
@@ -336,7 +336,7 @@ export default function Drivers() {
   const validate = () => {
     const next = {};
     if (!form.foundDriver) {
-      next.foundDriver = "Find a driver by phone number first.";
+      next.foundDriver = "Find a lorry by phone number first.";
     }
     if (form.licenseNo.trim() && drivers.some((d) => (d.licenseNo || d.license_no)?.toLowerCase() === form.licenseNo.trim().toLowerCase())) {
       next.licenseNo = "This license number is already registered.";
@@ -364,12 +364,12 @@ export default function Drivers() {
         truck_id: form.truckId || undefined,
       };
       const res = await api.post("/api/vehicles/drivers", payload, getToken());
-      if (!res.success) throw new Error(res.message || "Failed to add driver");
-      addToast("Driver added. KYC status defaults to Pending until reviewed.", "success");
+      if (!res.success) throw new Error(res.message || "Failed to add lorry");
+      addToast("Lorry added. KYC status defaults to Pending until reviewed.", "success");
       setShowAdd(false);
       loadAll();
     } catch (err) {
-      const message = err.message || "Failed to add driver.";
+      const message = err.message || "Failed to add lorry.";
       setErrors((prev) => ({ ...prev, form: message }));
       addToast(message, "error");
     } finally {
@@ -409,11 +409,11 @@ export default function Drivers() {
         truck_id: registerForm.truckId || undefined,
       };
       const res = await api.post("/api/vehicles/drivers/register", payload, getToken());
-      if (!res.success) throw new Error(res.message || "Failed to register driver");
+      if (!res.success) throw new Error(res.message || "Failed to register lorry");
       setTempPasswordResult({ name: payload.name, email: payload.email, tempPassword: res.data.tempPassword });
       loadAll();
     } catch (err) {
-      const message = err.message || "Failed to register driver.";
+      const message = err.message || "Failed to register lorry.";
       setRegisterErrors((prev) => ({ ...prev, form: message }));
       addToast(message, "error");
     } finally {
@@ -460,12 +460,12 @@ export default function Drivers() {
         status: editForm.status || undefined,
       };
       const res = await api.patch(`/api/vehicles/drivers/${id}`, payload, getToken());
-      if (!res.success) throw new Error(res.message || "Failed to update driver");
-      addToast("Driver details updated.", "success");
+      if (!res.success) throw new Error(res.message || "Failed to update lorry");
+      addToast("Lorry details updated.", "success");
       setEditTarget(null);
       loadAll();
     } catch (err) {
-      const message = err.message || "Failed to update driver.";
+      const message = err.message || "Failed to update lorry.";
       setEditErrors((prev) => ({ ...prev, form: message }));
       addToast(message, "error");
     } finally {
@@ -484,7 +484,7 @@ export default function Drivers() {
       if (!res.success) throw new Error(res.message || "Failed to open chat");
       setChatDriver({ ...driver, threadId: res.data.thread.id });
     } catch (err) {
-      addToast(err.message || "Failed to open chat with this driver.", "error");
+      addToast(err.message || "Failed to open chat with this lorry.", "error");
     } finally {
       setOpeningChat(false);
     }
@@ -496,13 +496,13 @@ export default function Drivers() {
     try {
       const id = deleteTarget.id || deleteTarget.user_id;
       const res = await api.delete(`/api/vehicles/drivers/${id}`, null, getToken());
-      if (!res.success) throw new Error(res.message || "Failed to remove driver");
-      addToast("Driver removed from your fleet.", "success");
+      if (!res.success) throw new Error(res.message || "Failed to remove lorry");
+      addToast("Lorry removed from your fleet.", "success");
       if (selected?.id === deleteTarget.id) setSelected(null);
       setDeleteTarget(null);
       loadAll();
     } catch (err) {
-      addToast(err.message || "Failed to remove driver.", "error");
+      addToast(err.message || "Failed to remove lorry.", "error");
     } finally {
       setDeleting(false);
     }
@@ -562,7 +562,7 @@ export default function Drivers() {
       const id = kycTarget.id || kycTarget.user_id;
       const res = await api.patch(`/api/broker/kyc/${id}/verify`, {}, getToken());
       if (!res.success) throw new Error(res.message || "Failed to verify KYC");
-      addToast(`${kycTarget.name || "Driver"}'s KYC verified.`, "success");
+      addToast(`${kycTarget.name || "Lorry"}'s KYC verified.`, "success");
       setKycTarget(null);
       loadAll();
     } catch (err) {
@@ -583,7 +583,7 @@ export default function Drivers() {
       const id = kycTarget.id || kycTarget.user_id;
       const res = await api.patch(`/api/broker/kyc/${id}/reject`, { reason: rejectReason.trim() }, getToken());
       if (!res.success) throw new Error(res.message || "Failed to reject KYC");
-      addToast(`${kycTarget.name || "Driver"}'s KYC rejected.`, "success");
+      addToast(`${kycTarget.name || "Lorry"}'s KYC rejected.`, "success");
       setKycTarget(null);
       loadAll();
     } catch (err) {
@@ -597,10 +597,10 @@ export default function Drivers() {
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Drivers</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Manage drivers and monitor their availability</p>
+          <h1 className="text-xl font-bold text-slate-900">Lorries</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Manage lorries and monitor their availability</p>
         </div>
-        <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm flex items-center gap-2 flex-shrink-0"><Plus size={15} /> Add Driver</button>
+        <button onClick={openAdd} className="btn-primary px-4 py-2 text-sm flex items-center gap-2 flex-shrink-0"><Plus size={15} /> Add Lorry</button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
@@ -650,7 +650,7 @@ export default function Drivers() {
               ) : (
                 <div className="h-[200px] flex flex-col items-center justify-center text-slate-400 text-sm">
                   <Users size={28} className="mb-2 opacity-30" />
-                  No drivers currently reporting a location
+                  No lorries currently reporting a location
                 </div>
               )}
             </div>
@@ -673,7 +673,7 @@ export default function Drivers() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {paginated.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-12 text-center text-slate-400 sm:col-span-2 xl:col-span-3">
-                      <Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found
+                      <Users size={32} className="mx-auto mb-2 opacity-30" />No lorries found
                     </div>
                   ) : paginated.map((driver) => {
                     const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
@@ -724,14 +724,14 @@ export default function Drivers() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b border-slate-100">
-                          {["Driver", "Phone", "License No.", "KYC", "Status", "Assigned Truck", "Trips", ""].map((heading) => (
+                          {["Lorry", "Phone", "License No.", "KYC", "Status", "Assigned Truck", "Trips", ""].map((heading) => (
                             <th key={heading} className="text-left px-4 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wide whitespace-nowrap">{heading}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {paginated.length === 0 ? (
-                          <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No drivers found</td></tr>
+                          <tr><td colSpan={8} className="px-4 py-10 text-center text-slate-400"><Users size={32} className="mx-auto mb-2 opacity-30" />No lorries found</td></tr>
                         ) : paginated.map((driver) => {
                           const kycStatus = formatKycStatus(driver.kycStatus || driver.kyc_status);
                           const isSelected = (selected?.id || selected?.user_id) === (driver.id || driver.user_id);
@@ -774,7 +774,7 @@ export default function Drivers() {
 
               {totalPages > 1 && (
                 <div className="flex items-center justify-between px-1 py-1 flex-wrap gap-3">
-                  <p className="text-sm text-slate-500">Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filtered.length)} of {filtered.length} drivers</p>
+                  <p className="text-sm text-slate-500">Showing {startIndex + 1} to {Math.min(startIndex + ITEMS_PER_PAGE, filtered.length)} of {filtered.length} lorries</p>
                   <div className="flex items-center gap-1">
                     <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-40 transition-colors"><ChevronLeft size={16} /></button>
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
@@ -789,9 +789,9 @@ export default function Drivers() {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-4 lg:sticky lg:top-4">
-          <h3 className="font-bold text-slate-900 text-[15px] mb-4">Driver Details</h3>
+          <h3 className="font-bold text-slate-900 text-[15px] mb-4">Lorry Details</h3>
           {!selected ? (
-            <p className="text-sm text-slate-400 text-center py-10">Select a driver to see their details.</p>
+            <p className="text-sm text-slate-400 text-center py-10">Select a lorry to see their details.</p>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
@@ -853,7 +853,7 @@ export default function Drivers() {
         </div>
       </div>
 
-      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Driver" size="md">
+      <Modal isOpen={!!editTarget} onClose={() => setEditTarget(null)} title="Edit Lorry" size="md">
         {editTarget && (
           <div className="space-y-4">
             <div className="bg-slate-50 rounded-xl p-3 flex items-center gap-3">
@@ -914,7 +914,7 @@ export default function Drivers() {
         )}
       </Modal>
 
-      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add Driver" size="md">
+      <Modal isOpen={showAdd} onClose={() => setShowAdd(false)} title="Add Lorry" size="md">
         {tempPasswordResult ? (
           <div className="space-y-4">
             <div className="flex items-start gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-700">
@@ -922,7 +922,7 @@ export default function Drivers() {
               <span><b>{tempPasswordResult.name}</b> has been registered and added to your fleet.</span>
             </div>
             <div className="bg-slate-50 rounded-xl p-4 space-y-2">
-              <p className="text-[11px] text-slate-400 font-semibold uppercase">Share these login details with the driver</p>
+              <p className="text-[11px] text-slate-400 font-semibold uppercase">Share these login details with the lorry</p>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[11px] text-slate-400">Email</p>
@@ -941,7 +941,7 @@ export default function Drivers() {
                   <Copy size={14} />
                 </button>
               </div>
-              <p className="text-[11px] text-amber-600">This password is shown only once — the driver can change it from their profile after logging in.</p>
+              <p className="text-[11px] text-amber-600">This password is shown only once — the lorry can change it from their profile after logging in.</p>
             </div>
             <button onClick={() => setShowAdd(false)} className="w-full btn-primary px-4 py-2.5 text-sm">Done</button>
           </div>
@@ -952,13 +952,13 @@ export default function Drivers() {
               onClick={() => setAddMode("link")}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${addMode === "link" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
-              Link Existing Driver
+              Link Existing Lorry
             </button>
             <button
               onClick={() => setAddMode("register")}
               className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${addMode === "register" ? "bg-white text-primary shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
             >
-              <UserPlus size={12} /> Register New Driver
+              <UserPlus size={12} /> Register New Lorry
             </button>
           </div>
 
@@ -966,7 +966,7 @@ export default function Drivers() {
             <>
               <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700">
                 <Info size={16} className="flex-shrink-0 mt-0.5" />
-                <span>This creates a brand-new driver account. The driver logs in with email + password, so a temporary password will be generated for you to share with them.</span>
+                <span>This creates a brand-new lorry account. The lorry logs in with email + password, so a temporary password will be generated for you to share with them.</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -992,7 +992,7 @@ export default function Drivers() {
                     value={registerForm.email}
                     onChange={(e) => setRegisterForm((f) => ({ ...f, email: e.target.value }))}
                     className="input-field px-3 py-2 w-full"
-                    placeholder="driver@example.com"
+                    placeholder="lorry@example.com"
                   />
                   {registerErrors.email && <p className="text-xs text-red-500 mt-1">{registerErrors.email}</p>}
                 </div>
@@ -1032,13 +1032,13 @@ export default function Drivers() {
               {registerErrors.form && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{registerErrors.form}</div>}
               <div className="flex gap-3 pt-1">
                 <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
-                <button onClick={handleRegister} disabled={registering} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{registering ? "Registering..." : "Register Driver"}</button>
+                <button onClick={handleRegister} disabled={registering} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{registering ? "Registering..." : "Register Lorry"}</button>
               </div>
             </>
           ) : (
           <>
           <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Driver Phone Number *</label>
+            <label className="block text-xs font-semibold text-slate-600 mb-1.5">Lorry Phone Number *</label>
             {form.foundDriver ? (
               <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2.5">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1072,7 +1072,7 @@ export default function Drivers() {
               <p className="text-xs text-red-500 mt-1.5 flex items-center gap-1"><XCircle size={12} /> {lookupError}</p>
             )}
             {errors.foundDriver && <p className="text-xs text-red-500 mt-1.5">{errors.foundDriver}</p>}
-            <p className="text-[11px] text-slate-400 mt-1.5">The driver must already have an account on the driver app before you can add them.</p>
+            <p className="text-[11px] text-slate-400 mt-1.5">The lorry must already have an account on the lorry app before you can add them.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1110,7 +1110,7 @@ export default function Drivers() {
           {errors.form && <div className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">{errors.form}</div>}
           <div className="flex gap-3 pt-1">
             <button onClick={() => setShowAdd(false)} className="flex-1 btn-ghost px-4 py-2.5 text-sm border border-slate-200">Cancel</button>
-            <button onClick={handleSave} disabled={saving} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{saving ? "Adding..." : "Add Driver"}</button>
+            <button onClick={handleSave} disabled={saving} className="flex-1 btn-primary px-4 py-2.5 text-sm disabled:opacity-60">{saving ? "Adding..." : "Add Lorry"}</button>
           </div>
           </>
           )}
@@ -1122,8 +1122,8 @@ export default function Drivers() {
         isOpen={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Remove Driver"
-        message={`Remove ${deleteTarget?.name || "this driver"} from your fleet? Their driver account is not deleted — you can add them back later.`}
+        title="Remove Lorry"
+        message={`Remove ${deleteTarget?.name || "this lorry"} from your fleet? Their lorry account is not deleted — you can add them back later.`}
         confirmText={deleting ? "Removing..." : "Remove"}
       />
 
@@ -1131,8 +1131,8 @@ export default function Drivers() {
         isOpen={!!resetTarget}
         onClose={() => setResetTarget(null)}
         onConfirm={handleResetSession}
-        title="Reset Driver Session"
-        message={`End every active session for ${resetTarget?.name || "this driver"}? Use this if their app was force-closed or lost connectivity without logging out — that leaves them unable to log in on a new device or after reinstalling until this is reset.`}
+        title="Reset Lorry Session"
+        message={`End every active session for ${resetTarget?.name || "this lorry"}? Use this if their app was force-closed or lost connectivity without logging out — that leaves them unable to log in on a new device or after reinstalling until this is reset.`}
         confirmText={resettingSession ? "Resetting..." : "Reset Session"}
       />
 
@@ -1178,7 +1178,7 @@ export default function Drivers() {
             {!kycData?.submission ? (
               <div className="text-center text-sm text-slate-400 py-8">
                 <FileText size={28} className="mx-auto mb-2 opacity-30" />
-                This driver hasn&apos;t submitted KYC documents yet.
+                This lorry hasn&apos;t submitted KYC documents yet.
               </div>
             ) : (
               <>
@@ -1215,7 +1215,7 @@ export default function Drivers() {
                             value={rejectReason}
                             onChange={(e) => setRejectReason(e.target.value.slice(0, 500))}
                             rows={3}
-                            placeholder="Let the driver know what needs to be fixed..."
+                            placeholder="Let the lorry know what needs to be fixed..."
                             className="w-full resize-none rounded-lg border-2 border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-primary"
                           />
                         </div>

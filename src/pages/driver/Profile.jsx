@@ -325,7 +325,7 @@ export default function Profile() {
                 <span className="font-bold text-2xl text-white">{(profile.name || "D")[0]}</span>
               )}
             </div>
-            <h2 className="font-semibold text-xl text-white mb-1 truncate">{profile.name || "Driver"}</h2>
+            <h2 className="font-semibold text-xl text-white mb-1 truncate">{profile.name || "Lorry"}</h2>
             <div className="space-y-1 mb-1">
               <div className="flex items-center justify-center gap-1.5">
                 <Phone className="w-3 h-3 text-white/50" />
@@ -406,7 +406,7 @@ export default function Profile() {
           {openingBrokerChat ? "Opening..." : "Message My Broker"}
         </button>
 
-        <p className="text-center text-[10px] text-slate-300">GadiDost Driver App v1.0.0</p>
+        <p className="text-center text-[10px] text-slate-300">GadiDost Lorry App v1.0.0</p>
       </div>
 
       {/* Right — accordion settings, grouped the same way as the client app's menu sections */}

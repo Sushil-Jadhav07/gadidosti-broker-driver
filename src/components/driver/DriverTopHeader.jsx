@@ -68,7 +68,7 @@ export default function DriverTopHeader({ currentPath, onMenuClick }) {
             </div>
             <div className="hidden sm:block text-left">
               <div className="text-[13px] font-semibold text-slate-800 leading-none">{firstName}</div>
-              <div className="text-[11px] text-slate-400 mt-0.5">Driver</div>
+              <div className="text-[11px] text-slate-400 mt-0.5">Lorry</div>
             </div>
             <ChevronDown
               size={15}

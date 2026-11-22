@@ -37,7 +37,7 @@ export default function Home() {
   // persisting in the top header on every page.
   const { online, toggleOnline, onlineToggleLocked } = useOutletContext();
   const { addToast } = useToast();
-  const firstName = (user?.name || "Driver").split(" ")[0];
+  const firstName = (user?.name || "Lorry").split(" ")[0];
   // A driver can now have more than one simultaneously-active trip (part-load: further bookings
   // sharing the same truck, matched via the Part Truck toggle below — see
   // TruckModel.findPartTruckCandidates) — activeTrips is the real list, selectedTripIndex picks
@@ -164,7 +164,7 @@ export default function Home() {
             className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-bold uppercase tracking-wide bg-emerald-50 text-emerald-700 flex-shrink-0"
           >
             <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500 animate-pulse" />
-            Driver Status: On Trip
+            Lorry Status: On Trip
           </span>
         ) : (
           <button
@@ -174,7 +174,7 @@ export default function Home() {
             }`}
           >
             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${online ? "bg-emerald-500 animate-pulse" : "bg-slate-400"}`} />
-            Driver Status: {online ? "Active" : "Offline"}
+            Lorry Status: {online ? "Active" : "Offline"}
           </button>
         )}
       </div>
@@ -366,7 +366,7 @@ export default function Home() {
           <div className="flex items-center justify-between mb-4"><h3 className="font-bold text-slate-900 text-[15px]">Upcoming Assignment</h3><Badge status="Upcoming" /></div>
           <p className="text-[15px] font-bold text-slate-900">{upcomingTrip.pickup?.location} {"->"} {upcomingTrip.drop?.location}</p>
           <p className="text-xs text-slate-500 mt-1">{upcomingTrip.cargo?.material} - {upcomingTrip.distance} km</p>
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between"><p className="text-xs text-slate-500">Driver: {profile.name || user?.name}</p><p className="text-[15px] font-bold text-primary">{formatCurrency(upcomingTrip.earnings)}</p></div>
+          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between"><p className="text-xs text-slate-500">Lorry: {profile.name || user?.name}</p><p className="text-[15px] font-bold text-primary">{formatCurrency(upcomingTrip.earnings)}</p></div>
         </div>
       )}
     </div>
