@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShieldAlert, ArrowRight, X } from "lucide-react";
+import { useAuth } from "../../hooks/useAuth";
 
 const COPY = {
   pending: { text: "Complete your KYC to start accepting jobs — most checks clear instantly.", cta: "Complete KYC" },
@@ -15,21 +16,13 @@ const dismissKey = (userId, kycStatus) => `kyc_banner_dismissed_${userId}_${kycS
 // back if the status itself changes (e.g. pending -> rejected has something new to say).
 export default function KycReminderBanner() {
   const navigate = useNavigate();
-  const [user, setUser] = useState(null);
+  // Live context, not a one-time localStorage snapshot (what this read before) — the old version
+  // read localStorage exactly once on mount and never again, so it never reflected a correction
+  // that landed after that (useAuth's own background re-check, or Onboarding.jsx's updateUser
+  // call right after a successful verify) without a full remount. One AuthProvider already wraps
+  // both the broker and driver layouts (see App.jsx), so this works under either one directly.
+  const { user } = useAuth();
   const [dismissed, setDismissed] = useState(true);
-
-  // Reads straight from the same localStorage session useAuth uses, without importing useAuth
-  // itself, so this component works whether it's rendered under the broker or driver layout.
-  useEffect(() => {
-    try {
-      const b = localStorage.getItem("ssk_broker_auth");
-      const d = localStorage.getItem("ssk_driver_auth");
-      const raw = b || d;
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setUser(parsed.user);
-    } catch { /* ignore */ }
-  }, []);
 
   useEffect(() => {
     if (!user) return;
