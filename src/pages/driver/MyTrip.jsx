@@ -20,6 +20,7 @@ import { useBookingPaymentSocket } from "../../hooks/useBookingPaymentSocket";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 import { api, getToken } from "../../services/api";
 import { DRIVER_STATUS_STEPS, adaptTrip, formatCurrency, formatDateTime, bookingRef, splitLocationName } from "../../utils";
+import { pushFreshTripLocation } from "../../lib/tripLocation";
 
 // Declining is only allowed before the driver has started the trip — trips are created
 // with raw status "confirmed" and move to "en_route_pickup" once "Start Trip to Pickup" is
@@ -199,6 +200,11 @@ export default function MyTrip() {
     setPickupOtpError("");
     setSubmittingPickupOtp(true);
     try {
+      // Best-effort fresh GPS fix pushed to this trip right before the status check runs — closes
+      // the gap where the background tracker's last fix for THIS trip hasn't landed yet (a trip
+      // that only just started, or a slow device location provider), which otherwise rejected a
+      // driver standing right at the pickup point with "current location is not available yet".
+      await pushFreshTripLocation(trip.id);
       const response = await api.patch(
         `/api/trips/${trip.id}/status`,
         { status: "picked_up", pickup_otp: pickupOtpInput.trim() },

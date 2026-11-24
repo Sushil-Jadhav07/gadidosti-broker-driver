@@ -9,6 +9,7 @@ import { api, getToken, API_BASE } from "../../services/api";
 import { adaptTrip, bookingRef, formatCurrency } from "../../utils";
 import { compressImage } from "../../lib/imageCompression";
 import { extractQrCrop } from "../../lib/qrCrop";
+import { pushFreshTripLocation } from "../../lib/tripLocation";
 import { useTripStatusSocket } from "../../hooks/useTripStatusSocket";
 
 const MAX_MEDIA = 6;
@@ -679,6 +680,9 @@ export default function DeliveryCompletionFlow({ trip: initialTrip, onExit }) {
   const handleConfirmArrival = async () => {
     setConfirmingArrival(true);
     try {
+      // Same fix as the pickup OTP flow (MyTrip.jsx) — push a fresh fix right before the
+      // proximity check runs so it's never rejected over a stale/missing location for THIS trip.
+      await pushFreshTripLocation(trip.id);
       const response = await api.patch(`/api/trips/${trip.id}/status`, { status: "delivered" }, getToken());
       if (!response.success) throw new Error(response.message || "Failed to update trip status");
       setTrip(adaptTrip(response.data.trip));
