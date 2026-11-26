@@ -74,6 +74,9 @@ export default function MyTrip() {
   const [pickupOtpInput, setPickupOtpInput] = useState("");
   const [submittingPickupOtp, setSubmittingPickupOtp] = useState(false);
   const [pickupOtpError, setPickupOtpError] = useState("");
+  // Only ever shown/required when the client didn't already supply one at booking time
+  // (trip.ewayBillNumber null) — see trip.controller.js's updateTripStatus.
+  const [ewayBillInput, setEwayBillInput] = useState("");
 
   const loadTrips = async (preferTripId) => {
     setLoading(true);
@@ -183,6 +186,7 @@ export default function MyTrip() {
     if (nextStatus === "picked_up") {
       setPickupOtpInput("");
       setPickupOtpError("");
+      setEwayBillInput("");
       setShowPickupOtpPrompt(true);
       return;
     }
@@ -195,9 +199,19 @@ export default function MyTrip() {
     }
   };
 
+  // The client often doesn't have an E-Way Bill number yet at booking time — if they never
+  // supplied one, the driver must now (trip.ewayBillNumber is null in exactly that case; see
+  // trip.controller.js's updateTripStatus, which is the actual enforcement — this is just the
+  // same requirement surfaced before the API round trip instead of after it fails).
+  const needsEwayBill = !trip?.ewayBillNumber;
+
   const handleConfirmPickupOtp = async () => {
     if (!trip) return;
     setPickupOtpError("");
+    if (needsEwayBill && !ewayBillInput.trim()) {
+      setPickupOtpError("Enter the E-Way Bill number to confirm pickup.");
+      return;
+    }
     setSubmittingPickupOtp(true);
     try {
       // Best-effort fresh GPS fix pushed to this trip right before the status check runs — closes
@@ -207,7 +221,11 @@ export default function MyTrip() {
       await pushFreshTripLocation(trip.id);
       const response = await api.patch(
         `/api/trips/${trip.id}/status`,
-        { status: "picked_up", pickup_otp: pickupOtpInput.trim() },
+        {
+          status: "picked_up",
+          pickup_otp: pickupOtpInput.trim(),
+          ...(needsEwayBill ? { eway_bill_number: ewayBillInput.trim() } : {}),
+        },
         getToken()
       );
       if (!response.success) throw new Error(response.message || "Failed to confirm pickup");
@@ -640,10 +658,24 @@ export default function MyTrip() {
             placeholder="0000"
             className="w-32 text-center text-2xl font-bold tracking-[0.4em] rounded-xl border-2 border-slate-100 focus:border-primary py-3 outline-none transition-colors"
           />
+          {needsEwayBill && (
+            <div className="w-full text-left">
+              <label className="text-xs font-medium text-slate-500 mb-1 block">
+                E-Way Bill No. <span className="text-danger font-normal">(required — not provided at booking)</span>
+              </label>
+              <input
+                type="text"
+                value={ewayBillInput}
+                onChange={(e) => setEwayBillInput(e.target.value.trim())}
+                placeholder="e.g. 123456789012"
+                className="w-full rounded-xl border-2 border-slate-100 focus:border-primary py-2.5 px-3 text-sm outline-none transition-colors"
+              />
+            </div>
+          )}
           {pickupOtpError && <p className="text-xs text-danger">{pickupOtpError}</p>}
           <button
             onClick={handleConfirmPickupOtp}
-            disabled={submittingPickupOtp || pickupOtpInput.length !== 4}
+            disabled={submittingPickupOtp || pickupOtpInput.length !== 4 || (needsEwayBill && !ewayBillInput.trim())}
             className="w-full mt-2 py-3 rounded-xl font-semibold text-[15px] text-white bg-primary disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 active:scale-[0.98] transition-all"
           >
             {submittingPickupOtp ? "Confirming..." : "Confirm Pickup"}
